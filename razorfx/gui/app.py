@@ -32,6 +32,7 @@ from .preview import PreviewWidget, ScenePainter
 from .layoututil import FlowLayout, install_wheel_guard
 from .widgets import ColorButton, SliderRow, ParamForm, Collapsible, make_control
 from .plugin_host import GuiPluginHost
+from . import about
 from .appearance import SystemAppearance, ThemeController
 from ..effects import A as ADV
 
@@ -201,6 +202,7 @@ class MainWindow(QMainWindow):
         self._was_connected = False
         self._last_effect = None
         self._graveyard = []          # replaced widgets waiting for deleteLater (see _retire)
+        self.edition = plugin_api.Edition()          # "Free" unless the Pro add-on says otherwise
         self.plugin_host = GuiPluginHost(self)
         self.plugins = plugin_api.PluginManager(self.plugin_host, plugin_dirs)
 
@@ -501,41 +503,34 @@ class MainWindow(QMainWindow):
         QMessageBox.aboutQt(self, "About Qt")
 
     def about_text(self):
-        return ("<h3>%(n)s %(v)s</h3>"
-                "<p>Selectable, Chroma-style lighting effects for Razer keyboards and mice "
-                "on Linux, built on OpenRazer.</p>"
-                "<p>%(c)s</p>"
-                "<p>This program is free software: you can redistribute it and/or modify it under "
-                "the terms of the GNU General Public License as published by the Free Software "
-                "Foundation, either version 3 of the License, or (at your option) any later version, "
-                "with the RazorFX plugin exception: independent plugins that use only the documented "
-                "plugin API may carry their own license (SPDX: %(l)s).<br>"
-                "This program is distributed in the hope that it will be useful, "
-                "but <b>without any warranty</b>; without even the implied warranty of "
-                "merchantability or fitness for a particular purpose. See the "
-                "<a style='color:#44d62c' href='https://www.gnu.org/licenses/gpl-3.0.html'>GNU GPL v3</a> and "
-                "<a style='color:#44d62c' href='%(r)s/blob/main/LICENSE-EXCEPTION'>LICENSE-EXCEPTION</a> for details.</p>"
-                "<p>Source code: <a style='color:#44d62c' href='%(r)s'>%(r)s</a></p>"
-                "<p><b>%(tm)s</b></p>"
-                "<p style='color:#8c8c96'>Uses OpenRazer (GPL-2.0-or-later) and Qt for Python / PySide6 "
-                "(LGPL-3.0); keyboard/mouse layout facts cross-checked against OpenRazer, OpenRGB and "
-                "Polychromatic. Chroma is also a trademark of Razer Inc.; Razer product names are used "
-                "only to describe compatibility.</p>"
-                % {"n": APP_NAME, "v": __version__, "c": COPYRIGHT, "l": LICENSE, "r": REPO_URL,
-                   "tm": TRADEMARK_NOTICE})
+        return about.about_html(self.edition)
+
+    def set_edition(self, edition):
+        """plugin API hook (ctx.set_edition): "Free", or e.g. "Pro - licensed to <name>" in About"""
+        self.edition = edition
+        box = getattr(self, "_about_box", None)
+        if box is not None and shiboken6.isValid(box):
+            box.refresh()
+
+    def system_info(self):
+        desc = None
+        if self.theme_ctl is not None:
+            desc = "%s theme, accent %s (setting: %s / %s)" % (self.theme_ctl.scheme, self.theme_ctl.accent,
+                                                               self.theme_ctl.theme_pref, self.theme_ctl.accent_pref)
+            if self.appearance is not None:
+                desc += "\n  " + self.appearance.describe()
+        return about.system_info(self.status if self.link.ok else None, self.edition, desc,
+                                 self.plugins, self.link.ok)
 
     def show_about(self):
-        box = QMessageBox(self)
-        box.setWindowTitle("About %s" % APP_NAME)
-        box.setTextFormat(Qt.TextFormat.RichText)
-        box.setText(self.about_text())
-        box.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-        ic = self.windowIcon()
-        if not ic.isNull():
-            box.setIconPixmap(ic.pixmap(64, 64))
-        box.setStandardButtons(QMessageBox.StandardButton.Close)
-        self._about_box = box
-        box.open()
+        box = getattr(self, "_about_box", None)
+        if box is None or not shiboken6.isValid(box):
+            box = self._about_box = about.AboutDialog(self)
+        else:
+            box.refresh()
+        box.show()
+        box.raise_()
+        box.activateWindow()
         return box
 
     def _build_header(self):
@@ -1592,6 +1587,8 @@ def main(argv=None):
     ap.add_argument("--effect", default=None)
     ap.add_argument("--delay", type=int, default=2500)
     ap.add_argument("--advanced", action="store_true", help="(testing) open the Advanced sections")
+    ap.add_argument("--about", type=int, nargs="?", const=0, default=None,
+                    help="(testing) open Help > About on this tab (0-3); --screenshot then grabs the dialog")
     ap.add_argument("--scroll-to", default=None, choices=("appearance",), help="(testing) scroll a settings group into view")
     ap.add_argument("--no-plugins", action="store_true", help="start without loading any plugins (also: RAZORFX_NO_PLUGINS=1)")
     ap.add_argument("--theme", choices=("system", "dark", "light"), default=None,
@@ -1626,9 +1623,15 @@ def main(argv=None):
     if args.scroll_to:
         QTimer.singleShot(max(200, args.delay - 600),
                           lambda: w.tab_settings.ensureWidgetVisible(getattr(w, args.scroll_to + "_box"), 0, 0))
+    if args.about is not None:
+        def open_about():
+            box = w.show_about()
+            box.tabs.setCurrentIndex(args.about)
+        QTimer.singleShot(max(200, args.delay - 900), open_about)
     if args.screenshot:
         def shot():
-            w.grab().save(args.screenshot)
+            target = w._about_box if args.about is not None and getattr(w, "_about_box", None) else w
+            target.grab().save(args.screenshot)
             app.quit()
         QTimer.singleShot(args.delay, shot)
     rc = app.exec()

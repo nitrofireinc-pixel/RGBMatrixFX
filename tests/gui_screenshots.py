@@ -46,7 +46,9 @@ shots = [("01-main-flame.png", ["--tab", "0"]),
          ("07-effect-starlight.png", ["--tab", "0", "--effect", "starlight"]),
          ("08-effect-aurora.png", ["--tab", "0", "--effect", "aurora"]),
          ("10-flame-advanced.png", ["--tab", "0", "--effect", "flame", "--advanced"]),
-         ("11-reactive-advanced.png", ["--tab", "1", "--advanced"])]
+         ("11-reactive-advanced.png", ["--tab", "1", "--advanced"]),
+         ("12-about.png", ["--about", "0"]),
+         ("13-about-sysinfo.png", ["--about", "3"])]
 try:
     for name, args in shots:
         if ONLY and name[:2] not in ONLY:

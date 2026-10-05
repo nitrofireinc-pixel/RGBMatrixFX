@@ -78,6 +78,7 @@ as failed. RazorFX keeps running.
 | `ctx.dialog_parent()` | `gui.dialog_parent` | A PySide6 `QWidget` to parent your own dialogs and windows to. Treat it as opaque |
 | `ctx.engine_status()` | `engine.status` | Read-only snapshot: `{"running", "effect", "preset", "paused", "keyboard", "mouse"}` (device names or `None`) |
 | `ctx.on(event, fn)` | `events` | Subscribe to `effect_changed(effect_id)`, `engine_connected()`, `engine_disconnected()` or `shutdown()` |
+| `ctx.set_edition(name, licensed_to=None)` | `app.edition` | Changes the edition shown in *Help ▸ About* from "Free" to, for example, "Pro — licensed to Jane Doe". Meant for the optional RazorFX Pro add-on after it has checked its own licence. Only one plugin may set it; another plugin's call raises `PluginError`. It is a label only and unlocks nothing |
 
 Calling a member whose capability the host does not offer raises
 `razorfx.plugin_api.PluginError`. Exceptions raised inside your menu actions and event

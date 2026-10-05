@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (QApplication, QGroupBox, QSlider, QAbstractSpinBo
                              QAbstractSlider)
 from PySide6.QtCore import QPointF, QPoint, Qt
 from PySide6.QtGui import QWheelEvent, QColor
+import razorfx
 from razorfx import layout as L
 from razorfx.effects import EFFECTS
 from razorfx.gui import theme
@@ -62,11 +63,56 @@ class TestGui(unittest.TestCase):
         box = self.w.show_about()
         self.assertTrue(box.isVisible())
         self.assertEqual(box.windowTitle(), "About RazorFX")
+        self.assertEqual([box.tabs.tabText(i) for i in range(box.tabs.count())],
+                         ["About", "Credits", "License", "System info"])
+        self.assertEqual(box.edition_lbl.text(), "Free edition")
+        about = box.pages["about"].toPlainText()
+        for want in ("Edition: Free", "Created by Nitrofire Computing", "https://github.com/nitrofireinc-pixel/razorFX",
+                     "without any warranty", "Not affiliated with or endorsed by Razer Inc."):
+            self.assertIn(want, about)
+        cred = box.pages["credits"].toPlainText()
+        for want in ("OpenRazer", "openrazer.github.io", "GPL-2.0-or-later", "PySide6", "LGPL-3.0"):
+            self.assertIn(want, cred)
+        lic = box.pages["license"].toPlainText()
+        for want in ("version 3 of the License", "WITHOUT ANY WARRANTY", "Plugin exception",
+                     "RazorFX Plugin Exception, version 1.0", "Razer is a trademark of Razer Inc."):
+            self.assertIn(want, lic)
+        text = box.copy_system_info()
+        self.assertEqual(app.clipboard().text(), text)
+        self.assertTrue(text.startswith("RazorFX 1.1.0-dev"))
+        self.assertIn("(Free edition)", text)
+        self.assertIn("Engine: not running", text)
         box.close()
         self.w.about_btn.click()
         spin(50)
+        self.assertIs(self.w._about_box, box)                # one dialog, reused
         self.assertTrue(self.w._about_box.isVisible())
         self.w._about_box.close()
+
+    def test_system_info_has_no_serials(self):
+        from razorfx.gui import about
+        from razorfx import plugin_api
+        st = {"fps": 30.0, "effect": "flame", "paused": False,
+              "keyboard": {"name": "Razer Cynosa Chroma", "serial": "PM1234567890KB", "pid": 0x022A,
+                           "matrix": [6, 22], "io": "sysfs", "hw_fps": 28.0},
+              "mouse": {"name": "Razer Mamba Wireless (Wired)", "serial": "PM0987654321MS", "pid": 0x0073,
+                        "matrix": [1, 16], "io": "dbus", "hw_fps": 27.0},
+              "openrazer": {"daemon": "3.10.2", "client": "3.10.2"},
+              "detected": [{"name": "Razer Cynosa Chroma", "type": "keyboard", "usb": "1532:022a", "firmware": "v1.0"},
+                           {"name": "Razer Mamba Wireless (Wired)", "type": "mouse", "usb": "1532:0073", "firmware": None},
+                           {"name": "Razer Firefly", "type": "mousemat", "usb": "1532:0c00", "firmware": None}],
+              "inputs": {"nodes": ["/dev/input/event3"], "evdev": True}}
+        t = about.system_info(st, plugin_api.Edition("Pro", "Jane Doe", "pro"), "dark theme", None, True)
+        self.assertNotIn("PM1234567890KB", t)
+        self.assertNotIn("PM0987654321MS", t)
+        self.assertNotIn("serial", t.lower())
+        self.assertNotIn(os.path.expanduser("~") + "/", t)
+        for want in ("(Pro edition)", "OpenRazer: daemon 3.10.2, client library 3.10.2", "Kernel: Linux ",
+                     "Keyboard: Razer Cynosa Chroma", "USB 1532:022a, firmware v1.0, matrix 6\u00d722, output sysfs",
+                     "Mouse: Razer Mamba Wireless (Wired)", "Other OpenRazer devices: Razer Firefly [mousemat, USB 1532:0c00]",
+                     "PySide6 ", "Appearance: dark theme", "Engine: running, 30.0 fps, effect flame"):
+            self.assertIn(want, t)
+        self.assertIn("Edition:</b> Pro \u2014 licensed to Jane Doe", about.about_html(plugin_api.Edition("Pro", "Jane Doe")))
 
     def test_slot_exception_under_exec_goes_to_excepthook(self):
         # PySide6 (unlike PyQt6) never aborts: under app.exec() a slot's exception goes to
@@ -182,6 +228,13 @@ class TestGui(unittest.TestCase):
             json.dump({"id": "broken", "name": "Broken", "version": "1", "api": "1.0", "module": "broken"}, f)
         with open(os.path.join(pdir, "broken", "broken.py"), "w") as f:
             f.write("def register(ctx):\n    raise RuntimeError('boom')\n")
+        for pid, code in (("pro", "def register(ctx):\n    ctx.set_edition('Pro', licensed_to='Trevor Olsen')\n"),
+                          ("rival", "def register(ctx):\n    ctx.set_edition('Ultra')\n")):
+            os.makedirs(os.path.join(pdir, pid))
+            with open(os.path.join(pdir, pid, "plugin.json"), "w") as f:
+                json.dump({"id": pid, "name": pid, "version": "1", "api": "1.0"}, f)
+            with open(os.path.join(pdir, pid, "plugin.py"), "w") as f:
+                f.write(code)
         old = {k: os.environ.get(k) for k in ("XDG_DATA_HOME", "XDG_CONFIG_HOME")}
         os.environ.update(XDG_DATA_HOME=os.path.join(self.d.name, "data"), XDG_CONFIG_HOME=os.path.join(self.d.name, "cfg"))
         try:
@@ -189,9 +242,17 @@ class TestGui(unittest.TestCase):
                            plugin_dirs=[os.path.join(here, "examples", "plugins"), pdir])
             w.show()
             spin(100)
-            self.assertEqual([lp.info.id for lp in w.plugins.loaded], ["hello"])
-            self.assertEqual(len(w.plugins.failed), 1)
-            self.assertIn("boom", w.plugins.failed[0][1])
+            self.assertEqual([lp.info.id for lp in w.plugins.loaded], ["hello", "pro"])
+            why = {os.path.basename(p): r for p, r in w.plugins.failed}
+            self.assertEqual(sorted(why), ["broken", "rival"])
+            self.assertIn("boom", why["broken"])
+            self.assertIn("already set by plugin 'pro'", why["rival"])
+            self.assertEqual(w.edition.label(), "Pro \u2014 licensed to Trevor Olsen")
+            box = w.show_about()
+            self.assertEqual(box.edition_lbl.text(), "Pro \u2014 licensed to Trevor Olsen")
+            self.assertIn("Edition: Pro \u2014 licensed to Trevor Olsen", box.pages["about"].toPlainText())
+            self.assertIn("RazorFX %s (Pro edition)" % razorfx.__version__, box.system_info())
+            box.close()
             info = w.plugin_info.text()
             self.assertIn("Hello plugin 0.1.0", info)
             self.assertIn("broken", info)

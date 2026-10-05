@@ -270,6 +270,8 @@ class DeviceHub:
         self._last_msg = None
         self.lock = threading.Lock()           # one D-Bus user at a time
         self.opts = dict(DEFAULT_IO)
+        self.openrazer = None                  # {"daemon": version, "client": version} once connected
+        self.detected = []                     # every OpenRazer device: name, type, USB id (no serials)
 
     def _note(self, msg):
         if msg != self._last_msg:
@@ -336,6 +338,7 @@ class DeviceHub:
                 dm = DeviceManager()
                 dm.sync_effects = False
                 devs = list(dm.devices)
+                detected = [self._describe(d) for d in devs]
                 kb = mouse = None
                 for d in devs:
                     if d.fx.advanced is None:
@@ -362,6 +365,8 @@ class DeviceHub:
                     new.start()
                 setattr(self, which, new)
             self.dm = dm
+            self.openrazer = self._versions(dm)
+            self.detected = detected
             self.state = "ok" if self.any else "no-devices"
             after = (self.kb.serial if self.kb else None, self.mouse.serial if self.mouse else None)
             if after != before:
@@ -440,7 +445,31 @@ class DeviceHub:
             except Exception as e:
                 log("exit effect on %s failed: %s" % (out.name, e))
 
+    @staticmethod
+    def _versions(dm):
+        out = {}
+        for k, attr in (("daemon", "daemon_version"), ("client", "version")):
+            try:
+                out[k] = str(getattr(dm, attr))
+            except Exception:
+                out[k] = None
+        return out
+
+    @staticmethod
+    def _describe(d):
+        """what About > Copy system info lists for a device; deliberately no serial number"""
+        def get(name, default=None):
+            try:
+                return getattr(d, name)
+            except Exception:
+                return default
+        vid, pid = get("_vid"), get("_pid")
+        usb = "%04x:%04x" % (vid, pid) if isinstance(vid, int) and isinstance(pid, int) else None
+        return {"name": str(get("name", "?")), "type": str(get("type", "?")), "usb": usb,
+                "firmware": str(get("firmware_version", "") or "") or None}
+
     def info(self):
         return {"state": self.state,
                 "keyboard": self.kb.info() if self.kb else None,
-                "mouse": self.mouse.info() if self.mouse else None}
+                "mouse": self.mouse.info() if self.mouse else None,
+                "openrazer": self.openrazer, "detected": list(self.detected)}

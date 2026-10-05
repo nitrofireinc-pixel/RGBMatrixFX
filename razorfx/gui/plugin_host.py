@@ -8,7 +8,7 @@ from . import safety
 
 class GuiPluginHost:
     capabilities = frozenset({api.CAP_LOG, api.CAP_SETTINGS, api.CAP_STORAGE, api.CAP_MENU,
-                              api.CAP_DIALOG_PARENT, api.CAP_STATUS, api.CAP_EVENTS})
+                              api.CAP_DIALOG_PARENT, api.CAP_STATUS, api.CAP_EVENTS, api.CAP_EDITION})
 
     def __init__(self, window):
         self._w = window
@@ -29,6 +29,13 @@ class GuiPluginHost:
         act.triggered.connect(lambda *_: fn())
         self.actions.append((info.id, act))
         return act
+
+    def set_edition(self, info, edition):
+        cur = self._w.edition
+        if cur.plugin_id not in (None, info.id):
+            raise api.PluginError("the edition was already set by plugin %r" % cur.plugin_id)
+        self._w.set_edition(edition)
+        safety.log("edition: %s (set by plugin %s)" % (edition.label(), info.id))
 
     def dialog_parent(self):
         return self._w

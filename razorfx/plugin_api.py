@@ -42,8 +42,9 @@ CAP_MENU = "gui.menu"                # ctx.add_menu_action() (GUI host only)
 CAP_DIALOG_PARENT = "gui.dialog_parent"   # ctx.dialog_parent() (GUI host only)
 CAP_STATUS = "engine.status"         # ctx.engine_status()
 CAP_EVENTS = "events"                # ctx.on("effect_changed" | "engine_connected" | "engine_disconnected" | "shutdown", fn)
+CAP_EDITION = "app.edition"          # ctx.set_edition() (for the RazorFX Pro add-on; a label only)
 ALL_CAPABILITIES = frozenset({CAP_LOG, CAP_SETTINGS, CAP_STORAGE, CAP_MENU, CAP_DIALOG_PARENT,
-                              CAP_STATUS, CAP_EVENTS})
+                              CAP_STATUS, CAP_EVENTS, CAP_EDITION})
 EVENTS = ("effect_changed", "engine_connected", "engine_disconnected", "shutdown")
 
 MANIFEST = "plugin.json"
@@ -53,6 +54,39 @@ _MOD_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 class PluginError(Exception):
     """a plugin could not be discovered or loaded (the message says why)"""
+
+
+EDITION_FREE = "Free"
+_CTRL_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+
+class Edition:
+    """Which edition the About dialog shows: "Free", or e.g. "Pro — licensed to Jane Doe".
+
+    The free build is always "Free". The (separate, optional) RazorFX Pro add-on calls
+    ``ctx.set_edition("Pro", licensed_to=...)`` once it has checked its own licence. This is a
+    label only: nothing in RazorFX is enabled or disabled by it."""
+
+    def __init__(self, name=EDITION_FREE, licensed_to=None, plugin_id=None):
+        self.name = name
+        self.licensed_to = licensed_to
+        self.plugin_id = plugin_id
+
+    @staticmethod
+    def clean(text, limit):
+        return _CTRL_RE.sub(" ", str(text)).strip()[:limit]
+
+    @property
+    def is_free(self):
+        return self.name == EDITION_FREE
+
+    def label(self):
+        if self.licensed_to:
+            return "%s \u2014 licensed to %s" % (self.name, self.licensed_to)
+        return self.name
+
+    def __repr__(self):
+        return "Edition(%r, %r, %r)" % (self.name, self.licensed_to, self.plugin_id)
 
 
 class PluginInfo:
@@ -188,6 +222,18 @@ class PluginContext:
             raise ValueError("unknown event %r (known: %s)" % (event, ", ".join(EVENTS)))
         self._handlers[event].append(self._guard(callback, event))
 
+    # -- edition
+    def set_edition(self, name, licensed_to=None):
+        """Show ``name`` (e.g. "Pro") and "licensed to <licensed_to>" in Help > About. Only one
+        plugin may set the edition; a second, different plugin gets PluginError. The value is a
+        label and unlocks nothing by itself."""
+        self._need(CAP_EDITION)
+        name = Edition.clean(name, 24)
+        if not name:
+            raise ValueError("edition name must not be empty")
+        who = Edition.clean(licensed_to, 80) if licensed_to else None
+        self._host.set_edition(self._info, Edition(name, who or None, self._info.id))
+
     # -- internal (host side)
     def _need(self, cap):
         if cap not in self.capabilities:
@@ -279,7 +325,7 @@ def _import(info):
 class PluginManager:
     """Host side: discovers, loads and unloads plugins. ``host`` provides
     capabilities (set of CAP_*), log(msg), and, for the capabilities it offers,
-    add_menu_action(info, text, fn), dialog_parent(), engine_status()."""
+    add_menu_action(info, text, fn), dialog_parent(), engine_status(), set_edition(info, edition)."""
 
     def __init__(self, host, dirs=None):
         self.host = host

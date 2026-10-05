@@ -48,6 +48,15 @@ Test builds for Trevor's PC are numbered 1.1.0-dev.N. Nothing is published until
   your *Start engine at login* choice on upgrade. `uninstall.sh` keeps your plugins unless `--purge`.
 
 ### Added
+- **Expanded About dialog** (Help ▸ About, F1, header button), with About, Credits, License
+  and System info tabs. It shows the version, the **edition** ("Free", or "Pro — licensed to …"
+  set through the new plugin API hook `ctx.set_edition()`, capability `app.edition`), the creator
+  Nitrofire Computing with the repository link, GPL-3.0-or-later with the plugin exception
+  (the full text when installed), OpenRazer credits and the Razer trademark disclaimer.
+  **Copy system info** puts the RazorFX, Python, PySide6/Qt, OpenRazer daemon/library, driver
+  module, kernel, OS and desktop versions plus the detected devices on the clipboard. It
+  includes USB ids and firmware, but **no serial numbers**, and the home directory is shown as `~`.
+  The engine status now reports the OpenRazer versions and all detected devices for this.
 - **The window follows the desktop's theme**: light or dark, plus the accent colour, read from the XDG
   desktop portal (`org.freedesktop.appearance` `color-scheme` / `accent-color`). It updates live
   when you switch on the desktop, without a restart. Fallbacks, in order: KDE's `kdeglobals`

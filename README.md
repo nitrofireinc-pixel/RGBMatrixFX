@@ -238,8 +238,11 @@ Open **RazorFX** from the app menu, or run `razorfx`.
 * **Header**: preset picker, **Save**, the **Presets ▾** menu (save as, duplicate, rename, revert,
   delete, export this preset or all of them, import, restore built-ins), master brightness, **Pause**,
   **Gamer Controls** and **Hand back to Polychromatic** (stops the engine).
-* **Help ▸ About** shows the version, the license and the project link
-  ([screenshot](docs/screenshots/09-about.png)).
+* **Help ▸ About** (F1, or the About button in the header) shows the version and edition, the
+  creator (Nitrofire Computing) and project link, the license with the plugin exception, the
+  credits (OpenRazer first) and the Razer trademark notice. **Copy system info** copies the
+  app, Python, PySide6/Qt, OpenRazer, driver and kernel versions plus the detected devices
+  (never serial numbers) for bug reports ([screenshot](docs/screenshots/12-about.png)).
 
 Command line:
 ```
