@@ -252,6 +252,10 @@ class TestGui(unittest.TestCase):
         # the locked chip explains itself, and the setting hides it
         w.gamer_chips.add_chip.click()
         self.assertIn("RazorFX Pro", w.statusBar().currentMessage())
+        from razorfx import pro_status
+        if not pro_status.PRO_FOR_SALE:                                  # Trevor: "Coming soon" until launch
+            self.assertIn("coming soon", w.gamer_chips.add_chip.text())
+            self.assertIn("coming soon", w.statusBar().currentMessage())
         w.teaser_cb.setChecked(False)
         self.assertIsNone(w.gamer_chips.add_chip)
         w.teaser_cb.setChecked(True)

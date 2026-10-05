@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (QFileDialog, QToolButton, QMenu,
                              QLineEdit, QInputDialog, QMessageBox, QSpinBox, QGroupBox, QSizePolicy, QStyle)
 
 from .. import paths as P
+from .. import pro_status
 from .. import (config, ipc, layout as L, plugin_api, __version__, APP_ID, APP_NAME, REPO_URL, COPYRIGHT,
                LICENSE, TRADEMARK_NOTICE)
 from ..effects import EFFECTS, EFFECT_BY_ID
@@ -590,8 +591,8 @@ class MainWindow(QMainWindow):
         return "locked" if self.show_pro_teasers() else "hidden"
 
     def _pro_teaser_clicked(self):
-        self.statusBar().showMessage("Adding your own Gamer Controls keys is a RazorFX Pro feature. "
-                                     "Free: remove keys, or restore the defaults. "
+        self.statusBar().showMessage(pro_status.teaser_message("Adding your own Gamer Controls keys") +
+                                     " Free: remove keys, or restore the defaults. "
                                      "(Settings \u25b8 Plugins hides these previews.)", 10000)
 
     def system_info(self):

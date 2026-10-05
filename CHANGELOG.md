@@ -63,7 +63,9 @@ Test builds for Trevor's PC are numbered 1.1.0-dev.N. Nothing is published until
   the text field are gone. Keys already in a config, such as SPACE, still show as chips. Removing
   a chip uses the same deferred deletion as the crash fix, and `tests/gui_stress.py` covers it.
 - **Pro preview: + Add key**. A chip that opens a "Press any key…" prompt (Esc cancels) and adds
-  the pressed key as a chip. The free build shows it as a locked "Add key · Pro" chip. *Settings ▸
+  the pressed key as a chip. The free build shows it as a locked "Add key · Pro: coming soon"
+  chip. All Pro previews take their label and their purchase/install state from one flag,
+  `razorfx/pro_status.py` `PRO_FOR_SALE` (False until Pro launches). *Settings ▸
   Plugins ▸ Show RazorFX Pro previews* hides it. The Pro add-on unlocks it through the new plugin
   API call `ctx.enable_feature("gamer.add_key")` (capability `app.features`; for now the host only
   checks which plugin set the edition).

@@ -296,8 +296,9 @@ On the Highlight keys tab the keys appear as keycap chips: **[W] [A] [S] [D]**. 
 click its chip (or Tab to it) and press Backspace or Delete, or hover over it and click its **×**.
 **Restore defaults** brings back W A S D in white, and you can change the colour there too
 ([screenshot](docs/screenshots/13-gamer-chips.png)). Adding your own keys (**+ Add key**, then press
-any key) is a RazorFX Pro feature. The free version shows it as a locked chip, which you can hide
-with *Settings ▸ Plugins ▸ Show RazorFX Pro previews*. The setting is global (`gamer_controls`, `gamer_keys`,
+any key) will be a RazorFX Pro feature. Pro isn't for sale yet, so the free version shows a locked
+"Add key · Pro: coming soon" chip, which you can hide with *Settings ▸ Plugins ▸ Show RazorFX Pro
+previews*. The setting is global (`gamer_controls`, `gamer_keys`,
 `gamer_color` in `config.json`) and separate from each preset's own highlight groups. It is off by default.
 
 ## Configuration
