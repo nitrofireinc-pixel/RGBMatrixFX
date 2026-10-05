@@ -173,6 +173,7 @@ class Engine:
 
     def run(self, duration=None):
         log("engine started (pid %d), socket %s" % (os.getpid(), self.server.path))
+        sd_notify("READY=1\nMAINPID=%d" % os.getpid())
         next_frame = self.clock()
         next_scan_inputs = 0.0
         next_cfg_check = 0.0
@@ -255,6 +256,26 @@ class Engine:
         self.inputs.close()
         self.server.close()
         log("engine stopped (exit: %s)" % mode)
+
+
+def sd_notify(msg):
+    """Tell systemd we're up, when it asked (Type=notify sets NOTIFY_SOCKET). The AppImage's
+    unit uses this: the AppImage runtime is the process systemd starts, so MAINPID points
+    systemctl stop/reload (SIGTERM/SIGHUP) at the engine itself instead of the runtime."""
+    addr = os.environ.get("NOTIFY_SOCKET")
+    if not addr:
+        return False
+    import socket
+    if addr.startswith("@"):
+        addr = "\0" + addr[1:]
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as s:
+            s.connect(addr)
+            s.sendall(msg.encode())
+        return True
+    except OSError as e:
+        log("sd_notify failed: %s" % e)
+        return False
 
 
 def main(argv=None):

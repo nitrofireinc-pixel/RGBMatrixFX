@@ -625,7 +625,10 @@ class _Env:
     def __enter__(self):
         for k, v in self.kw.items():
             self.old[k] = os.environ.get(k)
-            os.environ[k] = v
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
         return self
 
     def __exit__(self, *a):
@@ -701,7 +704,7 @@ class TestNoPyQt(unittest.TestCase):
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         bad = []
         for dp, dn, fn in os.walk(root):
-            dn[:] = [x for x in dn if x not in (".git", "__pycache__")]
+            dn[:] = [x for x in dn if x not in (".git", "__pycache__", "build", "dist")]
             for f in fn:
                 if f.endswith(".py") or dp.endswith("bin"):
                     path = os.path.join(dp, f)
@@ -844,3 +847,21 @@ class TestAppearanceKde(unittest.TestCase):
                 self.assertGreaterEqual(theme.contrast(d["TEXT"], d["BG"]), 7, scheme)
                 self.assertGreaterEqual(theme.contrast(d["ON_ACCENT"], d["ACCENT"]), 2.4, (scheme, acc))
                 self.assertNotIn("%(", theme.QSS % d)
+
+
+class TestSdNotify(unittest.TestCase):
+    def test_notify_socket(self):
+        import socket
+        from razorfx import engine
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "notify")
+            srv = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+            srv.bind(path)
+            try:
+                with _Env(NOTIFY_SOCKET=path):
+                    self.assertTrue(engine.sd_notify("READY=1\nMAINPID=%d" % os.getpid()))
+                self.assertEqual(srv.recv(200).decode(), "READY=1\nMAINPID=%d" % os.getpid())
+            finally:
+                srv.close()
+        with _Env(NOTIFY_SOCKET=None):
+            self.assertFalse(engine.sd_notify("READY=1"))

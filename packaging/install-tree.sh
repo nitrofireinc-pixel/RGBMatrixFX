@@ -57,7 +57,9 @@ chmod 0644 "$DESTDIR$UNITDIR/razorfx-engine.service"
 install -d "$DESTDIR$DOCDIR/examples/plugins/hello"
 install -m 0644 "$SRC/README.md" "$SRC/CHANGELOG.md" "$SRC/PARAMETERS.md" "$SRC/LICENSE-EXCEPTION" "$DESTDIR$DOCDIR/"
 install -m 0644 "$SRC/docs/PLUGIN_API.md" "$DESTDIR$DOCDIR/"
-install -m 0644 "$SRC"/examples/plugins/hello/* "$DESTDIR$DOCDIR/examples/plugins/hello/"
+for f in "$SRC"/examples/plugins/hello/*; do
+    if [ -f "$f" ]; then install -m 0644 "$f" "$DESTDIR$DOCDIR/examples/plugins/hello/"; fi
+done
 if [ -n "$LICENSEDIR" ]; then
     install -D -m 0644 "$SRC/LICENSE" "$DESTDIR$LICENSEDIR/LICENSE"
     install -m 0644 "$SRC/LICENSE-EXCEPTION" "$DESTDIR$LICENSEDIR/LICENSE-EXCEPTION"
