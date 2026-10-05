@@ -102,7 +102,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.TAG }}
-      - run: sudo apt-get update -q && sudo apt-get install -y -q libdbus-1-dev libglib2.0-dev pkg-config
+      # libegl1 and libgl1: the AppImage smoke test imports PySide6 (Qt6Gui needs them).
+      # They stay on the host; the AppImage does not bundle OpenGL.
+      - run: sudo apt-get update -q && sudo apt-get install -y -q libdbus-1-dev libglib2.0-dev pkg-config libegl1 libgl1 libxkbcommon0 libfontconfig1
       - uses: actions/cache@v4
         with:
           path: build/appimage/cache

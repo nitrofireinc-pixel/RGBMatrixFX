@@ -6,7 +6,8 @@
 # the OpenRazer client library. Uses from the host: the OpenRazer driver + daemon, systemd,
 # glibc >= 2.28, X11/Wayland and OpenGL libraries, libdbus-1, and libxcb-cursor0 on X11.
 # Needs: curl, gcc, pkg-config, meson, ninja, libdbus-1-dev, libglib2.0-dev (to build
-# dbus-python), linux headers (evdev). Downloads are cached in build/appimage/cache.
+# dbus-python), linux headers (evdev), and libegl1 libgl1 libxkbcommon0 libfontconfig1
+# so the import smoke test can load PySide6. Downloads are cached in build/appimage/cache.
 set -eu
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 V="$("$ROOT/packaging/version.sh" upstream)"

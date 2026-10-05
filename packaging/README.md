@@ -10,7 +10,7 @@ CI does the same in `.github/workflows/release.yml` when a `v*` tag is pushed.
 | `razorfx_<v>_all.deb` | `packaging/build-deb.sh` | debhelper, dh-python, devscripts, lintian | lintian (clean) |
 | `razorfx-<v>-1.noarch.rpm` | `packaging/build-rpm.sh` (`RPMBUILD_OPTS=--nodeps` off Fedora) | rpm-build, rpmlint | rpmlint, filters in `rpmlintrc` |
 | `build/aur/PKGBUILD`, `.SRCINFO` | `packaging/aur/make-pkgbuild.sh` (`--local TARBALL` to test) | makepkg for `.SRCINFO` | namcap (CI) |
-| `RazorFX-<v>-x86_64.AppImage` | `packaging/appimage/build-appimage.sh` | curl, gcc, pkg-config, libdbus-1-dev, libglib2.0-dev | `tests/appimage_test.py` |
+| `RazorFX-<v>-x86_64.AppImage` | `packaging/appimage/build-appimage.sh` | curl, gcc, pkg-config, libdbus-1-dev, libglib2.0-dev, libegl1, libgl1 | `tests/appimage_test.py` |
 
 * `install-tree.sh` is the single description of the system layout (`/usr/share/razorfx`,
   launchers, desktop entry, icons, AppStream metainfo, man pages, the user unit). All four
