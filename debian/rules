@@ -1,0 +1,27 @@
+#!/usr/bin/make -f
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
+export PYBUILD_NAME=razorfx
+
+%:
+	dh $@ --with python3
+
+override_dh_auto_build:
+
+override_dh_auto_test:
+
+override_dh_auto_install:
+	DESTDIR=$(CURDIR)/debian/razorfx PREFIX=/usr PYTHON=/usr/bin/python3 \
+	    sh packaging/install-tree.sh
+
+override_dh_python3:
+	dh_python3 /usr/share/razorfx
+
+# The engine is a per-user choice (Settings > Start engine at login), so the
+# user unit is installed but not enabled globally; the GUI enables it per user.
+override_dh_installsystemduser:
+	dh_installsystemduser --no-enable
+
+# CHANGELOG.md is shipped as-is in the doc dir; changelog.gz stays the Debian one
+override_dh_installchangelogs:
+	dh_installchangelogs -XCHANGELOG.md

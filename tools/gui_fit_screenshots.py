@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """Open the GUI on emulated screens (Qt offscreen platform) and check that it fits.
   python3 tools/gui_fit_screenshots.py [outdir]
 For each screen: first-run window size (90% of the available area), the window's
@@ -13,9 +13,9 @@ SCREENS = [("1920x1080", 1920, 1080, 1.0), ("1366x768", 1366, 768, 1.0), ("1920x
 CHILD = r'''
 import json, os, sys, time
 sys.path.insert(0, HERE)
-from PyQt6.QtWidgets import QApplication
-from razerfx.gui import theme
-from razerfx.gui.app import MainWindow
+from PySide6.QtWidgets import QApplication
+from razorfx.gui import theme
+from razorfx.gui.app import MainWindow
 app = QApplication([]); theme.apply(app)
 w = MainWindow(sock_path=os.path.join(TMP, "none.sock"), cfg_path=os.path.join(TMP, "config.json"))
 w.show_initial()
@@ -57,7 +57,7 @@ def run(name, wd, ht, dpr, out):
 
 
 def main():
-    out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(tempfile.gettempdir(), "razer-fx-fit")
+    out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(tempfile.gettempdir(), "razorfx-fit")
     os.makedirs(out, exist_ok=True)
     ok = True
     for name, wd, ht, dpr in SCREENS:

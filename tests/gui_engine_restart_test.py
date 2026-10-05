@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """The GUI must survive engine stops/restarts/crashes and reconnect by itself.
 Run:  python3 tests/gui_engine_restart_test.py      (offscreen Qt, real engine, no devices)
 A) in-process MainWindow: SIGTERM + fast restart (like systemctl restart), SIGKILL with
    a stale socket, slow restart, exception inside a Qt slot.
-B) the real launcher (bin/razer-fx) with its stdout/stderr pipe closed and a SIGHUP
+B) the real launcher (bin/razorfx, with the example plugin loaded) with its stdout/stderr pipe closed and a SIGHUP
    (the parent shell went away) across an engine restart; SIGTERM still quits cleanly.
 """
 import os, signal, subprocess, sys, tempfile, time
@@ -14,16 +14,16 @@ W = tempfile.mkdtemp(prefix="rfx_gui_restart_")
 os.makedirs(os.path.join(W, "run"), mode=0o700)
 os.environ.update(QT_QPA_PLATFORM="offscreen", XDG_RUNTIME_DIR=os.path.join(W, "run"),
                   XDG_CONFIG_HOME=os.path.join(W, "cfg"), XDG_CACHE_HOME=os.path.join(W, "cache"),
-                  RAZERFX_KB_GLOBS="/nonexistent", RAZERFX_MOUSE_GLOBS="/nonexistent")
+                  RAZORFX_KB_GLOBS="/nonexistent", RAZORFX_MOUSE_GLOBS="/nonexistent")
 sys.path.insert(0, HERE)
-from razerfx.gui import safety  # noqa
+from razorfx.gui import safety  # noqa
 safety.install()
-from PyQt6.QtCore import QTimer  # noqa
-from PyQt6.QtWidgets import QApplication  # noqa
-from razerfx.gui import theme  # noqa
-from razerfx.gui.app import MainWindow  # noqa
+from PySide6.QtCore import QTimer  # noqa
+from PySide6.QtWidgets import QApplication  # noqa
+from razorfx.gui import theme  # noqa
+from razorfx.gui.app import MainWindow  # noqa
 
-SOCK = os.path.join(W, "run", "razer-fx", "engine.sock")
+SOCK = os.path.join(W, "run", "razorfx", "engine.sock")
 FAILS = []
 app = QApplication.instance() or QApplication([])
 theme.apply(app)
@@ -46,7 +46,7 @@ def spin_until(fn, timeout):
 
 
 def engine():
-    p = subprocess.Popen([sys.executable, HERE + "/bin/razer-fx-engine"], stdout=open(W + "/engine.log", "a"),
+    p = subprocess.Popen([sys.executable, HERE + "/bin/razorfx-engine"], stdout=open(W + "/engine.log", "a"),
                          stderr=subprocess.STDOUT)
     end = time.time() + 5
     while not os.path.exists(SOCK) and time.time() < end:
@@ -80,7 +80,10 @@ try:
     eng = engine()
     check(spin_until(lambda: "Engine running" in pill(), 6), "after crash: reconnected")
 
-    QTimer.singleShot(0, lambda: 1 / 0)                  # PyQt6 would abort() without our excepthook
+    # Must be logged, never abort(). (This test pumps events by hand; PySide6 then re-raises the
+    # error at the next Python callback, the frame tick, whose guard logs it. Under app.exec()
+    # it goes to sys.excepthook instead: see test_gui.py.)
+    QTimer.singleShot(0, lambda: 1 / 0)
     spin_until(lambda: False, 0.5)
     log = open(safety.LOG_FILE).read()
     check(w.isVisible() and "ZeroDivisionError" in log, "exception in a slot is logged, window survives")
@@ -88,7 +91,9 @@ try:
 
     print("== B) launcher with a dead stderr pipe + SIGHUP")
     r, wfd = os.pipe()
-    gui = subprocess.Popen([sys.executable, HERE + "/bin/razer-fx"], stdout=wfd, stderr=wfd, start_new_session=True)
+    gui = subprocess.Popen([sys.executable, HERE + "/bin/razorfx"], stdout=wfd, stderr=wfd, start_new_session=True,
+                           env=dict(os.environ, RAZORFX_PLUGIN_PATH=os.path.join(HERE, "examples", "plugins"),
+                                    XDG_DATA_HOME=os.path.join(W, "data")))
     os.close(wfd); os.close(r)                           # nobody reads its output any more
     time.sleep(3)
     check(gui.poll() is None, "GUI up")
@@ -104,6 +109,7 @@ try:
     check(rc == 0, "SIGTERM quits the GUI cleanly (rc=%s)" % rc)
     log = open(safety.LOG_FILE).read()
     check("reconnected to engine" in log and "exiting normally" in log, "gui.log records reconnect + clean exit")
+    check("plugin loaded: hello" in log and "plugin hello: bye" in log, "example plugin loaded and unloaded")
 finally:
     for p in (eng,):
         if p.poll() is None:

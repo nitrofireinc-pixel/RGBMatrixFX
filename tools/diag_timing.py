@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright (C) 2026 Trevor Olsen
-"""razer-fx timing diagnostics (safe, no root): pauses the engine over its socket,
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
+"""RazorFX timing diagnostics (safe, no root): pauses the engine over its socket,
 times D-Bus setKeyRow/setCustom per device, direct sysfs writes (if writable),
 parallel kb+mouse throughput, EVIOCSMASK variants; then resumes the engine."""
 import ctypes, fcntl, glob, json, os, socket, statistics, struct, sys, threading, time
 import multiprocessing as mp
 
 SYS = os.environ.get("DIAG_SYSFS", "/sys/bus/hid/drivers")
-SOCK = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/run/user/%d" % os.getuid()), "razer-fx", "engine.sock")
+SOCK = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/run/user/%d" % os.getuid()), "razorfx", "engine.sock")
 N = int(os.environ.get("DIAG_N", "25"))
 
 

@@ -1,0 +1,91 @@
+RazorFX Plugin Exception, version 1.0
+=====================================
+
+SPDX identifier used by this project: AdditionRef-RazorFX-plugin-exception
+(full expression: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception)
+
+RazorFX is © 2026 Nitrofire Computing (the copyright holder) and is licensed under the GNU General Public
+License, version 3 or (at your option) any later version (the "GPL"; full text in the
+LICENSE file). The following is an additional permission under section 7 of version 3 of
+the GPL ("GPLv3"). It is modelled on the GCC Runtime Library Exception and on the plugin
+exceptions used by other GPL-licensed programs.
+
+
+0. Definitions
+
+"RazorFX" means the program distributed by its copyright holders under the GPL together
+with this additional permission, in source or object form, and any version of it that
+keeps this permission.
+
+"Plugin API" means the interface that RazorFX offers to plugins, as defined in the file
+razorfx/plugin_api.py and documented in docs/PLUGIN_API.md in the same version of
+RazorFX. It consists of: the public names of that module (names that do not start with
+an underscore) and their documented behaviour; the plugin.json manifest format; the
+plugin directories RazorFX searches; the register(ctx) and unregister() entry points; and
+the objects and data RazorFX passes to a plugin through them, to the extent they are
+documented there.
+
+"Independent Plugin" means a work that
+  (a) is loaded and run by RazorFX's plugin loader,
+  (b) interacts with RazorFX only through the Plugin API, and
+  (c) is not based on RazorFX: it contains no part of RazorFX other than what section 2(a)
+      allows, and it is not a modified version of RazorFX.
+Using the names, signatures, constants and data formats of the Plugin API, to the extent
+needed to interoperate with it, does not by itself make a work based on RazorFX. An
+Independent Plugin may also use other libraries (including Qt for Python / PySide6)
+directly, as long as it reaches RazorFX itself only through the Plugin API.
+
+"Combined Work" means RazorFX running together with one or more Independent Plugins, for
+example in the same process.
+
+
+1. Permission
+
+As a special exception, the copyright holders of RazorFX give you permission to combine
+RazorFX with Independent Plugins, and to copy, modify and convey Independent Plugins
+under terms of your choice, including proprietary terms, without those Independent
+Plugins becoming subject to the GPL because of that combination, provided that:
+
+  (a) RazorFX itself, in any copy you convey, alone or together with Independent
+      Plugins, remains under the GPL with its Corresponding Source available as the GPL
+      requires; and
+  (b) you do not impose on recipients any further restriction on the exercise of the
+      rights the GPL grants them in RazorFX.
+
+The GPL continues to apply to RazorFX itself in every case, including when it is part of a
+Combined Work.
+
+
+2. Limits
+
+This additional permission does not:
+
+  (a) permit copying any part of RazorFX into a plugin, except (i) the example plugin and
+      code snippets in examples/plugins/ and docs/PLUGIN_API.md, which are offered under
+      their own permissive license as marked in those files, and (ii) the minimal
+      declarations (names, signatures, constants) needed to use the Plugin API;
+  (b) permit conveying a modified version of RazorFX other than under the GPL;
+  (c) cover a work that reaches into RazorFX outside the Plugin API (for example by
+      importing razorfx.gui, razorfx.engine or other RazorFX modules besides
+      razorfx.plugin_api, or by inspecting, patching or replacing RazorFX objects at run
+      time). Such a work is not an Independent Plugin; the GPL alone decides whether and
+      how it may be combined with RazorFX;
+  (d) grant any permission for software by others that RazorFX or a plugin uses, such as
+      Qt / PySide6 (LGPL-3.0) or OpenRazer (GPL-2.0-or-later). Their licenses still apply
+      on their own terms; it covers only the copyrights of the RazorFX copyright holders.
+
+
+3. Changes to the Plugin API
+
+Later versions of RazorFX may change the Plugin API; its version number (major.minor,
+razorfx.plugin_api.API_VERSION) signals compatibility. A plugin is an Independent Plugin
+with respect to each version of RazorFX whose Plugin API it uses as documented for that
+version.
+
+
+4. Removing or extending this permission
+
+As GPLv3 section 7 allows, when you convey a copy of RazorFX you may remove this
+additional permission from that copy, or from any part of it. If you modify RazorFX, you
+may extend this permission to your modified version, but you are not obliged to do so; if
+you do not wish to, delete this permission statement from your version.

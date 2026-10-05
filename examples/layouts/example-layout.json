@@ -1,0 +1,28 @@
+{
+  "_comment": "RazorFX layout pack (example/template). Copy to ~/.local/share/razorfx/layouts/<something>.json, edit, then run: systemctl --user restart razorfx-engine (or replug the device). Data only: nothing here is executed. Format: docs/LAYOUTS.md",
+  "format": "razorfx-layout",
+  "version": 1,
+  "name": "Example 60% keyboard (ANSI)",
+  "kind": "keyboard",
+  "match": {
+    "_comment": "Matches if the USB product id OR a name substring (case-insensitive) matches. Find both in Help > About > System info.",
+    "usb": ["1532:0000"],
+    "name": ["Example 60% Keyboard"]
+  },
+  "matrix": [5, 15],
+  "_comment_keys": "Key -> [row, col] in the device's OpenRazer matrix. Keys: RazorFX/evdev names (W, SPACE, LEFTSHIFT, KP5, F1...), KEY_ names (KEY_W) or evdev codes (\"17\"). Keys you leave out stay dark for ripples; effects still light every cell.",
+  "keys": {
+    "ESC": [0, 0], "1": [0, 1], "2": [0, 2], "3": [0, 3], "4": [0, 4], "5": [0, 5], "6": [0, 6],
+    "7": [0, 7], "8": [0, 8], "9": [0, 9], "0": [0, 10], "MINUS": [0, 11], "EQUAL": [0, 12], "BACKSPACE": [0, 14],
+    "TAB": [1, 0], "Q": [1, 1], "W": [1, 2], "E": [1, 3], "R": [1, 4], "T": [1, 5], "Y": [1, 6],
+    "U": [1, 7], "I": [1, 8], "O": [1, 9], "P": [1, 10], "LEFTBRACE": [1, 11], "RIGHTBRACE": [1, 12], "BACKSLASH": [1, 14],
+    "CAPSLOCK": [2, 0], "A": [2, 1], "S": [2, 2], "D": [2, 3], "F": [2, 4], "G": [2, 5], "H": [2, 6],
+    "J": [2, 7], "K": [2, 8], "L": [2, 9], "SEMICOLON": [2, 10], "APOSTROPHE": [2, 11], "ENTER": [2, 14],
+    "LEFTSHIFT": [3, 0], "Z": [3, 2], "X": [3, 3], "C": [3, 4], "V": [3, 5], "B": [3, 6], "N": [3, 7],
+    "M": [3, 8], "COMMA": [3, 9], "DOT": [3, 10], "SLASH": [3, 11], "RIGHTSHIFT": [3, 14],
+    "LEFTCTRL": [4, 0], "LEFTMETA": [4, 1], "LEFTALT": [4, 2], "SPACE": [4, 6], "RIGHTALT": [4, 10],
+    "RIGHTCTRL": [4, 14]
+  },
+  "_comment_logo": "Optional: the logo LED's cell (keyboard). Leave out if the device has none.",
+  "_comment_zones": "Mouse packs only (\"kind\": \"mouse\"): \"zones\": {\"logo\": [[0, 1]], \"scroll\": [[0, 0]]}. Cells not listed in a zone are not driven."
+}

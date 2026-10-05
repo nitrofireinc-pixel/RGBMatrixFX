@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """GUI tests (offscreen Qt, engine not running): python3 -m unittest tests/test_gui.py"""
 import json, os, sys, tempfile, time, unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("RAZORFX_NO_PORTAL", "1")    # don't follow the box's desktop in tests
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from PyQt6.QtWidgets import (QApplication, QGroupBox, QSlider, QAbstractSpinBox, QComboBox, QScrollBar,
+from PySide6.QtWidgets import (QApplication, QGroupBox, QSlider, QAbstractSpinBox, QComboBox, QScrollBar,
                              QAbstractSlider)
-from PyQt6.QtCore import QPointF, QPoint, Qt
-from PyQt6.QtGui import QWheelEvent
-from razerfx import layout as L
-from razerfx.effects import EFFECTS
-from razerfx.gui import theme
-from razerfx.gui.app import MainWindow
+from PySide6.QtCore import QPointF, QPoint, Qt
+from PySide6.QtGui import QWheelEvent, QColor
+from PySide6.QtWidgets import QToolButton
+import razorfx
+from razorfx import layout as L
+from razorfx.effects import EFFECTS
+from razorfx.gui import theme
+from razorfx.gui.app import MainWindow
 
 app = QApplication.instance() or QApplication([])
 theme.apply(app)
@@ -36,19 +39,357 @@ class TestGui(unittest.TestCase):
         spin(200)
 
     def test_help_about(self):
-        import razerfx
-        self.assertEqual(razerfx.__version__, "1.0.0")
+        import razorfx
+        self.assertRegex(razorfx.__version__, r"^1\.1\.0-dev(\.\d+)?$")   # test builds: 1.1.0-dev.N
         with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION")) as f:
-            self.assertEqual(f.read().strip(), razerfx.__version__)
-        titles = [a.text().replace("&", "") for a in self.w.menuBar().actions()]
-        self.assertIn("Help", titles)
+            self.assertEqual(f.read().strip(), razorfx.__version__)
+        mb = self.w.menuBar()
+        titles = [a.text().replace("&", "") for a in mb.actions()]
+        self.assertEqual(titles[0], "File")
+        self.assertEqual(titles[-1], "Help")
+        self.assertFalse(mb.isNativeMenuBar())         # never moved to a global menu bar
+        self.assertTrue(mb.isVisible())
+        self.assertGreater(mb.height(), 10)
+        self.assertEqual(self.w.about_action.shortcut().toString(), "F1")
+        self.assertIsNone(self.w.findChild(QToolButton, "AboutBtn"))   # header button removed (dev.2)
+        self.assertEqual(self.w.windowTitle(), "RazorFX")
+        self.assertEqual(self.w.about_action.text().replace("&", ""), "About RazorFX")
         t = self.w.about_text()
-        for want in ("1.0.0", "GNU General Public License", "version 3", "GPL-3.0-or-later",
-                     "https://github.com/nitrofireinc-pixel/razorFX", "Trevor Olsen", "Not affiliated"):
+        for want in ("<h3>RazorFX 1.1.0-dev", "GNU General Public License", "version 3",
+                     "GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception", "plugin exception",
+                     "LICENSE-EXCEPTION", "https://github.com/nitrofireinc-pixel/razorFX", "\u00a9 2026 Nitrofire Computing",
+                     "Not affiliated with or endorsed by Razer Inc. Razer is a trademark of Razer Inc."):
             self.assertIn(want, t)
+        self.assertNotIn("Razer FX", t)
         box = self.w.show_about()
         self.assertTrue(box.isVisible())
+        self.assertEqual(box.windowTitle(), "About RazorFX")
+        self.assertEqual([box.tabs.tabText(i) for i in range(box.tabs.count())],
+                         ["About", "Credits", "License", "System info"])
+        self.assertEqual(box.edition_lbl.text(), "Free edition")
+        about = box.pages["about"].toPlainText()
+        for want in ("Edition: Free", "Created by Nitrofire Computing", "https://github.com/nitrofireinc-pixel/razorFX",
+                     "without any warranty", "Not affiliated with or endorsed by Razer Inc."):
+            self.assertIn(want, about)
+        cred = box.pages["credits"].toPlainText()
+        for want in ("OpenRazer", "openrazer.github.io", "GPL-2.0-or-later", "PySide6", "LGPL-3.0"):
+            self.assertIn(want, cred)
+        lic = box.pages["license"].toPlainText()
+        for want in ("version 3 of the License", "WITHOUT ANY WARRANTY", "Plugin exception",
+                     "RazorFX Plugin Exception, version 1.0", "Razer is a trademark of Razer Inc."):
+            self.assertIn(want, lic)
+        text = box.copy_system_info()
+        self.assertEqual(app.clipboard().text(), text)
+        self.assertTrue(text.startswith("RazorFX 1.1.0-dev"))
+        self.assertIn("(Free edition)", text)
+        self.assertIn("Engine: not running", text)
         box.close()
+        self.w.about_action.trigger()                        # F1 / Help > About
+        spin(50)
+        self.assertIs(self.w._about_box, box)                # one dialog, reused
+        self.assertTrue(self.w._about_box.isVisible())
+        self.w._about_box.close()
+
+    def test_system_info_has_no_serials(self):
+        from razorfx.gui import about
+        from razorfx import plugin_api
+        st = {"fps": 30.0, "effect": "flame", "paused": False,
+              "keyboard": {"name": "Razer Cynosa Chroma", "serial": "PM1234567890KB", "pid": 0x022A,
+                           "matrix": [6, 22], "io": "sysfs", "hw_fps": 28.0},
+              "mouse": {"name": "Razer Mamba Wireless (Wired)", "serial": "PM0987654321MS", "pid": 0x0073,
+                        "matrix": [1, 16], "io": "dbus", "hw_fps": 27.0},
+              "openrazer": {"daemon": "3.10.2", "client": "3.10.2"},
+              "detected": [{"name": "Razer Cynosa Chroma", "type": "keyboard", "usb": "1532:022a", "firmware": "v1.0"},
+                           {"name": "Razer Mamba Wireless (Wired)", "type": "mouse", "usb": "1532:0073", "firmware": None},
+                           {"name": "Razer Firefly", "type": "mousemat", "usb": "1532:0c00", "firmware": None}],
+              "inputs": {"nodes": ["/dev/input/event3"], "evdev": True}}
+        t = about.system_info(st, plugin_api.Edition("Pro", "Jane Doe", "pro"), "dark theme", None, True)
+        self.assertNotIn("PM1234567890KB", t)
+        self.assertNotIn("PM0987654321MS", t)
+        self.assertNotIn("serial", t.lower())
+        self.assertNotIn(os.path.expanduser("~") + "/", t)
+        for want in ("(Pro edition)", "OpenRazer: daemon 3.10.2, client library 3.10.2", "Kernel: Linux ",
+                     "Keyboard: Razer Cynosa Chroma", "USB 1532:022a, firmware v1.0, matrix 6\u00d722, output sysfs",
+                     "Mouse: Razer Mamba Wireless (Wired)", "Other OpenRazer devices: Razer Firefly [mousemat, USB 1532:0c00]",
+                     "PySide6 ", "Appearance: dark theme", "Engine: running, 30.0 fps, effect flame"):
+            self.assertIn(want, t)
+        self.assertIn("Edition:</b> Pro \u2014 licensed to Jane Doe", about.about_html(plugin_api.Edition("Pro", "Jane Doe")))
+
+    def test_slot_exception_under_exec_goes_to_excepthook(self):
+        # PySide6 (unlike PyQt6) never aborts: under app.exec() a slot's exception goes to
+        # sys.excepthook (our safety hook logs it) and the event loop carries on.
+        from PySide6.QtCore import QTimer
+        seen, after = [], []
+        old = sys.excepthook
+        sys.excepthook = lambda t, v, tb: seen.append(t)
+        try:
+            QTimer.singleShot(20, lambda: 1 / 0)
+            QTimer.singleShot(60, lambda: after.append(self.w.isVisible()))
+            QTimer.singleShot(120, app.quit)
+            app.exec()
+        finally:
+            sys.excepthook = old
+        self.assertEqual(seen, [ZeroDivisionError])
+        self.assertEqual(after, [True])
+
+    def test_stress_rebuilding_uis_do_not_crash(self):
+        # 1.0 segfaulted when a Gamer Controls key (Space, Left Ctrl) was removed: the handler
+        # rebuilt the tab and deleted the widget Qt was still delivering the click to. The
+        # stress run drives every self-rebuilding UI with real input in a subprocess.
+        import subprocess
+        here = os.path.dirname(os.path.abspath(__file__))
+        r = subprocess.run([sys.executable, os.path.join(here, "gui_stress.py"), "--rounds", "3"],
+                           capture_output=True, text=True, timeout=300,
+                           env=dict(os.environ, QT_QPA_PLATFORM="offscreen"))
+        out = r.stdout + r.stderr
+        self.assertEqual(r.returncode, 0, out[-3000:])
+        self.assertIn("STRESS OK", out)
+
+    def test_rebuild_from_own_signal_retires_instead_of_deleting(self):
+        # Remove Space and LeftCtrl again and again through the handlers the buttons use;
+        # the replaced pages must still exist (hidden, signals blocked) until deleteLater runs.
+        import shiboken6
+        self.w.tabs.setCurrentIndex(2)
+        for _ in range(10):
+            self.w._gamer_set("gamer_keys", ["W", "A", "S", "D", "SPACE", "LEFTCTRL"], rebuild=True)
+            old = self.w.tab_hl.widget()
+            self.w._gamer_set("gamer_keys", ["W", "A", "S", "D", "LEFTCTRL"], rebuild=True)
+            self.assertTrue(shiboken6.isValid(old))            # not deleted synchronously
+            self.assertFalse(old.isVisible())
+            self.assertTrue(old.signalsBlocked())
+            self.w._gamer_set("gamer_keys", ["W", "A", "S", "D"], rebuild=True)
+            from PySide6.QtCore import QEvent
+            app.sendPostedEvents(None, QEvent.Type.DeferredDelete)   # what app.exec() does
+            self.assertFalse(shiboken6.isValid(old))           # gone once the event loop ran
+        self.assertEqual(self.w.g["gamer_keys"], ["W", "A", "S", "D"])
+
+    def test_theme_light_dark_keeps_led_colours(self):
+        from PySide6.QtCore import QRectF, QSettings
+        w, pv = self.w, self.w.preview
+        for t in (w.frame_timer, w.status_timer, w.thumb_timer):
+            t.stop()
+        rgb = [((i * 37) % 256, (i * 91) % 256, (i * 53) % 256) for i in range(w.scene.n)]
+
+        def grab():
+            pv.rgb = list(rgb)
+            pv.repaint()
+            return pv.grab().toImage()
+        try:
+            dark = grab()
+            self.assertEqual(theme.SCHEME, "dark")
+            i = w.theme_combo.findData("light")
+            w.theme_combo.setCurrentIndex(i)              # Settings > Appearance > Theme: Light
+            spin(30)
+            self.assertEqual(theme.SCHEME, "light")
+            self.assertGreater(QColor(theme.BG).lightness(), 200)
+            light = grab()
+            r = QRectF(pv.rect()).adjusted(6, 6, -6, -6)
+            s, ox, oy = pv.painter_.geometry(r)
+            same = 0
+            for k in L.KEYS[::5]:
+                x, y = int(ox + (k.x + k.w / 2) * s), int(oy + (k.y + k.h * 0.3) * s)
+                self.assertEqual(dark.pixel(x, y), light.pixel(x, y), "LED colour of %s changed with the theme" % k.name)
+                same += 1
+            self.assertGreater(same, 10)
+            self.assertNotEqual(dark.pixel(2, 2), light.pixel(2, 2))   # the window around it did change
+            # accent: custom colour, then RazorFX green
+            w.accent_combo.setCurrentIndex(w.accent_combo.findData("custom"))
+            self.assertFalse(w.accent_btn.isHidden())
+            w.theme_ctl.set_accent("#aa00ff")
+            self.assertEqual(theme.ACCENT, "#aa00ff")
+            self.assertIn("#aa00ff", app.styleSheet())
+            st = QSettings(os.path.join(self.d.name, "gui.ini"), QSettings.Format.IniFormat)
+            self.assertEqual((st.value("appearance/theme"), st.value("appearance/accent")), ("light", "#aa00ff"))
+            self.assertIn("In use: light theme, accent #aa00ff", w.appearance_info.text())
+        finally:
+            w.theme_ctl.set_theme("system")
+            w.theme_ctl.set_accent("system")
+        self.assertEqual((theme.SCHEME, theme.ACCENT), ("dark", theme.DEFAULT_ACCENT))
+
+    def test_theme_follows_portal_live(self):
+        import shutil, subprocess
+        if not shutil.which("dbus-run-session"):
+            self.skipTest("dbus-run-session not available")
+        here = os.path.dirname(os.path.abspath(__file__))
+        for extra in ([], ["--v1"], ["--poll"]):
+            r = subprocess.run(["dbus-run-session", "--", sys.executable, os.path.join(here, "theme_portal_test.py")] + extra,
+                               capture_output=True, text=True, timeout=120)
+            self.assertEqual(r.returncode, 0, (extra, r.stdout[-2500:] + r.stderr[-1500:]))
+            self.assertIn("ALL PASSED", r.stdout)
+
+    def test_gamer_key_chips(self):
+        from PySide6.QtTest import QTest
+        from PySide6.QtCore import QEvent
+        from PySide6.QtWidgets import QPushButton
+        from razorfx import plugin_api
+        from razorfx.gui.keychips import KeyCaptureDialog
+        w = self.w
+        w.tabs.setCurrentIndex(2)
+        w.g["gamer_keys"] = ["SPACE", "W", "A", "S", "D"]
+        w._build_hl_tab()
+        spin(30)
+        row = w.gamer_chips
+        self.assertEqual([c.text() for c in row.chips], ["SPACE", "W", "A", "S", "D"])
+        self.assertEqual(row.add_chip.objectName(), "ProChip")          # free: locked Pro chip
+        chip = row.chips[0]
+        QTest.mouseClick(chip, Qt.MouseButton.LeftButton)                # click = focus, not remove
+        self.assertTrue(chip.hasFocus())
+        self.assertTrue(chip.x_btn.isVisible())
+        self.assertEqual(w.g["gamer_keys"], ["SPACE", "W", "A", "S", "D"])
+        QTest.keyClick(chip, Qt.Key.Key_Backspace)                       # Backspace removes it...
+        self.assertEqual(w.g["gamer_keys"], ["W", "A", "S", "D"])
+        self.assertTrue(row.chips[0].hasFocus() and row.chips[0].name == "W")   # ...focus moves on
+        QTest.keyClick(row.chips[0], Qt.Key.Key_Delete)                  # Delete too
+        self.assertEqual(w.g["gamer_keys"], ["A", "S", "D"])
+        self.assertFalse(chip.isVisible())                               # retired, not deleted in its handler
+        app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        QTest.mouseClick(row.chips[-1].x_btn, Qt.MouseButton.LeftButton)  # mouse: the x
+        self.assertEqual(w.g["gamer_keys"], ["A", "S"])
+        w._gamer_reset()                                                 # Restore defaults
+        spin(30)
+        self.assertEqual(w.g["gamer_keys"], ["W", "A", "S", "D"])
+        self.assertEqual([c.name for c in w.gamer_chips.chips], ["W", "A", "S", "D"])
+        # the locked chip explains itself, and the setting hides it
+        w.gamer_chips.add_chip.click()
+        self.assertIn("RazorFX Pro", w.statusBar().currentMessage())
+        from razorfx import pro_status
+        if not pro_status.PRO_FOR_SALE:                                  # Trevor: "Coming soon" until launch
+            self.assertIn("coming soon", w.gamer_chips.add_chip.text())
+            self.assertIn("coming soon", w.statusBar().currentMessage())
+        w.teaser_cb.setChecked(False)
+        self.assertIsNone(w.gamer_chips.add_chip)
+        w.teaser_cb.setChecked(True)
+        self.assertEqual(w.gamer_chips.add_chip.objectName(), "ProChip")
+        # Pro (feature unlocked): + Add key -> Press any key...
+        w.enable_feature(plugin_api.FEATURE_GAMER_ADD_KEY)
+        row = w.gamer_chips
+        self.assertEqual((row.add_chip.objectName(), row.add_chip.text()), ("AddKeyChip", "+ Add key"))
+        try:
+            for key, mod, want in ((Qt.Key.Key_Escape, None, None),          # Esc cancels
+                                   (Qt.Key.Key_Space, None, "SPACE"),
+                                   (Qt.Key.Key_W, None, None),               # already there: nothing added
+                                   (Qt.Key.Key_F5, None, "F5")):
+                before = list(w.g["gamer_keys"])
+                row.add_chip.click()
+                spin(30)
+                d = row.dialog
+                self.assertIsInstance(d, KeyCaptureDialog)
+                self.assertEqual(d.prompt.text(), "Press any key\u2026")
+                if key == Qt.Key.Key_Space:
+                    QTest.keyClick(d, Qt.Key.Key_VolumeUp)               # no light for it: refused, still waiting
+                    self.assertTrue(d.isVisible())
+                    self.assertIn("no light", d.hint.text())
+                QTest.keyClick(d, key)
+                spin(30)
+                self.assertIsNone(row.dialog)
+                self.assertEqual(w.g["gamer_keys"], before + ([want] if want else []))
+            self.assertEqual([c.text() for c in row.chips], ["W", "A", "S", "D", "SPACE", "F5"])
+        finally:
+            w.features.clear()
+            w._gamer_reset()
+            spin(30)
+
+    def test_first_run_enables_engine_for_packages(self):
+        import types
+        from razorfx.gui import app as A
+        calls = []
+
+        def fake(state):
+            def systemctl(*args):
+                calls.append(args)
+                out = state if args[0] == "is-enabled" else ""
+                return types.SimpleNamespace(returncode=0, stdout=out + "\n", stderr="")
+            return systemctl
+        orig = A.systemctl
+        try:
+            A.systemctl = fake("disabled")
+            self.assertTrue(self.w.first_run_engine())       # packaged, never enabled: enable + start
+            self.assertEqual(calls[1:], [("enable", A.UNIT), ("start", A.UNIT)])
+            self.assertIn("start at login", self.w.statusBar().currentMessage())
+            calls.clear()
+            self.assertIsNone(self.w.first_run_engine())     # only ever once
+            self.assertEqual(calls, [])
+            self.w._settings().remove("engine/first_run_done")
+            A.systemctl = fake("enabled")
+            self.assertFalse(self.w.first_run_engine())      # user's choice already made: untouched
+            self.assertEqual(calls, [("is-enabled", A.UNIT)])
+        finally:
+            A.systemctl = orig
+        self.assertFalse(A.packaged_install())               # running from the source tree
+
+    def test_qt_binding_is_pyside6(self):
+        self.assertIn("PySide6", sys.modules)
+        self.assertFalse([m for m in sys.modules if m == "PyQt6" or m.startswith(("PyQt6.", "PyQt5"))])
+
+    def test_plugins(self):
+        from razorfx import plugin_api as api
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        pdir = os.path.join(self.d.name, "plugins")
+        os.makedirs(os.path.join(pdir, "broken"))
+        with open(os.path.join(pdir, "broken", "plugin.json"), "w") as f:
+            json.dump({"id": "broken", "name": "Broken", "version": "1", "api": "1.0", "module": "broken"}, f)
+        with open(os.path.join(pdir, "broken", "broken.py"), "w") as f:
+            f.write("def register(ctx):\n    raise RuntimeError('boom')\n")
+        for pid, code in (("pro", "def register(ctx):\n    ctx.set_edition('Pro', licensed_to='Trevor Olsen')\n"
+                                  "    ctx.enable_feature('gamer.add_key')\n"),
+                          ("rival", "def register(ctx):\n    ctx.set_edition('Ultra')\n")):
+            os.makedirs(os.path.join(pdir, pid))
+            with open(os.path.join(pdir, pid, "plugin.json"), "w") as f:
+                json.dump({"id": pid, "name": pid, "version": "1", "api": "1.0"}, f)
+            with open(os.path.join(pdir, pid, "plugin.py"), "w") as f:
+                f.write(code)
+        old = {k: os.environ.get(k) for k in ("XDG_DATA_HOME", "XDG_CONFIG_HOME")}
+        os.environ.update(XDG_DATA_HOME=os.path.join(self.d.name, "data"), XDG_CONFIG_HOME=os.path.join(self.d.name, "cfg"))
+        try:
+            w = MainWindow(sock_path=os.path.join(self.d.name, "none.sock"), cfg_path=self.cfg, plugins=True,
+                           plugin_dirs=[os.path.join(here, "examples", "plugins"), pdir])
+            w.show()
+            spin(100)
+            self.assertEqual([lp.info.id for lp in w.plugins.loaded], ["hello", "pro"])
+            why = {os.path.basename(p): r for p, r in w.plugins.failed}
+            self.assertEqual(sorted(why), ["broken", "rival"])
+            self.assertIn("boom", why["broken"])
+            self.assertIn("already set by plugin 'pro'", why["rival"])
+            self.assertEqual(w.edition.label(), "Pro \u2014 licensed to Trevor Olsen")
+            self.assertEqual(w.features, {"gamer.add_key"})
+            self.assertEqual(w.gamer_chips.add_chip.text(), "+ Add key")
+            rival_ctx = api.PluginContext(api.PluginInfo("/x", {"id": "rival2", "version": "1", "api": "1.0"}), w.plugin_host)
+            with self.assertRaises(api.PluginError):
+                rival_ctx.enable_feature("gamer.add_key")
+            with self.assertRaises(ValueError):
+                w.plugins.loaded[1].ctx.enable_feature("everything")
+            box = w.show_about()
+            self.assertEqual(box.edition_lbl.text(), "Pro \u2014 licensed to Trevor Olsen")
+            self.assertIn("Edition: Pro \u2014 licensed to Trevor Olsen", box.pages["about"].toPlainText())
+            self.assertIn("RazorFX %s (Pro edition)" % razorfx.__version__, box.system_info())
+            box.close()
+            info = w.plugin_info.text()
+            self.assertIn("Hello plugin 0.1.0", info)
+            self.assertIn("broken", info)
+            titles = [a.text().replace("&", "") for a in w.menuBar().actions()]
+            self.assertEqual(titles, ["File", "Plugins", "Help"])
+            act = dict(w.plugin_host.actions)["hello"]
+            w.plugin_host.dialog_parent = lambda: None        # no modal box in the test
+            act.trigger()
+            act.trigger()
+            ctx = w.plugins.loaded[0].ctx
+            self.assertEqual(ctx.settings.get("greetings"), 2)
+            seen = []
+            ctx.on("effect_changed", seen.append)
+            w.select_effect("wave")
+            self.assertEqual(seen, ["wave"])
+            st = ctx.engine_status()
+            self.assertEqual((st["running"], st["effect"]), (False, "wave"))
+            w.unload_plugins()
+            with open(os.path.join(self.d.name, "cfg", "razorfx", "plugins", "hello.json")) as f:
+                self.assertEqual(json.load(f)["greetings"], 2)
+            w.close()
+        finally:
+            for k, v in old.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
 
     def tearDown(self):
         self.w.close()
@@ -98,13 +439,13 @@ class TestGui(unittest.TestCase):
         self.assertNotIn("Aurora copy", self.w.cfg["presets"])
         self.w._effect_params({"style": "Plasma"})
         self.w.save_preset()
-        one = os.path.join(self.d.name, "one.razerfx.json")
-        allp = os.path.join(self.d.name, "all.razerfx.json")
+        one = os.path.join(self.d.name, "one.razorfx.json")
+        allp = os.path.join(self.d.name, "all.razorfx.json")
         self.w.export_preset(one)
         self.w.export_all(allp)
         with open(one) as f:
             data = json.load(f)
-        self.assertEqual(data["format"], "razer-fx-presets")
+        self.assertEqual(data["format"], "razorfx-presets")
         self.assertEqual(list(data["presets"]), ["My Aurora"])
         added = self.w.import_presets([one])
         self.assertEqual(added, ["My Aurora (2)"])
@@ -118,7 +459,7 @@ class TestGui(unittest.TestCase):
         self.assertTrue(self.warnings)
 
     def test_advanced_sections(self):
-        from razerfx.gui.widgets import Collapsible, ParamForm
+        from razorfx.gui.widgets import Collapsible, ParamForm
         for cls in EFFECTS:
             self.w.select_effect(cls.id)
             n_adv = len([s for s in cls.schema() if s.get("adv")])
@@ -248,7 +589,56 @@ class TestGui(unittest.TestCase):
         w3.close()
         self.assertFalse(os.path.exists(self.cfg) and "window" in open(self.cfg).read())   # config.json untouched
 
-    def test_highlight_pick(self):
+    def test_highlight_free_has_no_free_form_add(self):
+        from PySide6.QtWidgets import QLineEdit, QAbstractButton
+        w = self.w
+        w.profile["highlights"] = [{"name": "Old", "keys": ["SPACE", "F5", "KP5"], "color": "#ff0000",
+                                    "on_top": True, "enabled": True}]       # pre-dev.3 config with extra keys
+        w._hl_index = 0
+        w._build_hl_tab()
+        w.tabs.setCurrentWidget(w.tab_hl)
+        spin(30)
+        pg = w.tab_hl.widget()
+        self.assertEqual([c.name for c in w.hl_chips.chips], ["SPACE", "F5", "KP5"])    # still shown
+        self.assertFalse([e for e in pg.findChildren(QLineEdit) if e.isVisible() and "W, A, S, D" in e.placeholderText()])
+        vis = {b.text() for b in pg.findChildren(QAbstractButton) if b.isVisible()}
+        self.assertFalse(vis & {"Add group", "Pick keys on the preview", "+ Add key", "WASD", "Arrows",
+                                "F-keys", "Numbers", "Numpad", "Logo", "Clear"}, vis)
+        self.assertTrue(w.hl_add_locked.isVisible())
+        from razorfx import pro_status
+        if not pro_status.PRO_FOR_SALE:
+            self.assertIn("coming soon", w.hl_add_locked.text())
+        w._hl_add()                                                       # no backdoor
+        w._set_pick(True)
+        w._preview_key(L.KEY_BY_NAME["G"])
+        self.assertEqual(len(w.profile["highlights"]), 1)
+        self.assertEqual(w.profile["highlights"][0]["keys"], ["SPACE", "F5", "KP5"])
+        w._hl_restore()
+        spin(30)
+        self.assertEqual(w.profile["highlights"], [{"name": "WASD", "keys": ["W", "A", "S", "D"], "color": "#ffffff",
+                                                    "on_top": True, "enabled": True}])
+
+    def test_register_layout(self):
+        import json
+        from unittest import mock
+        from razorfx import plugin_api as api, devmaps
+        with mock.patch.dict(os.environ, {"XDG_DATA_HOME": os.path.join(self.d.name, "data")}):
+            ctx = api.PluginContext(api.PluginInfo("/x", {"id": "kb-pack", "version": "1", "api": "1.0"}), self.w.plugin_host)
+            pack = {"format": "razorfx-layout", "version": 1, "name": "My Keypad", "match": {"usb": ["1532:0208"]},
+                    "matrix": [4, 6], "keys": {"Q": [0, 1], "W": [0, 2]}}
+            path = ctx.register_layout(pack)
+            self.assertEqual(os.path.basename(path), "plugin-kb-pack-my-keypad.json")
+            self.assertEqual(json.load(open(path)), pack)
+            packs = devmaps.load_packs()
+            self.assertEqual([p.name for p in packs], ["My Keypad"])
+            with self.assertRaises(ValueError):
+                ctx.register_layout(dict(pack, matrix=[4, 1]))         # cell (0, 2) is outside: refused
+            self.assertEqual(len(os.listdir(os.path.dirname(path))), 1)
+
+    def test_highlight_pick(self):                                        # Pro
+        from razorfx import plugin_api
+        self.w.enable_feature(plugin_api.FEATURE_HIGHLIGHT_ADD)
+        self.addCleanup(self.w.features.clear)
         self.w.tabs.setCurrentWidget(self.w.tab_hl)
         self.w._set_pick(True)
         self.w._preview_key(L.KEY_BY_NAME["SPACE"])

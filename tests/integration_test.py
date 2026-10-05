@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """End-to-end test: real openrazer-daemon 3.12.4 with fake-driver Cynosa Chroma +
-Mamba Wireless (wired, 1532:0073), the real razer-fx engine, mock evdev nodes
+Mamba Wireless (wired, 1532:0073), the real RazorFX engine, mock evdev nodes
 (FIFOs) for keyboard + mouse, and IPC from a test client.
 Run:  dbus-run-session -- python3 tests/integration_test.py
 """
@@ -14,7 +14,7 @@ if not OR or not os.path.isdir(os.path.join(OR, "daemon")):
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 W = "/tmp/rfx_it"
 sys.path.insert(0, HERE)
-from razerfx import ipc, layout as L, config  # noqa
+from razorfx import ipc, layout as L, config  # noqa
 
 if os.path.exists(W):
     subprocess.call(["chmod", "-R", "u+w", W])
@@ -25,15 +25,15 @@ os.chmod(os.path.join(W, "run"), 0o700)
 env = dict(os.environ, PYTHONPATH="%s/pylib:%s/daemon" % (OR, OR))
 eenv = dict(env, PYTHONPATH="%s/pylib:%s/daemon:%s/tests/mock_evdev:%s" % (OR, OR, HERE, HERE),
             XDG_CONFIG_HOME=os.path.join(W, "cfg"), XDG_RUNTIME_DIR=os.path.join(W, "run"),
-            RAZERFX_KB_GLOBS=os.path.join(W, "kb-event-kbd"),
-            RAZERFX_MOUSE_GLOBS=os.path.join(W, "mamba-event-mouse"),
+            RAZORFX_KB_GLOBS=os.path.join(W, "kb-event-kbd"),
+            RAZORFX_MOUSE_GLOBS=os.path.join(W, "mamba-event-mouse"),
             # the fake driver's attribute files stand in for /sys/bus/hid/drivers; they are plain
             # files that keep only the last write, so ask for whole frames to keep frame() simple
-            RAZERFX_SYSFS_ROOT=os.path.join(W, "dev"), RAZERFX_FULL_FRAMES="1")
+            RAZORFX_SYSFS_ROOT=os.path.join(W, "dev"), RAZORFX_FULL_FRAMES="1")
 os.mkfifo(os.path.join(W, "kb-event-kbd"))
 os.mkfifo(os.path.join(W, "mamba-event-mouse"))
-SOCK = os.path.join(W, "run", "razer-fx", "engine.sock")
-CFG = os.path.join(W, "cfg", "razer-fx", "config.json")
+SOCK = os.path.join(W, "run", "razorfx", "engine.sock")
+CFG = os.path.join(W, "cfg", "razorfx", "config.json")
 FAILS = []
 
 
@@ -67,7 +67,7 @@ def start_daemon():
 
 
 def start_engine():
-    procs["engine"] = subprocess.Popen([sys.executable, HERE + "/bin/razer-fx-engine"], env=eenv,
+    procs["engine"] = subprocess.Popen([sys.executable, HERE + "/bin/razorfx-engine"], env=eenv,
                                        stdout=open(W + "/engine.log", "a"), stderr=subprocess.STDOUT)
     for _ in range(50):
         if os.path.exists(SOCK):
@@ -302,7 +302,7 @@ try:
     a, b = cpu(pe), cpu(pd)
     time.sleep(10)
     a2, b2 = cpu(pe), cpu(pd)
-    print("    razer-fx-engine %.1f%%  openrazer-daemon %.1f%% (of one core)" % ((a2 - a) * 10, (b2 - b) * 10))
+    print("    razorfx-engine %.1f%%  openrazer-daemon %.1f%% (of one core)" % ((a2 - a) * 10, (b2 - b) * 10))
 
     print("== SIGTERM -> exit mode 'restore'")
     procs["engine"].send_signal(signal.SIGTERM)

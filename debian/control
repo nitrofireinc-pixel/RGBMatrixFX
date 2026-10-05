@@ -1,0 +1,36 @@
+Source: razorfx
+Section: utils
+Priority: optional
+Maintainer: Nitrofire Computing <nitrofireinc-pixel@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13), dh-python, python3:any
+Standards-Version: 4.7.0
+Homepage: https://github.com/nitrofireinc-pixel/razorFX
+Vcs-Browser: https://github.com/nitrofireinc-pixel/razorFX
+Vcs-Git: https://github.com/nitrofireinc-pixel/razorFX.git
+Rules-Requires-Root: no
+
+Package: razorfx
+Architecture: all
+Depends: ${misc:Depends},
+         ${python3:Depends},
+         python3-dbus,
+         python3-numpy,
+         python3-openrazer,
+         python3-pyside6.qtcore,
+         python3-pyside6.qtgui,
+         python3-pyside6.qtwidgets
+Recommends: openrazer-daemon,
+            openrazer-driver-dkms,
+            python3-evdev
+Suggests: pipewire-bin | pulseaudio-utils,
+          polychromatic
+Description: Chroma-style lighting effects for Razer keyboards and mice
+ RazorFX renders animated lighting effects onto Razer keyboards and mice
+ through the OpenRazer driver and daemon, and reacts to key presses, mouse
+ clicks and scrolling. A small background engine (a systemd user service)
+ keeps the lighting running; the window lets you pick and tune effects live,
+ build presets and manage per-zone lighting. It follows the desktop's light
+ or dark theme.
+ .
+ Not affiliated with or endorsed by Razer Inc. Razer is a trademark of
+ Razer Inc.

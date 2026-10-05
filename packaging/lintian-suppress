@@ -1,0 +1,2 @@
+# tags we accept for an upstream-built package (one per line)
+# native: the package is built from upstream's own debian/ directory
