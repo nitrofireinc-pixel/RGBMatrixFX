@@ -216,6 +216,34 @@ class TestGui(unittest.TestCase):
             self.assertEqual(r.returncode, 0, (extra, r.stdout[-2500:] + r.stderr[-1500:]))
             self.assertIn("ALL PASSED", r.stdout)
 
+    def test_first_run_enables_engine_for_packages(self):
+        import types
+        from razorfx.gui import app as A
+        calls = []
+
+        def fake(state):
+            def systemctl(*args):
+                calls.append(args)
+                out = state if args[0] == "is-enabled" else ""
+                return types.SimpleNamespace(returncode=0, stdout=out + "\n", stderr="")
+            return systemctl
+        orig = A.systemctl
+        try:
+            A.systemctl = fake("disabled")
+            self.assertTrue(self.w.first_run_engine())       # packaged, never enabled: enable + start
+            self.assertEqual(calls[1:], [("enable", A.UNIT), ("start", A.UNIT)])
+            self.assertIn("start at login", self.w.statusBar().currentMessage())
+            calls.clear()
+            self.assertIsNone(self.w.first_run_engine())     # only ever once
+            self.assertEqual(calls, [])
+            self.w._settings().remove("engine/first_run_done")
+            A.systemctl = fake("enabled")
+            self.assertFalse(self.w.first_run_engine())      # user's choice already made: untouched
+            self.assertEqual(calls, [("is-enabled", A.UNIT)])
+        finally:
+            A.systemctl = orig
+        self.assertFalse(A.packaged_install())               # running from the source tree
+
     def test_qt_binding_is_pyside6(self):
         self.assertIn("PySide6", sys.modules)
         self.assertFalse([m for m in sys.modules if m == "PyQt6" or m.startswith(("PyQt6.", "PyQt5"))])

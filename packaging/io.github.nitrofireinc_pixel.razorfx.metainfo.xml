@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception -->
+<!-- SPDX-FileCopyrightText: © 2026 Nitrofire Computing -->
+<component type="desktop-application">
+  <id>io.github.nitrofireinc_pixel.razorfx</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>RazorFX</name>
+  <summary>Chroma-style lighting effects for Razer keyboards and mice</summary>
+  <developer id="io.github.nitrofireinc_pixel">
+    <name>Nitrofire Computing</name>
+  </developer>
+  <description>
+    <p>
+      RazorFX renders animated lighting effects onto Razer keyboards and mice through the
+      OpenRazer driver. A small background engine keeps your lighting running; the window
+      lets you pick and tune effects live, build presets and manage per-zone lighting.
+    </p>
+    <ul>
+      <li>14 effects modelled on Razer Chroma effects, each fully tunable</li>
+      <li>One scene across keyboard and mouse, plus reactive ripples on key presses</li>
+      <li>Highlight key groups, Gamer Controls and per-zone colours</li>
+      <li>Follows your desktop's light or dark theme and accent colour</li>
+    </ul>
+    <p>
+      RazorFX needs the OpenRazer driver and daemon. Not affiliated with or endorsed by
+      Razer Inc. Razer is a trademark of Razer Inc.
+    </p>
+  </description>
+  <launchable type="desktop-id">razorfx.desktop</launchable>
+  <url type="homepage">https://github.com/nitrofireinc-pixel/razorFX</url>
+  <url type="bugtracker">https://github.com/nitrofireinc-pixel/razorFX/issues</url>
+  <url type="vcs-browser">https://github.com/nitrofireinc-pixel/razorFX</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Effects gallery with the live preview</caption>
+      <image>https://raw.githubusercontent.com/nitrofireinc-pixel/razorFX/main/docs/screenshots/01-main-flame.png</image>
+    </screenshot>
+  </screenshots>
+  <categories>
+    <category>Settings</category>
+    <category>HardwareSettings</category>
+  </categories>
+  <keywords>
+    <keyword>razer</keyword>
+    <keyword>chroma</keyword>
+    <keyword>rgb</keyword>
+    <keyword>openrazer</keyword>
+  </keywords>
+  <provides>
+    <binary>razorfx</binary>
+    <binary>razorfx-engine</binary>
+  </provides>
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="1.0.0" date="2026-10-04">
+      <description><p>First release (as Razer FX).</p></description>
+    </release>
+  </releases>
+</component>

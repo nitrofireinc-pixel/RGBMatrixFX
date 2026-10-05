@@ -52,7 +52,14 @@ PRESET_FORMAT = "razorfx-presets"
 UNIT = APP_ID + "-engine.service"
 HERE = os.path.dirname(os.path.abspath(__file__))
 ICON_CANDIDATES = [os.path.join(HERE, "..", "..", "data", APP_ID + ".png"),
-                   os.path.expanduser("~/.local/share/icons/hicolor/256x256/apps/%s.png" % APP_ID)]
+                   os.path.expanduser("~/.local/share/icons/hicolor/256x256/apps/%s.png" % APP_ID),
+                   "/usr/share/icons/hicolor/256x256/apps/%s.png" % APP_ID]
+
+
+def packaged_install():
+    """True for a .deb/.rpm/AUR package (files under /usr) or the AppImage. These ship the
+    engine's user unit without enabling it, so the GUI enables it once, on first start."""
+    return bool(os.environ.get("APPIMAGE")) or os.path.abspath(HERE).startswith("/usr/")
 
 
 def systemctl(*args):
@@ -377,6 +384,33 @@ class MainWindow(QMainWindow):
             self.showMaximized()
         else:
             self.show()
+        if packaged_install():
+            QTimer.singleShot(1200, self.first_run_engine)
+
+    def first_run_engine(self):
+        """Packages install razorfx-engine.service for all users but enable it for nobody
+        (the per-user "Start engine at login" switch must stay the user's choice). On the very
+        first start of a packaged RazorFX, do what the install script does: enable + start it."""
+        st = self._settings()
+        if st.value("engine/first_run_done", False, type=bool):
+            return None
+        st.setValue("engine/first_run_done", True)
+        st.sync()
+        r = systemctl("is-enabled", UNIT)
+        if r is None or r.stdout.strip() != "disabled":     # enabled already, masked, or unit missing
+            return False
+        r = systemctl("enable", UNIT)
+        if r is not None and r.returncode == 0:
+            systemctl("start", UNIT)
+            if hasattr(self, "login_cb"):
+                self.login_cb.blockSignals(True)
+                self.login_cb.setChecked(True)
+                self.login_cb.blockSignals(False)
+            self.statusBar().showMessage("Started the RazorFX engine and set it to start at login "
+                                         "(Settings \u25b8 Startup to change).", 10000)
+            QTimer.singleShot(800, self._tick_status)
+            return True
+        return False
 
     def shutdown(self):
         """stop everything that could call back into the window during teardown"""
