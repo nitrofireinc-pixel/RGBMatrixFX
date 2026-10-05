@@ -4,8 +4,10 @@
 """GUI stress / crash regression test (offscreen, no engine). Drives the window with real
 QTest mouse and key events, the way a user does, through every UI that rebuilds itself from
 its own signal handlers:
-  gamer     Gamer Controls: add Space/Shift/Ctrl, remove keys again by editing the list and
-            clicking elsewhere / pressing Enter (Trevor's 1.0 crash), Reset
+  gamer     Gamer Controls key chips: remove chips with Backspace / Delete / the x (each one
+            retires the widget it is handled by), back-to-back removals without the event loop
+            in between, Restore defaults, the locked Pro chip and the hide-previews setting, and
+            with the Pro feature on: + Add key -> "Press any key..." (keys, Esc, duplicates)
   highlight Highlight groups: add, quick-add keys, rename, clear, remove, switch rows
   effects   click through every effect tile, Reset to defaults
   tabs      click through the tabs
@@ -24,6 +26,7 @@ from PySide6.QtWidgets import (QApplication, QAbstractButton, QComboBox, QDialog
                                QCheckBox)
 from razorfx.gui import theme
 from razorfx.gui.app import MainWindow
+from razorfx.gui.keychips import KeyCaptureDialog
 
 app = QApplication.instance() or QApplication([])
 theme.apply(app)
@@ -44,7 +47,7 @@ def close_modals():                            # a stray colour dialog / menu mu
     if p is not None:
         p.close()
     for w in app.topLevelWidgets():
-        if isinstance(w, QDialog) and w.isVisible():
+        if isinstance(w, QDialog) and w.isVisible() and not isinstance(w, KeyCaptureDialog):  # gamer() drives that one
             w.reject()
 
 
@@ -112,13 +115,6 @@ def button(w, text, root=None):
     raise AssertionError("no visible button %r" % text)
 
 
-def gamer_edit(w):
-    for e in page(w).findChildren(QLineEdit):
-        if e.placeholderText().startswith("e.g. W, A, S, D") and e.isVisible():
-            return e
-    raise AssertionError("gamer keys field not found")
-
-
 def type_into(e, text):
     click(e)
     QTest.keyClick(e, Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier)
@@ -132,28 +128,77 @@ def show_tab(w, i):
     assert w.tabs.currentIndex() == i
 
 
+def key(widget, k):
+    QTest.keyClick(widget, k)
+    N[0] += 1
+
+
+def capture(w, k):
+    """+ Add key, then press k in the "Press any key..." prompt"""
+    row = w.gamer_chips
+    click(row.add_chip)
+    spin(20)
+    d = row.dialog
+    assert d is not None and d.isVisible(), "capture prompt did not open"
+    key(d, k)
+    spin()
+    assert row.dialog is None and not d.isVisible()
+
+
 def gamer(w, rounds):
+    from razorfx import plugin_api
     show_tab(w, 2)
     for r in range(rounds):
-        click(button(w, "WASD"))
-        click(button(w, "+ Space / Shift / Ctrl"))
-        assert {"SPACE", "LEFTSHIFT", "LEFTCTRL"} <= set(w.g["gamer_keys"]), w.g["gamer_keys"]
-        # remove SPACE: edit the list, then click somewhere else (focus-out -> editingFinished
-        # while that mouse press is being delivered: the 1.0 crash)
-        type_into(gamer_edit(w), ", ".join(k for k in w.g["gamer_keys"] if k != "SPACE"))
-        other = [button(w, "+ Arrows"), w.findChild(QListWidget), gamer_edit(w).window().findChild(QCheckBox)]
-        click(other[r % 3] if other[r % 3].isVisible() else other[0])
-        assert "SPACE" not in w.g["gamer_keys"], w.g["gamer_keys"]
-        # remove LEFTCTRL with Enter
-        e = gamer_edit(w)
-        type_into(e, ", ".join(k for k in w.g["gamer_keys"] if k != "LEFTCTRL"))
-        QTest.keyClick(e, Qt.Key.Key_Return)
-        N[0] += 1
+        w.features.clear()
+        w.gamer_chips.set_add_mode(w._gamer_add_mode())
+        click(button(w, "Restore defaults (W A S D, white)"))
+        spin(20)
+        row = w.gamer_chips
+        assert [c.name for c in row.chips] == ["W", "A", "S", "D"], [c.name for c in row.chips]
+        click(row.chips[r % 4])                            # click = focus (and the x shows)
+        assert row.chips[r % 4].hasFocus() and row.chips[r % 4].x_btn.isVisible()
+        key(app.focusWidget(), Qt.Key.Key_Backspace if r % 2 else Qt.Key.Key_Delete)
         spin()
-        assert "LEFTCTRL" not in w.g["gamer_keys"], w.g["gamer_keys"]
-        click(button(w, "+ Space / Shift / Ctrl"))
-        click(button(w, "Reset (WASD, white)"))
+        assert len(w.g["gamer_keys"]) == 3, w.g["gamer_keys"]
+        f = app.focusWidget()                              # focus moved on to a neighbour chip
+        assert f in row.chips, f
+        # two removals back to back, no event loop in between: the first chip is only retired
+        key(f, Qt.Key.Key_Backspace)
+        key(app.focusWidget(), Qt.Key.Key_Delete)
+        spin()
+        assert len(w.g["gamer_keys"]) == 1, w.g["gamer_keys"]
+        click(row.chips[0])
+        click(row.chips[0].x_btn)                          # the mouse way; the last chip
+        assert w.g["gamer_keys"] == [], w.g["gamer_keys"]
+        click(row.add_chip)                                # locked: explains itself, nothing else
+        assert row.add_chip.objectName() == "ProChip" and row.dialog is None
+        w.teaser_cb.setChecked(False); spin()
+        assert w.gamer_chips.add_chip is None
+        w.teaser_cb.setChecked(True); spin()
+        click(button(w, "Restore defaults (W A S D, white)"))
+        spin(20)
         assert w.g["gamer_keys"] == ["W", "A", "S", "D"], w.g["gamer_keys"]
+        # Pro: the plugin API unlocks + Add key
+        w.enable_feature(plugin_api.FEATURE_GAMER_ADD_KEY)
+        spin()
+        row = w.gamer_chips
+        assert row.add_chip.objectName() == "AddKeyChip"
+        capture(w, Qt.Key.Key_Space)
+        capture(w, Qt.Key.Key_Escape)                      # cancel
+        capture(w, Qt.Key.Key_W)                           # duplicate: focuses the W chip instead
+        capture(w, (Qt.Key.Key_F5, Qt.Key.Key_Tab, Qt.Key.Key_Q)[r % 3])
+        assert w.g["gamer_keys"][:5] == ["W", "A", "S", "D", "SPACE"] and len(w.g["gamer_keys"]) == 6, w.g["gamer_keys"]
+        click(row.chips[-1])                               # remove the new ones, then add again
+        key(app.focusWidget(), Qt.Key.Key_Backspace)
+        key(app.focusWidget(), Qt.Key.Key_Backspace)
+        spin()
+        capture(w, Qt.Key.Key_Space)
+        click(row.chips[-1]); click(row.chips[-1].x_btn)
+        click(button(w, "Restore defaults (W A S D, white)"))
+        spin(20)
+        assert w.g["gamer_keys"] == ["W", "A", "S", "D"], w.g["gamer_keys"]
+    w.features.clear()
+    w.gamer_chips.set_add_mode(w._gamer_add_mode())
 
 
 def highlight(w, rounds):

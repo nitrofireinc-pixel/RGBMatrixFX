@@ -32,6 +32,7 @@ from .preview import PreviewWidget, ScenePainter
 from .layoututil import FlowLayout, install_wheel_guard
 from .widgets import ColorButton, SliderRow, ParamForm, Collapsible, make_control
 from .plugin_host import GuiPluginHost
+from .keychips import KeyChipRow
 from . import about
 from .appearance import SystemAppearance, ThemeController
 from ..effects import A as ADV
@@ -54,6 +55,29 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ICON_CANDIDATES = [os.path.join(HERE, "..", "..", "data", APP_ID + ".png"),
                    os.path.expanduser("~/.local/share/icons/hicolor/256x256/apps/%s.png" % APP_ID),
                    "/usr/share/icons/hicolor/256x256/apps/%s.png" % APP_ID]
+
+
+def app_icon():
+    """The installed theme icon (what the desktop entry's Icon=razorfx resolves to), falling back
+    to the first icon file found, so the window and the launcher show the same logo."""
+    # make sure the XDG icon dirs and hicolor are searched (Qt's generic/offscreen platform
+    # themes may know neither), so ~/.local/share/icons/hicolor/.../razorfx.* is found
+    paths = QIcon.themeSearchPaths()
+    homes = [os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")]
+    homes += (os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share").split(":")
+    extra = [d for d in (os.path.join(h, "icons") for h in homes if h) if d not in paths and os.path.isdir(d)]
+    if extra:
+        QIcon.setThemeSearchPaths(paths + extra)
+    if not QIcon.fallbackThemeName():
+        QIcon.setFallbackThemeName("hicolor")
+    if not QIcon.themeName():                     # no desktop theme known: hicolor is the base theme
+        QIcon.setThemeName("hicolor")
+    fallback = QIcon()
+    for ic in ICON_CANDIDATES:
+        if os.path.exists(ic):
+            fallback = QIcon(ic)
+            break
+    return QIcon.fromTheme(APP_ID, fallback)
 
 
 def packaged_install():
@@ -210,14 +234,12 @@ class MainWindow(QMainWindow):
         self._last_effect = None
         self._graveyard = []          # replaced widgets waiting for deleteLater (see _retire)
         self.edition = plugin_api.Edition()          # "Free" unless the Pro add-on says otherwise
+        self.features = set()                         # plugin_api.PRO_FEATURES unlocked by the Pro add-on
         self.plugin_host = GuiPluginHost(self)
         self.plugins = plugin_api.PluginManager(self.plugin_host, plugin_dirs)
 
         self.setWindowTitle(APP_NAME)
-        for ic in ICON_CANDIDATES:
-            if os.path.exists(ic):
-                self.setWindowIcon(QIcon(ic))
-                break
+        self.setWindowIcon(app_icon())
         self._load_initial()
         # appearance: the user's choice (gui.ini) + the desktop's light/dark and accent, live
         self.appearance = SystemAppearance(self, portal=follow_system) if follow_system else None
@@ -546,6 +568,32 @@ class MainWindow(QMainWindow):
         if box is not None and shiboken6.isValid(box):
             box.refresh()
 
+    def enable_feature(self, feature):
+        """plugin API hook (ctx.enable_feature)"""
+        self.features.add(feature)
+        if getattr(self, "gamer_chips", None) is not None and shiboken6.isValid(self.gamer_chips):
+            self.gamer_chips.set_add_mode(self._gamer_add_mode())
+
+    def show_pro_teasers(self):
+        return self._settings().value("pro/show_teasers", True, type=bool)
+
+    def _set_pro_teasers(self, on):
+        st = self._settings()
+        st.setValue("pro/show_teasers", bool(on))
+        st.sync()
+        if getattr(self, "gamer_chips", None) is not None and shiboken6.isValid(self.gamer_chips):
+            self.gamer_chips.set_add_mode(self._gamer_add_mode())
+
+    def _gamer_add_mode(self):
+        if plugin_api.FEATURE_GAMER_ADD_KEY in self.features:
+            return "enabled"
+        return "locked" if self.show_pro_teasers() else "hidden"
+
+    def _pro_teaser_clicked(self):
+        self.statusBar().showMessage("Adding your own Gamer Controls keys is a RazorFX Pro feature. "
+                                     "Free: remove keys, or restore the defaults. "
+                                     "(Settings \u25b8 Plugins hides these previews.)", 10000)
+
     def system_info(self):
         desc = None
         if self.theme_ctl is not None:
@@ -652,14 +700,6 @@ class MainWindow(QMainWindow):
         self.engine_btn.setToolTip("Stop the RazorFX engine so Polychromatic controls the lighting again")
         self.engine_btn.clicked.connect(self.toggle_engine)
         lay.addWidget(self.engine_btn)
-        self.about_btn = QToolButton(objectName="AboutBtn")   # backup for the Help menu
-        self.about_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation))
-        self.about_btn.setText("About")
-        self.about_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.about_btn.setToolTip("About %s (F1): version, license, system info" % APP_NAME)
-        self.about_btn.setFixedHeight(32)
-        self.about_btn.clicked.connect(self.show_about)
-        lay.addWidget(self.about_btn)
         return h
 
     # ---------------------------------------------------------------- refresh
@@ -892,31 +932,26 @@ class MainWindow(QMainWindow):
         cb = ColorButton(self.g["gamer_color"])
         cb.colorChanged.connect(lambda c: self._gamer_set("gamer_color", c))
         f.addRow("Colour", cb)
-        keys = QLineEdit(", ".join(self.g["gamer_keys"]))
-        keys.setPlaceholderText("e.g. W, A, S, D")
-        keys.editingFinished.connect(lambda: self._gamer_set(
-            "gamer_keys", [k.strip().upper() for k in keys.text().split(",") if k.strip()], rebuild=True))
-        f.addRow("Keys", keys)
-        quick = QHBoxLayout()
-        for lab, ks in (("WASD", list(L.WASD)), ("+ Arrows", ["UP", "DOWN", "LEFT", "RIGHT"]),
-                        ("+ Space / Shift / Ctrl", ["SPACE", "LEFTSHIFT", "LEFTCTRL"]),
-                        ("+ Q E R F", ["Q", "E", "R", "F"])):
-            b = QPushButton(lab)
-            b.clicked.connect(lambda _, ks=ks, lab=lab: self._gamer_set(
-                "gamer_keys", list(ks) if lab == "WASD" else self.g["gamer_keys"] + [k for k in ks if k not in self.g["gamer_keys"]],
-                rebuild=True))
-            quick.addWidget(b)
-        rst = QPushButton("Reset (WASD, white)")
+        self.gamer_chips = KeyChipRow(self.g["gamer_keys"], self._retire, self._gamer_add_mode())
+        self.gamer_chips.keysChanged.connect(lambda ks: self._gamer_set("gamer_keys", ks))
+        self.gamer_chips.lockedClicked.connect(self._pro_teaser_clicked)
+        f.addRow("Keys", self.gamer_chips)
+        hint = QLabel("Click a key and press Backspace or Delete to remove it (or use its \u00d7).")
+        hint.setProperty("muted", True)
+        hint.setWordWrap(True)
+        f.addRow("", hint)
+        rst = QPushButton("Restore defaults (W A S D, white)")
         rst.clicked.connect(self._gamer_reset)
-        quick.addWidget(rst)
-        quick.addStretch(1)
-        f.addRow("Set", self._wrap(quick))
+        row = QHBoxLayout()
+        row.addWidget(rst)
+        row.addStretch(1)
+        f.addRow("", self._wrap(row))
         return box
 
     def _gamer_reset(self):
         self.g.update(gamer_keys=list(L.WASD), gamer_color="#ffffff")
         self.changed()
-        self._build_hl_tab()
+        QTimer.singleShot(0, self._build_hl_tab)     # rebuilds the box that holds the clicked button
 
     def _hl_select(self, row):
         self._hl_index = max(0, row)
@@ -1220,6 +1255,10 @@ class MainWindow(QMainWindow):
         self.plugin_info.setWordWrap(True)
         self.plugin_info.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         pl.addWidget(self.plugin_info)
+        self.teaser_cb = QCheckBox("Show RazorFX Pro previews (locked features such as \u201cAdd key\u201d)")
+        self.teaser_cb.setChecked(self.show_pro_teasers())
+        self.teaser_cb.toggled.connect(self._set_pro_teasers)
+        pl.addWidget(self.teaser_cb)
         prow = QHBoxLayout()
         pbtn = QPushButton("Open plugin folder")
         pbtn.setToolTip(P.plugin_dir())
@@ -1637,6 +1676,7 @@ def main(argv=None):
     app._sig_timer = safety.quit_on_signals(app)
     app.setApplicationName(APP_NAME)
     app.setDesktopFileName(APP_ID)
+    app.setWindowIcon(app_icon())                  # dialogs too, before any window exists
     theme.apply(app)
     if args.advanced:
         from .widgets import Collapsible

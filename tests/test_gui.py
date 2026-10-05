@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (QApplication, QGroupBox, QSlider, QAbstractSpinBo
                              QAbstractSlider)
 from PySide6.QtCore import QPointF, QPoint, Qt
 from PySide6.QtGui import QWheelEvent, QColor
+from PySide6.QtWidgets import QToolButton
 import razorfx
 from razorfx import layout as L
 from razorfx.effects import EFFECTS
@@ -50,7 +51,7 @@ class TestGui(unittest.TestCase):
         self.assertTrue(mb.isVisible())
         self.assertGreater(mb.height(), 10)
         self.assertEqual(self.w.about_action.shortcut().toString(), "F1")
-        self.assertTrue(self.w.about_btn.isVisible())  # header backup for Help > About
+        self.assertIsNone(self.w.findChild(QToolButton, "AboutBtn"))   # header button removed (dev.2)
         self.assertEqual(self.w.windowTitle(), "RazorFX")
         self.assertEqual(self.w.about_action.text().replace("&", ""), "About RazorFX")
         t = self.w.about_text()
@@ -83,7 +84,7 @@ class TestGui(unittest.TestCase):
         self.assertIn("(Free edition)", text)
         self.assertIn("Engine: not running", text)
         box.close()
-        self.w.about_btn.click()
+        self.w.about_action.trigger()                        # F1 / Help > About
         spin(50)
         self.assertIs(self.w._about_box, box)                # one dialog, reused
         self.assertTrue(self.w._about_box.isVisible())
@@ -216,6 +217,74 @@ class TestGui(unittest.TestCase):
             self.assertEqual(r.returncode, 0, (extra, r.stdout[-2500:] + r.stderr[-1500:]))
             self.assertIn("ALL PASSED", r.stdout)
 
+    def test_gamer_key_chips(self):
+        from PySide6.QtTest import QTest
+        from PySide6.QtCore import QEvent
+        from PySide6.QtWidgets import QPushButton
+        from razorfx import plugin_api
+        from razorfx.gui.keychips import KeyCaptureDialog
+        w = self.w
+        w.tabs.setCurrentIndex(2)
+        w.g["gamer_keys"] = ["SPACE", "W", "A", "S", "D"]
+        w._build_hl_tab()
+        spin(30)
+        row = w.gamer_chips
+        self.assertEqual([c.text() for c in row.chips], ["SPACE", "W", "A", "S", "D"])
+        self.assertEqual(row.add_chip.objectName(), "ProChip")          # free: locked Pro chip
+        chip = row.chips[0]
+        QTest.mouseClick(chip, Qt.MouseButton.LeftButton)                # click = focus, not remove
+        self.assertTrue(chip.hasFocus())
+        self.assertTrue(chip.x_btn.isVisible())
+        self.assertEqual(w.g["gamer_keys"], ["SPACE", "W", "A", "S", "D"])
+        QTest.keyClick(chip, Qt.Key.Key_Backspace)                       # Backspace removes it...
+        self.assertEqual(w.g["gamer_keys"], ["W", "A", "S", "D"])
+        self.assertTrue(row.chips[0].hasFocus() and row.chips[0].name == "W")   # ...focus moves on
+        QTest.keyClick(row.chips[0], Qt.Key.Key_Delete)                  # Delete too
+        self.assertEqual(w.g["gamer_keys"], ["A", "S", "D"])
+        self.assertFalse(chip.isVisible())                               # retired, not deleted in its handler
+        app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        QTest.mouseClick(row.chips[-1].x_btn, Qt.MouseButton.LeftButton)  # mouse: the x
+        self.assertEqual(w.g["gamer_keys"], ["A", "S"])
+        w._gamer_reset()                                                 # Restore defaults
+        spin(30)
+        self.assertEqual(w.g["gamer_keys"], ["W", "A", "S", "D"])
+        self.assertEqual([c.name for c in w.gamer_chips.chips], ["W", "A", "S", "D"])
+        # the locked chip explains itself, and the setting hides it
+        w.gamer_chips.add_chip.click()
+        self.assertIn("RazorFX Pro", w.statusBar().currentMessage())
+        w.teaser_cb.setChecked(False)
+        self.assertIsNone(w.gamer_chips.add_chip)
+        w.teaser_cb.setChecked(True)
+        self.assertEqual(w.gamer_chips.add_chip.objectName(), "ProChip")
+        # Pro (feature unlocked): + Add key -> Press any key...
+        w.enable_feature(plugin_api.FEATURE_GAMER_ADD_KEY)
+        row = w.gamer_chips
+        self.assertEqual((row.add_chip.objectName(), row.add_chip.text()), ("AddKeyChip", "+ Add key"))
+        try:
+            for key, mod, want in ((Qt.Key.Key_Escape, None, None),          # Esc cancels
+                                   (Qt.Key.Key_Space, None, "SPACE"),
+                                   (Qt.Key.Key_W, None, None),               # already there: nothing added
+                                   (Qt.Key.Key_F5, None, "F5")):
+                before = list(w.g["gamer_keys"])
+                row.add_chip.click()
+                spin(30)
+                d = row.dialog
+                self.assertIsInstance(d, KeyCaptureDialog)
+                self.assertEqual(d.prompt.text(), "Press any key\u2026")
+                if key == Qt.Key.Key_Space:
+                    QTest.keyClick(d, Qt.Key.Key_VolumeUp)               # no light for it: refused, still waiting
+                    self.assertTrue(d.isVisible())
+                    self.assertIn("no light", d.hint.text())
+                QTest.keyClick(d, key)
+                spin(30)
+                self.assertIsNone(row.dialog)
+                self.assertEqual(w.g["gamer_keys"], before + ([want] if want else []))
+            self.assertEqual([c.text() for c in row.chips], ["W", "A", "S", "D", "SPACE", "F5"])
+        finally:
+            w.features.clear()
+            w._gamer_reset()
+            spin(30)
+
     def test_first_run_enables_engine_for_packages(self):
         import types
         from razorfx.gui import app as A
@@ -249,6 +318,7 @@ class TestGui(unittest.TestCase):
         self.assertFalse([m for m in sys.modules if m == "PyQt6" or m.startswith(("PyQt6.", "PyQt5"))])
 
     def test_plugins(self):
+        from razorfx import plugin_api as api
         here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         pdir = os.path.join(self.d.name, "plugins")
         os.makedirs(os.path.join(pdir, "broken"))
@@ -256,7 +326,8 @@ class TestGui(unittest.TestCase):
             json.dump({"id": "broken", "name": "Broken", "version": "1", "api": "1.0", "module": "broken"}, f)
         with open(os.path.join(pdir, "broken", "broken.py"), "w") as f:
             f.write("def register(ctx):\n    raise RuntimeError('boom')\n")
-        for pid, code in (("pro", "def register(ctx):\n    ctx.set_edition('Pro', licensed_to='Trevor Olsen')\n"),
+        for pid, code in (("pro", "def register(ctx):\n    ctx.set_edition('Pro', licensed_to='Trevor Olsen')\n"
+                                  "    ctx.enable_feature('gamer.add_key')\n"),
                           ("rival", "def register(ctx):\n    ctx.set_edition('Ultra')\n")):
             os.makedirs(os.path.join(pdir, pid))
             with open(os.path.join(pdir, pid, "plugin.json"), "w") as f:
@@ -276,6 +347,13 @@ class TestGui(unittest.TestCase):
             self.assertIn("boom", why["broken"])
             self.assertIn("already set by plugin 'pro'", why["rival"])
             self.assertEqual(w.edition.label(), "Pro \u2014 licensed to Trevor Olsen")
+            self.assertEqual(w.features, {"gamer.add_key"})
+            self.assertEqual(w.gamer_chips.add_chip.text(), "+ Add key")
+            rival_ctx = api.PluginContext(api.PluginInfo("/x", {"id": "rival2", "version": "1", "api": "1.0"}), w.plugin_host)
+            with self.assertRaises(api.PluginError):
+                rival_ctx.enable_feature("gamer.add_key")
+            with self.assertRaises(ValueError):
+                w.plugins.loaded[1].ctx.enable_feature("everything")
             box = w.show_about()
             self.assertEqual(box.edition_lbl.text(), "Pro \u2014 licensed to Trevor Olsen")
             self.assertIn("Edition: Pro \u2014 licensed to Trevor Olsen", box.pages["about"].toPlainText())

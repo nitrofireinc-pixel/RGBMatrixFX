@@ -132,6 +132,20 @@ QPushButton#Primary:hover { background: %(ACCENT_HOVER)s; }
 QPushButton#Danger { border-color: %(DANGER_BORDER)s; }
 QPushButton#Gamer:checked { background: #f4f4f4; color: #0b130a; border-color: %(TEXT)s; font-weight: 700; }
 QPushButton#Danger:hover { border-color: %(DANGER_HOVER)s; color: %(DANGER_TEXT)s; }
+QPushButton#KeyChip { background: %(PANEL2)s; color: %(TEXT)s; border: 1px solid %(BORDER)s;
+    border-bottom: 3px solid %(SWITCH_OFF)s; border-radius: 6px; padding: 4px 14px; min-width: 22px;
+    min-height: 22px; font-weight: bold; }
+QPushButton#KeyChip:hover { border-color: %(ACCENT)s; border-bottom-color: %(ACCENT)s; }
+QPushButton#KeyChip:focus { border: 2px solid %(ACCENT)s; border-bottom: 3px solid %(ACCENT)s; }
+QToolButton#ChipClose { background: #d23c3c; color: #ffffff; border: none; border-radius: 8px;
+    font-size: 11px; font-weight: bold; padding: 0px; }
+QToolButton#ChipClose:hover { background: #a82a2a; }
+QPushButton#AddKeyChip { background: transparent; color: %(ACCENT)s; border: 1px dashed %(ACCENT)s;
+    border-radius: 6px; padding: 4px 12px; min-height: 22px; }
+QPushButton#AddKeyChip:hover, QPushButton#AddKeyChip:focus { background: %(SEL_BG)s; }
+QPushButton#ProChip { background: transparent; color: %(MUTED)s; border: 1px dashed %(SWITCH_OFF)s;
+    border-radius: 6px; padding: 4px 12px; min-height: 22px; }
+QPushButton#ProChip:hover, QPushButton#ProChip:focus { color: %(TEXT)s; border-color: %(MUTED)s; }
 QPushButton#ColorSwatch { border: 2px solid %(SWITCH_OFF)s; border-radius: 6px; }
 QPushButton#ColorSwatch:hover { border-color: %(ACCENT)s; }
 QComboBox, QSpinBox, QDoubleSpinBox, QLineEdit { background: %(PANEL2)s; border: 1px solid %(BORDER)s;

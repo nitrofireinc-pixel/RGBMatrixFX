@@ -10,9 +10,16 @@ Test builds for Trevor's PC are numbered 1.1.0-dev.N. Nothing is published until
 - 1.1.0-dev.1 (2026-10-04): the groundwork below, plus the Gamer Controls crash fix and the
   always-visible menu bar.
 - 1.1.0-dev.2 (2026-10-05): follows the desktop theme (light/dark + accent), expanded About dialog
-  with Copy system info, .deb/.rpm/AUR/AppImage packages and the release workflow.
+  with Copy system info, .deb/.rpm/AUR/AppImage packages and the release workflow, Gamer Controls
+  key chips, no About button in the header, and the icon-cache fix for the gear icon.
 
 ### Fixed
+- **Generic gear icon instead of the RazorFX logo on GNOME** after the rename from razer-fx:
+  the user icon cache still listed only the old icons. `install.sh` (and so the updater),
+  `uninstall.sh`, rollback and the AppImage's `--integrate` now touch
+  `~/.local/share/icons/hicolor`, rebuild its cache with `gtk-update-icon-cache` when that tool is
+  installed, and run `update-desktop-database`. The window icon now comes from the installed icon
+  theme (the same `razorfx` icon the launcher uses), falling back to the icon file.
 - **Crash (segfault) when removing a key from Gamer Controls** (for example Space or Left Ctrl),
   and the same latent crash in highlight groups, Reset to defaults, the Zones and Settings tabs
   and preset switching. A handler rebuilt the tab and deleted the widget Qt was still delivering the
@@ -23,8 +30,8 @@ Test builds for Trevor's PC are numbered 1.1.0-dev.N. Nothing is published until
   and the window is destroyed before the interpreter exits (1.0 could crash at exit in PyQt6/sip
   teardown; PySide6 has no sip).
 - The menu bar (File, Help) is always drawn inside the window (`setNativeMenuBar(False)`), so
-  Help ▸ About can't disappear into a global menu. F1 opens About, and an About button sits in
-  the header as a backup.
+  Help ▸ About can't disappear into a global menu. F1 also opens About. (dev.1 also had an About
+  button in the header; dev.2 removed it.)
 
 ### Changed
 - **Renamed to RazorFX** (was "Razer FX") everywhere it shows: app name, window title, About,
@@ -49,6 +56,17 @@ Test builds for Trevor's PC are numbered 1.1.0-dev.N. Nothing is published until
   your *Start engine at login* choice on upgrade. `uninstall.sh` keeps your plugins unless `--purge`.
 
 ### Added
+- **Gamer Controls key chips**: the typed key list is replaced by keycap chips ([W] [A] [S] [D]).
+  To remove a key, focus its chip and press Backspace or Delete, or click the × that appears on
+  hover. Focus then moves to the next chip, and **Restore defaults** brings back W A S D in white.
+  The free version keeps the default set (remove and restore only), so the quick-add buttons and
+  the text field are gone. Keys already in a config, such as SPACE, still show as chips. Removing
+  a chip uses the same deferred deletion as the crash fix, and `tests/gui_stress.py` covers it.
+- **Pro preview: + Add key**. A chip that opens a "Press any key…" prompt (Esc cancels) and adds
+  the pressed key as a chip. The free build shows it as a locked "Add key · Pro" chip. *Settings ▸
+  Plugins ▸ Show RazorFX Pro previews* hides it. The Pro add-on unlocks it through the new plugin
+  API call `ctx.enable_feature("gamer.add_key")` (capability `app.features`; for now the host only
+  checks which plugin set the edition).
 - **Packages for the free version**: `.deb` (Debian 13+, Ubuntu 25.10+), `.rpm` (Fedora, with
   the OpenRazer repository), an AUR `PKGBUILD`, and an x86_64 **AppImage**. The AppImage bundles
   Python 3.12, PySide6, numpy, dbus-python, evdev and the OpenRazer client library, and runs

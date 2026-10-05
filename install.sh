@@ -164,6 +164,13 @@ sed -e "s|@PREFIX@|$PREFIX|g" -e "s|^Exec=/usr/bin/python3 |Exec=$GUI_PY |" "$HE
 install -D -m 0644 "$HERE/data/razorfx.png" "$HOME/.local/share/icons/hicolor/256x256/apps/razorfx.png"
 install -D -m 0644 "$HERE/data/razorfx-64.png" "$HOME/.local/share/icons/hicolor/64x64/apps/razorfx.png"
 install -D -m 0644 "$HERE/data/razorfx.svg" "$HOME/.local/share/icons/hicolor/scalable/apps/razorfx.svg"
+# GNOME/GTK find icons through ~/.local/share/icons/hicolor/icon-theme.cache: a stale cache
+# (left from razer-fx) shows a generic gear instead of the logo. Touch the theme dir so caches see
+# the change, rebuild the cache if the tool is there, and refresh the desktop database.
+touch "$HOME/.local/share/icons/hicolor"
+if command -v gtk-update-icon-cache >/dev/null; then
+    gtk-update-icon-cache -f -t -q "$HOME/.local/share/icons/hicolor" || true
+fi
 if command -v update-desktop-database >/dev/null; then update-desktop-database -q "$HOME/.local/share/applications" || true; fi
 
 # Start at login? Keep the user's choice: an upgrade keeps the current state, a migration

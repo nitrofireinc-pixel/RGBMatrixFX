@@ -268,7 +268,7 @@ Open **RazorFX** from the app menu, or run `razorfx`.
 * **Header**: preset picker, **Save**, the **Presets ▾** menu (save as, duplicate, rename, revert,
   delete, export this preset or all of them, import, restore built-ins), master brightness, **Pause**,
   **Gamer Controls** and **Hand back to Polychromatic** (stops the engine).
-* **Help ▸ About** (F1, or the About button in the header) shows the version and edition, the
+* **Help ▸ About** (or F1) shows the version and edition, the
   creator (Nitrofire Computing) and project link, the license with the plugin exception, the
   credits (OpenRazer first) and the Razer trademark notice. **Copy system info** copies the
   app, Python, PySide6/Qt, OpenRazer, driver and kernel versions plus the detected devices
@@ -290,8 +290,14 @@ overwrites existing presets: clashing names get " (2)", and out-of-range values 
 
 The **Gamer Controls** button in the header (also on the *Highlight keys* tab) keeps
 **W A S D solid white on top of everything**: the effect, ripples, key fades, highlight groups and
-zone dimming, in every preset. Only master brightness still applies. You can change the key set and
-colour on the Highlight keys tab. The setting is global (`gamer_controls`, `gamer_keys`,
+zone dimming, in every preset. Only master brightness still applies.
+
+On the Highlight keys tab the keys appear as keycap chips: **[W] [A] [S] [D]**. To remove a key,
+click its chip (or Tab to it) and press Backspace or Delete, or hover over it and click its **×**.
+**Restore defaults** brings back W A S D in white, and you can change the colour there too
+([screenshot](docs/screenshots/13-gamer-chips.png)). Adding your own keys (**+ Add key**, then press
+any key) is a RazorFX Pro feature. The free version shows it as a locked chip, which you can hide
+with *Settings ▸ Plugins ▸ Show RazorFX Pro previews*. The setting is global (`gamer_controls`, `gamer_keys`,
 `gamer_color` in `config.json`) and separate from each preset's own highlight groups. It is off by default.
 
 ## Configuration

@@ -35,6 +35,12 @@ for id in razorfx razer-fx; do
           "$HOME/.local/share/icons/hicolor/scalable/apps/$id.svg"
     rm -rf "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/$id"
 done
+if [[ -d "$HOME/.local/share/icons/hicolor" ]]; then
+    touch "$HOME/.local/share/icons/hicolor"
+    if command -v gtk-update-icon-cache >/dev/null; then
+        gtk-update-icon-cache -f -t -q "$HOME/.local/share/icons/hicolor" || true
+    fi
+fi
 if command -v update-desktop-database >/dev/null; then update-desktop-database -q "$HOME/.local/share/applications" || true; fi
 if (( PURGE )); then
     rm -rf "$PREFIX" "${XDG_CONFIG_HOME:-$HOME/.config}/razorfx" "${XDG_CONFIG_HOME:-$HOME/.config}/razer-fx"

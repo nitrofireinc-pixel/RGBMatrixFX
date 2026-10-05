@@ -39,6 +39,7 @@ fake_legacy() {   # what Razer FX 1.0.0's install.sh (plus a deploy-script backu
     done
     echo '[Desktop Entry]' > $HOME/.local/share/applications/razer-fx.desktop
     touch $HOME/.local/share/icons/hicolor/256x256/apps/razer-fx.png
+    gtk-update-icon-cache -f -t -q $HOME/.local/share/icons/hicolor 2>/dev/null || true   # stale cache (gear-icon bug)
     cp "$HERE/data/razorfx-engine.service" $HOME/.config/systemd/user/razer-fx-engine.service
     PYTHONPATH=$HERE:${PYTHONPATH:-} python3 - "$HOME/.config/razer-fx/config.json" <<'PY'
 import sys
@@ -87,6 +88,10 @@ check '(cd $HOME/.config/razer-fx && sha256sum -c --quiet $T/legacy.sha)' "~/.co
 check '[[ -f $HOME/.local/share/razer-fx/backup4-20261001-120000/razerfx/engine.py ]]' "backups in the old prefix kept"
 check '[[ ! -e $HOME/.local/share/razer-fx/razerfx && ! -e $HOME/.local/share/razer-fx/bin ]]' "old program files removed"
 check '[[ ! -e $HOME/.local/share/applications/razer-fx.desktop && ! -e $HOME/.local/share/icons/hicolor/256x256/apps/razer-fx.png ]]' "old desktop entry + icon removed"
+if command -v gtk-update-icon-cache >/dev/null; then
+    IC=$HOME/.local/share/icons/hicolor/icon-theme.cache
+    check '[[ -f $IC ]] && grep -aq razorfx $IC && ! grep -aq razer-fx $IC' "icon cache rebuilt (razorfx in, razer-fx out)"
+fi
 check '[[ "$(readlink $HOME/.local/bin/razer-fx)" == razorfx && "$(readlink $HOME/.local/bin/razer-fx-engine)" == razorfx-engine ]]' "razer-fx / razer-fx-engine are now aliases"
 check '$HOME/.local/bin/razer-fx-engine --help | grep -q "RazorFX lighting engine"' "old command name still works"
 check '[[ ! -e $XDG_RUNTIME_DIR/razer-fx ]]' "old runtime dir removed"

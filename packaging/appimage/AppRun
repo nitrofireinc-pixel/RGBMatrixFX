@@ -66,6 +66,16 @@ write_unit() {
     fi
 }
 
+refresh_menu() {    # stale icon caches show a generic icon instead of the logo (GNOME)
+    if [ -d "$DATA/icons/hicolor" ]; then
+        touch "$DATA/icons/hicolor"
+        if command -v gtk-update-icon-cache >/dev/null; then
+            gtk-update-icon-cache -f -t -q "$DATA/icons/hicolor" || true
+        fi
+    fi
+    if command -v update-desktop-database >/dev/null; then update-desktop-database -q "$DATA/applications" || true; fi
+}
+
 integrate() {
     [ -n "${APPIMAGE:-}" ] || { echo "--integrate only works when run as an AppImage" >&2; exit 1; }
     f="$DATA/applications/razorfx.desktop"
@@ -77,7 +87,7 @@ integrate() {
               "$APPDIR/usr/share/applications/razorfx.desktop" | grep -v '^#'; } > "$f"
         install -D -m 0644 "$APPDIR/usr/share/icons/hicolor/256x256/apps/razorfx.png" \
             "$DATA/icons/hicolor/256x256/apps/razorfx.png"
-        if command -v update-desktop-database >/dev/null; then update-desktop-database -q "$DATA/applications" || true; fi
+        refresh_menu
         echo "Added RazorFX to the app menu ($f)."
     fi
     write_unit
@@ -87,6 +97,7 @@ unintegrate() {
     f="$DATA/applications/razorfx.desktop"
     if ours "$f"; then
         rm -f "$f" "$DATA/icons/hicolor/256x256/apps/razorfx.png"
+        refresh_menu
         echo "Removed $f"
     fi
     if ours "$UDIR/$UNIT"; then

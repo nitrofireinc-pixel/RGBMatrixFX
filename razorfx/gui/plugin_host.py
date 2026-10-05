@@ -8,7 +8,7 @@ from . import safety
 
 class GuiPluginHost:
     capabilities = frozenset({api.CAP_LOG, api.CAP_SETTINGS, api.CAP_STORAGE, api.CAP_MENU,
-                              api.CAP_DIALOG_PARENT, api.CAP_STATUS, api.CAP_EVENTS, api.CAP_EDITION})
+                              api.CAP_DIALOG_PARENT, api.CAP_STATUS, api.CAP_EVENTS, api.CAP_EDITION, api.CAP_FEATURES})
 
     def __init__(self, window):
         self._w = window
@@ -36,6 +36,14 @@ class GuiPluginHost:
             raise api.PluginError("the edition was already set by plugin %r" % cur.plugin_id)
         self._w.set_edition(edition)
         safety.log("edition: %s (set by plugin %s)" % (edition.label(), info.id))
+
+    def enable_feature(self, info, feature):
+        # stub licence check: the plugin that set the (Pro) edition, and only it, unlocks features.
+        # The real Pro add-on verifies its licence before calling set_edition().
+        if self._w.edition.plugin_id != info.id or self._w.edition.is_free:
+            raise api.PluginError("enable_feature needs set_edition() from this plugin first")
+        self._w.enable_feature(feature)
+        safety.log("feature %s enabled by plugin %s" % (feature, info.id))
 
     def dialog_parent(self):
         return self._w

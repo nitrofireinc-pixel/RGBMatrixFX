@@ -43,8 +43,14 @@ CAP_DIALOG_PARENT = "gui.dialog_parent"   # ctx.dialog_parent() (GUI host only)
 CAP_STATUS = "engine.status"         # ctx.engine_status()
 CAP_EVENTS = "events"                # ctx.on("effect_changed" | "engine_connected" | "engine_disconnected" | "shutdown", fn)
 CAP_EDITION = "app.edition"          # ctx.set_edition() (for the RazorFX Pro add-on; a label only)
+CAP_FEATURES = "app.features"        # ctx.enable_feature() (for the RazorFX Pro add-on)
 ALL_CAPABILITIES = frozenset({CAP_LOG, CAP_SETTINGS, CAP_STORAGE, CAP_MENU, CAP_DIALOG_PARENT,
-                              CAP_STATUS, CAP_EVENTS, CAP_EDITION})
+                              CAP_STATUS, CAP_EVENTS, CAP_EDITION, CAP_FEATURES})
+
+# Built-in features that are locked in the free edition and shown there as Pro previews.
+# The RazorFX Pro add-on unlocks them with ctx.enable_feature(); see docs/PLUGIN_API.md.
+FEATURE_GAMER_ADD_KEY = "gamer.add_key"   # "+ Add key" chip in Gamer Controls (press a key to add it)
+PRO_FEATURES = frozenset({FEATURE_GAMER_ADD_KEY})
 EVENTS = ("effect_changed", "engine_connected", "engine_disconnected", "shutdown")
 
 MANIFEST = "plugin.json"
@@ -233,6 +239,14 @@ class PluginContext:
             raise ValueError("edition name must not be empty")
         who = Edition.clean(licensed_to, 80) if licensed_to else None
         self._host.set_edition(self._info, Edition(name, who or None, self._info.id))
+
+    def enable_feature(self, feature):
+        """Unlock one of PRO_FEATURES. Provisional (plugin API 1.0 while RazorFX is 1.1.0-dev):
+        only the plugin that set the edition with set_edition() may do this, so call that first."""
+        self._need(CAP_FEATURES)
+        if feature not in PRO_FEATURES:
+            raise ValueError("unknown feature %r (known: %s)" % (feature, ", ".join(sorted(PRO_FEATURES))))
+        self._host.enable_feature(self._info, feature)
 
     # -- internal (host side)
     def _need(self, cap):
