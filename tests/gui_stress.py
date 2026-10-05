@@ -8,7 +8,9 @@ its own signal handlers:
             retires the widget it is handled by), back-to-back removals without the event loop
             in between, Restore defaults, the locked Pro chip and the hide-previews setting, and
             with the Pro feature on: + Add key -> "Press any key..." (keys, Esc, duplicates)
-  highlight Highlight groups: add, quick-add keys, rename, clear, remove, switch rows
+  highlight Highlight groups: free build has no free-form adding (chips, removal, Restore defaults,
+            locked Pro previews); rename + click a chip, remove chips, switch and remove groups;
+            Pro feature on: Add group, + Add key, Pick keys on the preview
   effects   click through every effect tile, Reset to defaults
   tabs      click through the tabs
   presets   switch presets from the combo, Restore built-in presets
@@ -133,9 +135,9 @@ def key(widget, k):
     N[0] += 1
 
 
-def capture(w, k):
+def capture(w, k, row=None):
     """+ Add key, then press k in the "Press any key..." prompt"""
-    row = w.gamer_chips
+    row = row or w.gamer_chips
     click(row.add_chip)
     spin(20)
     d = row.dialog
@@ -201,24 +203,81 @@ def gamer(w, rounds):
     w.gamer_chips.set_add_mode(w._gamer_add_mode())
 
 
+def hl_page_has_free_form_add(w):
+    """anything on the Highlight keys page that adds arbitrary keys or groups in the free build"""
+    texts = {"Add group", "Pick keys on the preview", "+ Add key", "WASD", "Arrows", "F-keys",
+             "Numbers", "Numpad", "Logo", "Clear"}
+    bad = [b.text() for b in page(w).findChildren(QAbstractButton) if b.isVisible() and b.text() in texts]
+    bad += [e.placeholderText() for e in page(w).findChildren(QLineEdit)
+            if e.isVisible() and "W, A, S, D" in e.placeholderText()]
+    return bad
+
+
 def highlight(w, rounds):
+    from razorfx import plugin_api, layout as L
     show_tab(w, 2)
     for r in range(rounds):
-        for _ in range(3):
-            click(button(w, "Add group"))
-        for q in ("WASD", "Arrows", "F-keys", "Logo", "Clear", "Numbers"):
-            click(button(w, q))
-        name = [e for e in page(w).findChildren(QLineEdit) if e.text().startswith("Group") and e.isVisible()]
-        if name:
-            type_into(name[0], "Renamed %d" % r)
-            click(button(w, "Numpad"))          # focus-out rename + rebuild in one click
-        lst = w.findChild(QListWidget)
-        for i in range(lst.count()):
-            lst = [l for l in page(w).findChildren(QListWidget) if l.isVisible()][0]
-            click(lst.viewport(), lst.visualItemRect(lst.item(min(i, lst.count() - 1))).center())
+        # free build, a config from before dev.3 with extra keys and groups
+        w.features.clear()
+        w.profile["highlights"] = [
+            {"name": "Mine", "keys": ["SPACE", "LEFTSHIFT", "F5", "KP5"], "color": "#ff0000", "on_top": True, "enabled": True},
+            {"name": "WASD", "keys": ["W", "A", "S", "D"], "color": "#ffffff", "on_top": False, "enabled": True}]
+        w._hl_index = 0
+        w._build_hl_tab(); spin(20)
+        assert not hl_page_has_free_form_add(w), hl_page_has_free_form_add(w)
+        assert [c.name for c in w.hl_chips.chips] == ["SPACE", "LEFTSHIFT", "F5", "KP5"]
+        assert w.hl_chips.add_chip.objectName() == "ProChip" and w.hl_add_locked.isVisible()
+        click(w.hl_add_locked)                             # locked: explains itself only
+        click(w.hl_chips.add_chip)
+        assert len(w.profile["highlights"]) == 2 and w.hl_chips.dialog is None
+        w._set_pick(True)
+        assert not w.pick_mode                             # no picking on the preview either
+        # rename, then click a chip: focus-out rename rebuilds the page during that click
+        name = [e for e in page(w).findChildren(QLineEdit) if e.text() == "Mine" and e.isVisible()][0]
+        type_into(name, "Renamed %d" % r)
+        click(w.hl_chips.chips[0])
+        assert w.profile["highlights"][0]["name"] == "Renamed %d" % r
+        row = w.hl_chips
+        click(row.chips[r % len(row.chips)])
+        key(app.focusWidget(), Qt.Key.Key_Backspace)
+        key(app.focusWidget(), Qt.Key.Key_Delete)          # back to back, first chip only retired
+        spin()
+        assert len(w.profile["highlights"][0]["keys"]) == 2, w.profile["highlights"][0]["keys"]
+        click(row.chips[0]); click(row.chips[0].x_btn)
+        assert len(w.profile["highlights"][0]["keys"]) == 1
+        lst = [l for l in page(w).findChildren(QListWidget) if l.isVisible()][0]
+        assert lst.item(0).text().endswith("(1 keys)"), lst.item(0).text()
+        click(lst.viewport(), lst.visualItemRect(lst.item(1)).center())   # switch group
+        assert [c.name for c in w.hl_chips.chips] == ["W", "A", "S", "D"]
+        w.teaser_cb.setChecked(False); spin()
+        assert not w.hl_add_locked.isVisible() and w.hl_chips.add_chip is None
+        w.teaser_cb.setChecked(True); spin()
         while w.profile["highlights"]:
             click(button(w, "Remove"))
-        click(button(w, "Remove"))              # with nothing left
+        click(button(w, "Remove"))                         # with nothing left
+        click(button(w, "Restore defaults"))
+        spin(20)
+        assert [g["keys"] for g in w.profile["highlights"]] == [list(L.WASD)], w.profile["highlights"]
+        # Pro: the plugin API unlocks Add group, + Add key and picking on the preview
+        w.enable_feature(plugin_api.FEATURE_HIGHLIGHT_ADD); spin()
+        assert w.hl_add_btn.isVisible() and w.hl_pick_btn.isVisible() and w.hl_chips.add_chip.objectName() == "AddKeyChip"
+        click(button(w, "Add group"))
+        assert len(w.profile["highlights"]) == 2 and w.profile["highlights"][1]["keys"] == []
+        capture(w, Qt.Key.Key_Space, w.hl_chips)
+        capture(w, Qt.Key.Key_Escape, w.hl_chips)
+        capture(w, (Qt.Key.Key_F5, Qt.Key.Key_Q)[r % 2], w.hl_chips)
+        assert len(w.profile["highlights"][1]["keys"]) == 2, w.profile["highlights"][1]
+        click(w.hl_pick_btn)
+        assert w.pick_mode
+        for k in L.KEYS[:3]:
+            w._preview_key(k); N[0] += 1; spin()
+        assert len(w.profile["highlights"][1]["keys"]) == 5, w.profile["highlights"][1]
+        click(w.hl_pick_btn)
+        click(button(w, "Restore defaults"))
+        spin(20)
+        assert len(w.profile["highlights"]) == 1
+    w.features.clear()
+    w._refresh_pro_ui()
 
 
 def effects(w, rounds):

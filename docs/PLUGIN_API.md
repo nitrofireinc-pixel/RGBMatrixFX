@@ -79,7 +79,7 @@ as failed. RazorFX keeps running.
 | `ctx.engine_status()` | `engine.status` | Read-only snapshot: `{"running", "effect", "preset", "paused", "keyboard", "mouse"}` (device names or `None`) |
 | `ctx.on(event, fn)` | `events` | Subscribe to `effect_changed(effect_id)`, `engine_connected()`, `engine_disconnected()` or `shutdown()` |
 | `ctx.set_edition(name, licensed_to=None)` | `app.edition` | Changes the edition shown in *Help ▸ About* from "Free" to, for example, "Pro — licensed to Jane Doe". Meant for the optional RazorFX Pro add-on after it has checked its own licence. Only one plugin may set it; another plugin's call raises `PluginError`. It is a label only and unlocks nothing |
-| `ctx.enable_feature(feature)` | `app.features` | Unlocks one feature from `razorfx.plugin_api.PRO_FEATURES` in the GUI. Today that is only `"gamer.add_key"` (`FEATURE_GAMER_ADD_KEY`): the **+ Add key** chip in Gamer Controls, which asks you to press a key and adds it. Only the plugin that called `set_edition()` (with an edition other than "Free") may call this, so call `set_edition()` first; otherwise it raises `PluginError`. An unknown feature name raises `ValueError`. *Provisional in 1.1.0-dev:* the host checks only which plugin set the edition (a stub). The real licence check happens inside the Pro add-on before it calls `set_edition()` |
+| `ctx.enable_feature(feature)` | `app.features` | Unlocks one feature from `razorfx.plugin_api.PRO_FEATURES` in the GUI. `"gamer.add_key"` (`FEATURE_GAMER_ADD_KEY`) unlocks the **+ Add key** chip in Gamer Controls, which asks you to press a key and adds it. `"highlight.add_keys"` (`FEATURE_HIGHLIGHT_ADD`) unlocks **Add group**, **+ Add key** and **Pick keys on the preview** on the Highlight keys tab. Only the plugin that called `set_edition()` (with an edition other than "Free") may call this, so call `set_edition()` first; otherwise it raises `PluginError`. An unknown feature name raises `ValueError`. *Provisional in 1.1.0-dev:* the host checks only which plugin set the edition (a stub). The real licence check happens inside the Pro add-on before it calls `set_edition()` |
 
 A Pro add-on's `register()` therefore looks like this:
 
@@ -88,6 +88,7 @@ def register(ctx):
     if licence_ok():                                    # the add-on's own check
         ctx.set_edition("Pro", licensed_to=owner)
         ctx.enable_feature("gamer.add_key")
+        ctx.enable_feature("highlight.add_keys")
 ```
 
 Calling a member whose capability the host does not offer raises

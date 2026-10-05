@@ -589,7 +589,39 @@ class TestGui(unittest.TestCase):
         w3.close()
         self.assertFalse(os.path.exists(self.cfg) and "window" in open(self.cfg).read())   # config.json untouched
 
-    def test_highlight_pick(self):
+    def test_highlight_free_has_no_free_form_add(self):
+        from PySide6.QtWidgets import QLineEdit, QAbstractButton
+        w = self.w
+        w.profile["highlights"] = [{"name": "Old", "keys": ["SPACE", "F5", "KP5"], "color": "#ff0000",
+                                    "on_top": True, "enabled": True}]       # pre-dev.3 config with extra keys
+        w._hl_index = 0
+        w._build_hl_tab()
+        w.tabs.setCurrentWidget(w.tab_hl)
+        spin(30)
+        pg = w.tab_hl.widget()
+        self.assertEqual([c.name for c in w.hl_chips.chips], ["SPACE", "F5", "KP5"])    # still shown
+        self.assertFalse([e for e in pg.findChildren(QLineEdit) if e.isVisible() and "W, A, S, D" in e.placeholderText()])
+        vis = {b.text() for b in pg.findChildren(QAbstractButton) if b.isVisible()}
+        self.assertFalse(vis & {"Add group", "Pick keys on the preview", "+ Add key", "WASD", "Arrows",
+                                "F-keys", "Numbers", "Numpad", "Logo", "Clear"}, vis)
+        self.assertTrue(w.hl_add_locked.isVisible())
+        from razorfx import pro_status
+        if not pro_status.PRO_FOR_SALE:
+            self.assertIn("coming soon", w.hl_add_locked.text())
+        w._hl_add()                                                       # no backdoor
+        w._set_pick(True)
+        w._preview_key(L.KEY_BY_NAME["G"])
+        self.assertEqual(len(w.profile["highlights"]), 1)
+        self.assertEqual(w.profile["highlights"][0]["keys"], ["SPACE", "F5", "KP5"])
+        w._hl_restore()
+        spin(30)
+        self.assertEqual(w.profile["highlights"], [{"name": "WASD", "keys": ["W", "A", "S", "D"], "color": "#ffffff",
+                                                    "on_top": True, "enabled": True}])
+
+    def test_highlight_pick(self):                                        # Pro
+        from razorfx import plugin_api
+        self.w.enable_feature(plugin_api.FEATURE_HIGHLIGHT_ADD)
+        self.addCleanup(self.w.features.clear)
         self.w.tabs.setCurrentWidget(self.w.tab_hl)
         self.w._set_pick(True)
         self.w._preview_key(L.KEY_BY_NAME["SPACE"])

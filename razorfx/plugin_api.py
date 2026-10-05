@@ -50,7 +50,8 @@ ALL_CAPABILITIES = frozenset({CAP_LOG, CAP_SETTINGS, CAP_STORAGE, CAP_MENU, CAP_
 # Built-in features that are locked in the free edition and shown there as Pro previews.
 # The RazorFX Pro add-on unlocks them with ctx.enable_feature(); see docs/PLUGIN_API.md.
 FEATURE_GAMER_ADD_KEY = "gamer.add_key"   # "+ Add key" chip in Gamer Controls (press a key to add it)
-PRO_FEATURES = frozenset({FEATURE_GAMER_ADD_KEY})
+FEATURE_HIGHLIGHT_ADD = "highlight.add_keys"   # Highlight keys: "+ Add key", Add group, Pick keys on the preview
+PRO_FEATURES = frozenset({FEATURE_GAMER_ADD_KEY, FEATURE_HIGHLIGHT_ADD})
 EVENTS = ("effect_changed", "engine_connected", "engine_disconnected", "shutdown")
 
 MANIFEST = "plugin.json"

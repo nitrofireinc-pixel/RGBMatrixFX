@@ -46,7 +46,7 @@ engine (and your lighting) running.
   wheels and ripples travel from the keyboard on to the mouse.
 * **Reactive layer** on top of *any* effect: ripples and/or key fades triggered by keys, clicks
   and the scroll wheel.
-* **Highlight key groups** (WASD, arrows, F-keys, numpad, or your own) at a fixed colour.
+* **Highlight key groups** at a fixed colour (WASD by default).
 * **Gamer Controls**: one click keeps W A S D lit on top of everything, in every preset.
 * **Zones**: keyboard keys, keyboard logo, mouse logo and mouse scroll wheel can each follow the
   effect or run their own static, breathing or spectrum colour, with separate brightness.
@@ -257,7 +257,10 @@ Open **RazorFX** from the app menu, or run `razorfx`.
   constant. Each tooltip shows the default.
 * **Reactive layer**: ripples and/or key fades on top of any effect. Set the colour (or rainbow), speed, ring
   width, life and fade curve, and the triggers (keys, clicks, scrolling).
-* **Highlight keys**: groups of keys held at a fixed colour. Pick keys by clicking the preview.
+* **Highlight keys**: groups of keys held at a fixed colour. Keys show as keycap chips. Remove one
+  with Backspace, Delete or its ×, change a group's name, colour, layer or enabled state, remove
+  groups, or **Restore defaults** (one WASD group in white). Adding keys and groups (+ Add key,
+  Add group, picking keys on the preview) will be part of RazorFX Pro (coming soon).
   Each group can sit above or below the ripples. This tab also has the Gamer Controls box.
 * **Zones**: keyboard keys, keyboard logo, mouse logo and mouse scroll wheel. Each one follows the
   effect or gets its own static, breathing or spectrum colour, or is turned off. **Identify** blinks the zone on the device.

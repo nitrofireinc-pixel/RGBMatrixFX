@@ -572,8 +572,7 @@ class MainWindow(QMainWindow):
     def enable_feature(self, feature):
         """plugin API hook (ctx.enable_feature)"""
         self.features.add(feature)
-        if getattr(self, "gamer_chips", None) is not None and shiboken6.isValid(self.gamer_chips):
-            self.gamer_chips.set_add_mode(self._gamer_add_mode())
+        self._refresh_pro_ui()
 
     def show_pro_teasers(self):
         return self._settings().value("pro/show_teasers", True, type=bool)
@@ -582,16 +581,36 @@ class MainWindow(QMainWindow):
         st = self._settings()
         st.setValue("pro/show_teasers", bool(on))
         st.sync()
-        if getattr(self, "gamer_chips", None) is not None and shiboken6.isValid(self.gamer_chips):
-            self.gamer_chips.set_add_mode(self._gamer_add_mode())
+        self._refresh_pro_ui()
 
-    def _gamer_add_mode(self):
-        if plugin_api.FEATURE_GAMER_ADD_KEY in self.features:
+    def _pro_mode(self, feature):
+        """'enabled' (Pro feature unlocked), 'locked' (free, previews shown) or 'hidden'"""
+        if feature in self.features:
             return "enabled"
         return "locked" if self.show_pro_teasers() else "hidden"
 
-    def _pro_teaser_clicked(self):
-        self.statusBar().showMessage(pro_status.teaser_message("Adding your own Gamer Controls keys") +
+    def _gamer_add_mode(self):
+        return self._pro_mode(plugin_api.FEATURE_GAMER_ADD_KEY)
+
+    def _hl_add_mode(self):
+        return self._pro_mode(plugin_api.FEATURE_HIGHLIGHT_ADD)
+
+    def _refresh_pro_ui(self):
+        """the Pro feature set or the previews setting changed: update the add chips in place"""
+        if getattr(self, "gamer_chips", None) is not None and shiboken6.isValid(self.gamer_chips):
+            self.gamer_chips.set_add_mode(self._gamer_add_mode())
+        mode = self._hl_add_mode()
+        if mode != "enabled" and self.pick_mode:
+            self._set_pick(False)
+        if getattr(self, "hl_chips", None) is not None and shiboken6.isValid(self.hl_chips):
+            self.hl_chips.set_add_mode(mode)
+        for name, want in (("hl_add_btn", "enabled"), ("hl_add_locked", "locked"), ("hl_pick_btn", "enabled")):
+            b = getattr(self, name, None)
+            if b is not None and shiboken6.isValid(b):
+                b.setVisible(mode == want)
+
+    def _pro_teaser_clicked(self, what="Adding your own Gamer Controls keys"):
+        self.statusBar().showMessage(pro_status.teaser_message(what) +
                                      " Free: remove keys, or restore the defaults. "
                                      "(Settings \u25b8 Plugins hides these previews.)", 10000)
 
@@ -904,12 +923,23 @@ class MainWindow(QMainWindow):
         self.hl_list.currentRowChanged.connect(self._hl_select)
         left.addWidget(self.hl_list)
         row = QHBoxLayout()
-        add = QPushButton("Add group")
-        add.clicked.connect(self._hl_add)
+        mode = self._hl_add_mode()
+        self.hl_add_btn = QPushButton("Add group", page)              # Pro; parented: setVisible on
+                                                                      # a parentless widget opens a window
+        self.hl_add_btn.clicked.connect(self._hl_add)
+        self.hl_add_locked = QPushButton("\U0001F512 Add group \u00b7 " + pro_status.badge(), page, objectName="ProChip")
+        self.hl_add_locked.setToolTip(pro_status.teaser_message("Adding highlight groups"))
+        self.hl_add_locked.clicked.connect(lambda: self._pro_teaser_clicked("Adding highlight groups and keys"))
+        self.hl_add_btn.setVisible(mode == "enabled")
+        self.hl_add_locked.setVisible(mode == "locked")
         rem = QPushButton("Remove")
         rem.clicked.connect(self._hl_remove)
-        row.addWidget(add); row.addWidget(rem)
+        row.addWidget(self.hl_add_btn); row.addWidget(self.hl_add_locked); row.addWidget(rem)
         left.addLayout(row)
+        rst = QPushButton("Restore defaults")
+        rst.setToolTip("This preset's highlight groups go back to one WASD group in white")
+        rst.clicked.connect(self._hl_restore)
+        left.addWidget(rst)
         h.addLayout(left)
         self.hl_editor = QGroupBox("Group")
         QVBoxLayout(self.hl_editor).setContentsMargins(0, 0, 0, 0)
@@ -965,7 +995,7 @@ class MainWindow(QMainWindow):
         f = QFormLayout(self._hl_form)
         f.setVerticalSpacing(10)
         if row < 0 or row >= len(self.profile["highlights"]):
-            f.addRow(QLabel("No highlight groups. Add one to keep keys (e.g. WASD) a fixed colour."))
+            f.addRow(QLabel("No highlight groups. Restore defaults brings back WASD in white."))
             self._update_selection()
             return
         g = self.profile["highlights"][row]
@@ -982,36 +1012,24 @@ class MainWindow(QMainWindow):
         top.setChecked(g["on_top"])
         top.toggled.connect(lambda x: self._hl_set(row, "on_top", x))
         f.addRow("Layer", top)
-        self.hl_keys = QLineEdit(", ".join(g["keys"]))
-        self.hl_keys.setPlaceholderText("e.g. W, A, S, D, SPACE, LEFTSHIFT")
-        self.hl_keys.editingFinished.connect(
-            lambda: self._hl_set(row, "keys", [k.strip().upper() for k in self.hl_keys.text().split(",") if k.strip()], relist=True))
-        f.addRow("Keys", self.hl_keys)
-        pick = QPushButton("Pick keys on the preview", checkable=True)
-        pick.setChecked(self.pick_mode)
-        pick.toggled.connect(self._set_pick)
-        quick = QHBoxLayout()
-        for lab, keys in (("WASD", list(L.WASD)), ("Arrows", ["UP", "DOWN", "LEFT", "RIGHT"]),
-                          ("F-keys", ["F%d" % i for i in range(1, 13)]),
-                          ("Numbers", list("1234567890")),
-                          ("Numpad", [k.name for k in L.KEYS if k.name.startswith("KP") or k.name == "NUMLOCK"]),
-                          ("Logo", ["LOGO"])):
-            b = QPushButton(lab)
-            b.clicked.connect(lambda _, keys=keys: self._hl_set(row, "keys", sorted(set(g["keys"]) | set(keys)), relist=True, rebuild=True))
-            quick.addWidget(b)
-        clr = QPushButton("Clear")
-        clr.clicked.connect(lambda: self._hl_set(row, "keys", [], relist=True, rebuild=True))
-        quick.addWidget(clr)
-        quick.addStretch(1)
-        f.addRow("", pick)
-        f.addRow("Add", self._wrap(quick))
-        tip = QLabel("Key names follow Linux evdev (LEFTSHIFT, KP5, SPACE, COMPOSE\u2026). LOGO = keyboard logo cell.")
-        tip.setProperty("muted", True)
-        tip.setWordWrap(True)
-        f.addRow("", tip)
+        mode = self._hl_add_mode()
+        self.hl_chips = KeyChipRow(g["keys"], self._retire, mode)
+        self.hl_chips.keysChanged.connect(lambda ks: self._hl_keys_changed(row, ks))
+        self.hl_chips.lockedClicked.connect(lambda: self._pro_teaser_clicked("Adding highlight groups and keys"))
+        f.addRow("Keys", self.hl_chips)
+        hint = QLabel("Click a key and press Backspace or Delete to remove it (or use its \u00d7).")
+        hint.setProperty("muted", True)
+        hint.setWordWrap(True)
+        f.addRow("", hint)
+        self.hl_pick_btn = QPushButton("Pick keys on the preview", self._hl_form, checkable=True)   # Pro
+        self.hl_pick_btn.setChecked(self.pick_mode)
+        self.hl_pick_btn.toggled.connect(self._set_pick)
+        self.hl_pick_btn.setVisible(mode == "enabled")
+        f.addRow("", self.hl_pick_btn)
         self._update_selection()
 
     def _set_pick(self, on):
+        on = bool(on) and plugin_api.FEATURE_HIGHLIGHT_ADD in self.features   # Pro only
         self.pick_mode = on
         self.preview_hint.setText("Click keys to add/remove them from the group" if on
                                   else "Click keys or mouse buttons to try reactions")
@@ -1026,7 +1044,28 @@ class MainWindow(QMainWindow):
             self._build_hl_tab()
         self._update_selection()
 
+    def _hl_keys_changed(self, row, keys):
+        """a chip was removed or (Pro) added: save, relabel the list row, no rebuild (the chip
+        row emitting this is still on the stack; removed chips are retired, see _retire)"""
+        if row >= len(self.profile["highlights"]):
+            return
+        g = self.profile["highlights"][row]
+        g["keys"] = list(keys)
+        self.changed()
+        it = self.hl_list.item(row) if shiboken6.isValid(self.hl_list) else None
+        if it is not None:
+            it.setText("%s  (%d keys)" % (g["name"], len(g["keys"])))
+        self._update_selection()
+
+    def _hl_restore(self):
+        self.profile["highlights"] = copy.deepcopy(config.WASD_WHITE)
+        self._hl_index = 0
+        self.changed()
+        QTimer.singleShot(0, self._build_hl_tab)     # rebuilds the page that holds the clicked button
+
     def _hl_add(self):
+        if plugin_api.FEATURE_HIGHLIGHT_ADD not in self.features:   # Pro only
+            return
         self.profile["highlights"].append({"name": "Group %d" % (len(self.profile["highlights"]) + 1),
                                            "keys": [], "color": "#ffffff", "on_top": True, "enabled": True})
         self._hl_index = len(self.profile["highlights"]) - 1
@@ -1518,9 +1557,8 @@ class MainWindow(QMainWindow):
                 keys.remove(key.name)
             else:
                 keys.append(key.name)
-            self._hl_set(r, "keys", keys)
-            if hasattr(self, "hl_keys"):
-                self.hl_keys.setText(", ".join(keys))
+            self._hl_index = r
+            self._hl_set(r, "keys", keys, rebuild=True)
             return
         code = key.codes[0] if key.codes else None
         if code is None:

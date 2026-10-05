@@ -12,6 +12,8 @@ Test builds for Trevor's PC are numbered 1.1.0-dev.N. Nothing is published until
 - 1.1.0-dev.2 (2026-10-05): follows the desktop theme (light/dark + accent), expanded About dialog
   with Copy system info, .deb/.rpm/AUR/AppImage packages and the release workflow, Gamer Controls
   key chips, no About button in the header, and the icon-cache fix for the gear icon.
+- 1.1.0-dev.3 (2026-10-05): Highlight keys uses the same keycap chips; the free build can no
+  longer add arbitrary keys or groups there ("Pro: coming soon").
 
 ### Fixed
 - **Generic gear icon instead of the RazorFX logo on GNOME** after the rename from razer-fx:
@@ -56,6 +58,13 @@ Test builds for Trevor's PC are numbered 1.1.0-dev.N. Nothing is published until
   your *Start engine at login* choice on upgrade. `uninstall.sh` keeps your plugins unless `--purge`.
 
 ### Added
+- **Highlight keys: keycap chips, free-form adding is Pro.** A group's keys show as chips
+  (remove with Backspace, Delete or ×). The typed Keys field and the WASD/Arrows/F-keys/Numbers/
+  Numpad/Logo/Clear buttons are gone. In the free build, Add group, + Add key and Pick keys on the
+  preview are locked "Pro: coming soon" previews (same flag and hide-previews setting as Gamer
+  Controls). **Restore defaults** sets the preset back to one WASD group in white. Name, colour,
+  enabled, layer and Remove stay free. Existing groups and extra keys keep working and show as
+  chips. Pro unlocks it with `ctx.enable_feature("highlight.add_keys")`.
 - **Gamer Controls key chips**: the typed key list is replaced by keycap chips ([W] [A] [S] [D]).
   To remove a key, focus its chip and press Backspace or Delete, or click the × that appears on
   hover. Focus then moves to the next chip, and **Restore defaults** brings back W A S D in white.
