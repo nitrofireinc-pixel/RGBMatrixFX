@@ -40,7 +40,7 @@ class TestGui(unittest.TestCase):
 
     def test_help_about(self):
         import razorfx
-        self.assertRegex(razorfx.__version__, r"^1\.1\.0-dev(\.\d+)?$")   # test builds: 1.1.0-dev.N
+        self.assertEqual(razorfx.__version__, "1.1.0")
         with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION")) as f:
             self.assertEqual(f.read().strip(), razorfx.__version__)
         mb = self.w.menuBar()
@@ -55,7 +55,7 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.w.windowTitle(), "RazorFX")
         self.assertEqual(self.w.about_action.text().replace("&", ""), "About RazorFX")
         t = self.w.about_text()
-        for want in ("<h3>RazorFX 1.1.0-dev", "GNU General Public License", "version 3",
+        for want in ("<h3>RazorFX 1.1.0</h3>", "GNU General Public License", "version 3",
                      "GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception", "plugin exception",
                      "LICENSE-EXCEPTION", "https://github.com/nitrofireinc-pixel/razorFX", "\u00a9 2026 Nitrofire Computing",
                      "Not affiliated with or endorsed by Razer Inc. Razer is a trademark of Razer Inc."):
@@ -80,7 +80,7 @@ class TestGui(unittest.TestCase):
             self.assertIn(want, lic)
         text = box.copy_system_info()
         self.assertEqual(app.clipboard().text(), text)
-        self.assertTrue(text.startswith("RazorFX 1.1.0-dev"))
+        self.assertTrue(text.startswith("RazorFX 1.1.0 ("))
         self.assertIn("(Free edition)", text)
         self.assertIn("Engine: not running", text)
         box.close()

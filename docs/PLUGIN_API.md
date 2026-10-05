@@ -3,8 +3,9 @@
 <!-- The code snippets in this file are also available under 0BSD, like examples/plugins/. -->
 # RazorFX plugin API 1.0
 
-> **Status: provisional.** This is the first, deliberately small version of the API
-> (RazorFX 1.1.0-dev). It may still change before 1.1.0 is released.
+> **Status: 1.0, shipped with RazorFX 1.1.0.** This is the first, deliberately small version
+> of the API. It may grow in a later RazorFX release; a plugin written for API 1.0 keeps
+> loading while the major version matches.
 
 RazorFX is GPL-3.0-or-later **with the [RazorFX plugin exception](../LICENSE-EXCEPTION)**.
 A plugin that talks to RazorFX *only* through the API on this page, and contains no RazorFX
@@ -68,7 +69,7 @@ as failed. RazorFX keeps running.
 | Member | Capability | Description |
 |---|---|---|
 | `ctx.api_version` | | `(1, 0)` |
-| `ctx.app_name`, `ctx.app_version` | | `"RazorFX"`, e.g. `"1.1.0-dev"` |
+| `ctx.app_name`, `ctx.app_version` | | `"RazorFX"`, e.g. `"1.1.0"` |
 | `ctx.plugin_id`, `ctx.plugin_dir` | | This plugin's id and folder |
 | `ctx.capabilities`, `ctx.has(cap)` | | What this host offers (see below). Check before use |
 | `ctx.log(msg)` | `log` | Write to the RazorFX log, tagged with the plugin id |
@@ -79,7 +80,7 @@ as failed. RazorFX keeps running.
 | `ctx.engine_status()` | `engine.status` | Read-only snapshot: `{"running", "effect", "preset", "paused", "keyboard", "mouse"}` (device names or `None`) |
 | `ctx.on(event, fn)` | `events` | Subscribe to `effect_changed(effect_id)`, `engine_connected()`, `engine_disconnected()` or `shutdown()` |
 | `ctx.set_edition(name, licensed_to=None)` | `app.edition` | Changes the edition shown in *Help ▸ About* from "Free" to, for example, "Pro — licensed to Jane Doe". Meant for the optional RazorFX Pro add-on after it has checked its own licence. Only one plugin may set it; another plugin's call raises `PluginError`. It is a label only and unlocks nothing |
-| `ctx.enable_feature(feature)` | `app.features` | Unlocks one feature from `razorfx.plugin_api.PRO_FEATURES` in the GUI. `"gamer.add_key"` (`FEATURE_GAMER_ADD_KEY`) unlocks the **+ Add key** chip in Gamer Controls, which asks you to press a key and adds it. `"highlight.add_keys"` (`FEATURE_HIGHLIGHT_ADD`) unlocks **Add group**, **+ Add key** and **Pick keys on the preview** on the Highlight keys tab. Only the plugin that called `set_edition()` (with an edition other than "Free") may call this, so call `set_edition()` first; otherwise it raises `PluginError`. An unknown feature name raises `ValueError`. *Provisional in 1.1.0-dev:* the host checks only which plugin set the edition (a stub). The real licence check happens inside the Pro add-on before it calls `set_edition()` |
+| `ctx.enable_feature(feature)` | `app.features` | Unlocks one feature from `razorfx.plugin_api.PRO_FEATURES` in the GUI. `"gamer.add_key"` (`FEATURE_GAMER_ADD_KEY`) unlocks the **+ Add key** chip in Gamer Controls, which asks you to press a key and adds it. `"highlight.add_keys"` (`FEATURE_HIGHLIGHT_ADD`) unlocks **Add group**, **+ Add key** and **Pick keys on the preview** on the Highlight keys tab. Only the plugin that called `set_edition()` (with an edition other than "Free") may call this, so call `set_edition()` first; otherwise it raises `PluginError`. An unknown feature name raises `ValueError`. *In RazorFX 1.1.0* the host checks only which plugin set the edition (a stub). The real licence check happens inside the Pro add-on before it calls `set_edition()`. Pro itself is not for sale yet |
 | `ctx.register_layout(layout)` | `layouts` | Adds device compatibility with a **data-only layout pack**: a dict in the format of [LAYOUTS.md](LAYOUTS.md). It is validated (bad data raises `ValueError` with the reason), saved as `~/.local/share/razorfx/layouts/plugin-<id>-<name>.json`, and the running engine reloads its maps. Returns the file path. Nothing in a pack is executed |
 
 A Pro add-on's `register()` therefore looks like this:

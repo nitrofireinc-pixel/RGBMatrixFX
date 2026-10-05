@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
 # SPDX-FileCopyrightText: © 2026 Nitrofire Computing
-"""RazorFX plugin API, version 1.0 (provisional while RazorFX is 1.1.0-dev).
+"""RazorFX plugin API, version 1.0 (ships with RazorFX 1.1.0).
 
 This module, together with docs/PLUGIN_API.md, *is* "the Plugin API" referred to in
 LICENSE-EXCEPTION: a plugin that talks to RazorFX only through what is documented here may
@@ -243,8 +243,9 @@ class PluginContext:
         self._host.set_edition(self._info, Edition(name, who or None, self._info.id))
 
     def enable_feature(self, feature):
-        """Unlock one of PRO_FEATURES. Provisional (plugin API 1.0 while RazorFX is 1.1.0-dev):
-        only the plugin that set the edition with set_edition() may do this, so call that first."""
+        """Unlock one of PRO_FEATURES. In RazorFX 1.1.0 the host checks only that the caller
+        is the plugin that set the edition with set_edition(), so call that first. The real
+        licence check happens inside the Pro add-on before it calls set_edition()."""
         self._need(CAP_FEATURES)
         if feature not in PRO_FEATURES:
             raise ValueError("unknown feature %r (known: %s)" % (feature, ", ".join(sorted(PRO_FEATURES))))

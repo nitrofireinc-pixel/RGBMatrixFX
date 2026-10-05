@@ -409,7 +409,7 @@ mouse about 27 updates/s, which is the driver's limit, with the engine at about 
 
 ## Plugins
 
-RazorFX 1.1 adds a small, documented **plugin API** (version 1.0, provisional). A plugin is a
+RazorFX 1.1.0 adds a small, documented **plugin API** (version 1.0). A plugin is a
 folder in `~/.local/share/razorfx/plugins/` with a `plugin.json` and a Python module whose
 `register(ctx)` function gets a context object. Through it the plugin can add *Plugins* menu entries,
 keep settings, read the engine status and react to events. Plugins are loaded only by the GUI, never by the

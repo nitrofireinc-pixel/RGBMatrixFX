@@ -4,17 +4,19 @@ All notable changes to RazorFX (called Razer FX up to 1.0.0) are documented here
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] - 1.1.0-dev
+## [Unreleased]
 
-Test builds for Trevor's PC are numbered 1.1.0-dev.N. Nothing is published until the batch ships as 1.1.0.
-- 1.1.0-dev.1 (2026-10-04): the groundwork below, plus the Gamer Controls crash fix and the
-  always-visible menu bar.
-- 1.1.0-dev.2 (2026-10-05): follows the desktop theme (light/dark + accent), expanded About dialog
-  with Copy system info, .deb/.rpm/AUR/AppImage packages and the release workflow, Gamer Controls
-  key chips, no About button in the header, and the icon-cache fix for the gear icon.
-- 1.1.0-dev.3 (2026-10-05): Highlight keys uses the same keycap chips; the free build can no
-  longer add arbitrary keys or groups there ("Pro: coming soon"); broader device compatibility,
-  community layout packs, and an example preset file.
+## [1.1.0] - 2026-10-05
+
+Official RazorFX 1.1.0. Version 1.0.0 was released as "Razer FX".
+
+This release renames the application to RazorFX, ports the window to PySide6, and credits
+Nitrofire Computing. File and Help stay in an in-window menu bar, Help ▸ About is the expanded
+dialog, and the window follows the desktop theme and accent colour. Gamer Controls and Highlight
+keys use key chips; adding arbitrary keys or groups is a locked Pro preview ("Pro: coming soon" —
+Pro is not for sale). Packages cover Debian, Fedora, Arch (AUR notes) and an x86_64 AppImage.
+The engine builds a keymap per device, and the tree adds community layout packs plus an example
+preset.
 
 ### Fixed
 - **Generic gear icon instead of the RazorFX logo on GNOME** after the rename from razer-fx:
@@ -33,8 +35,8 @@ Test builds for Trevor's PC are numbered 1.1.0-dev.N. Nothing is published until
   and the window is destroyed before the interpreter exits (1.0 could crash at exit in PyQt6/sip
   teardown; PySide6 has no sip).
 - The menu bar (File, Help) is always drawn inside the window (`setNativeMenuBar(False)`), so
-  Help ▸ About can't disappear into a global menu. F1 also opens About. (dev.1 also had an About
-  button in the header; dev.2 removed it.)
+  Help ▸ About can't disappear into a global menu. F1 also opens About. There is no About
+  button in the header.
 
 ### Changed
 - **Renamed to RazorFX** (was "Razer FX") everywhere it shows: app name, window title, About,
@@ -110,7 +112,7 @@ Test builds for Trevor's PC are numbered 1.1.0-dev.N. Nothing is published until
   There is no Flatpak, by design (see `packaging/README.md`).
 - The engine reports readiness to systemd (`sd_notify`) when its unit asks for it (`Type=notify`,
   used by the AppImage's unit), so stop and reload signals reach the engine itself.
-- **Expanded About dialog** (Help ▸ About, F1, header button), with About, Credits, License
+- **Expanded About dialog** (Help ▸ About or F1), with About, Credits, License
   and System info tabs. It shows the version, the **edition** ("Free", or "Pro — licensed to …"
   set through the new plugin API hook `ctx.set_edition()`, capability `app.edition`), the creator
   Nitrofire Computing with the repository link, GPL-3.0-or-later with the plugin exception
@@ -172,5 +174,6 @@ First public release, licensed under GPL-3.0-or-later.
 - `install.sh` / `uninstall.sh` (per-user), an optional uaccess udev rule, diagnostics
   (`tools/diag_timing.py`), and unit, GUI, integration and install tests.
 
-[Unreleased]: https://github.com/nitrofireinc-pixel/razorFX/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/nitrofireinc-pixel/razorFX/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/nitrofireinc-pixel/razorFX/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/nitrofireinc-pixel/razorFX/releases/tag/v1.0.0

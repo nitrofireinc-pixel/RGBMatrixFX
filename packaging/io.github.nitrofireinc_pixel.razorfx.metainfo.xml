@@ -60,6 +60,17 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="1.1.0" date="2026-10-05">
+      <description>
+        <p>
+          Renamed to RazorFX (Nitrofire Computing). The window uses PySide6, follows the
+          desktop theme, and has a menu bar plus an expanded About dialog. Gamer Controls
+          and Highlight keys use key chips; adding arbitrary keys is a Pro preview
+          (coming soon, not for sale). Packages for Debian, Fedora, Arch and AppImage.
+          Per-device key maps, layout packs and an example preset.
+        </p>
+      </description>
+    </release>
     <release version="1.0.0" date="2026-10-04">
       <description><p>First release (as Razer FX).</p></description>
     </release>
