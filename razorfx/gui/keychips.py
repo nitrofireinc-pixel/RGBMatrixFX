@@ -7,7 +7,7 @@
 * "+ Add key" opens a "Press any key…" prompt (Esc cancels) when the feature is enabled (RazorFX
   Pro, via the plugin API), or is shown as a locked Pro chip in the free version.
 * Removed chips are never deleted inside their own key/click handler: the row hands them to
-  ``retire`` (MainWindow._retire: hide, silence, deleteLater), the 1.1.0-dev.1 crash fix pattern."""
+  ``retire`` (MainWindow._retire: hide, silence, deleteLater), the 1.1.0 crash fix pattern."""
 from .. import pro_status
 from PySide6.QtCore import QEvent, QTimer, Qt, Signal
 from PySide6.QtWidgets import QDialog, QLabel, QPushButton, QToolButton, QVBoxLayout, QWidget
