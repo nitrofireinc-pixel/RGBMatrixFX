@@ -5,37 +5,58 @@ import math
 import numpy as np
 
 from . import layout as L
+from . import devmaps
 from .effects import EFFECT_BY_ID, RippleField, FadeField
 from .util import hex_to_rgb, hsv_to_rgb
 
 
 class Scene:
     """All LEDs as points in world coordinates.
-    Points 0..131: keyboard matrix cells (index = row*22 + col); then mouse LEDs."""
+    Points 0..rows*cols-1: keyboard matrix cells (index = row*cols + col), laid out by the
+    device's keymap (devmaps); then the mouse LEDs; then other devices' strips."""
 
-    def __init__(self, mouse_profile=None, kb_rows=L.KB_ROWS, kb_cols=L.KB_COLS):
-        self.kb_rows, self.kb_cols = kb_rows, kb_cols
+    def __init__(self, mouse_profile=None, kb_rows=None, kb_cols=None, keymap=None,
+                 mouse_matrix=None, extras=()):
+        self.keymap = km = keymap or devmaps.default_keymap()
+        self.kb_rows = kb_rows or km.rows
+        self.kb_cols = kb_cols or km.cols
+        kb_rows, kb_cols = self.kb_rows, self.kb_cols
         xs, ys, sz, kind = [], [], [], []
-        self.real_key = []
         for r in range(kb_rows):
             for c in range(kb_cols):
-                k = L.KEY_BY_CELL.get((r, c))
-                if k is not None:
-                    xs.append(k.cx); ys.append(k.cy); sz.append(0.35)
-                    kind.append("kb_logo" if (r, c) == L.LOGO_CELL else "key")
-                else:            # matrix cell without a known key (no LED on ANSI Cynosa)
-                    xs.append((c + 0.5) * L.KB_W / kb_cols); ys.append(L.ROW_Y[min(r, 5)] + 0.5)
-                    sz.append(0.35); kind.append("phantom")
+                x, y = km.pos(r, c)
+                xs.append(x); ys.append(y); sz.append(0.35)
+                kind.append("kb_logo" if (r, c) == km.logo else "key" if (r, c) in km.cell_pos else "phantom")
         self.n_kb = len(xs)
         self.mouse_profile = mouse_profile
-        self.mouse_cols = []          # (point index, [matrix columns] or "all")
+        self.mouse_cols = []          # (point index, [(row, col), ...] or "all")
         self.mouse_points = {"logo": [], "scroll": []}
         if mouse_profile is not None:
-            for zone, cols in mouse_profile["leds"].items():
-                x, y, s = L.MOUSE_LED_POS["logo" if zone not in L.MOUSE_LED_POS else zone]
-                self.mouse_points[zone].append(len(xs))
-                self.mouse_cols.append((len(xs), cols))
-                xs.append(x); ys.append(y); sz.append(s); kind.append("mouse_" + zone)
+            leds = mouse_profile["leds"]
+            if leds == "strip":       # no hand-tuned map: every matrix cell along the outline
+                mr, mc = mouse_matrix or (1, 16)
+                cells = [(r, c) for r in range(mr) for c in range(mc)]
+                for cell, (x, y) in zip(cells, devmaps.mouse_strip_points(len(cells))):
+                    self.mouse_points["logo"].append(len(xs))
+                    self.mouse_cols.append((len(xs), [cell]))
+                    xs.append(x); ys.append(y); sz.append(0.3); kind.append("mouse_logo")
+            else:
+                for zone, cols in leds.items():
+                    x, y, s = L.MOUSE_LED_POS["logo" if zone not in L.MOUSE_LED_POS else zone]
+                    self.mouse_points[zone].append(len(xs))
+                    self.mouse_cols.append((len(xs), cols if cols == "all" else
+                                            [(0, c) if isinstance(c, int) else tuple(c) for c in cols]))
+                    xs.append(x); ys.append(y); sz.append(s); kind.append("mouse_" + zone)
+        self.extra_cells = []         # per other device: [(point index, (row, col)), ...]
+        extra_pts = []
+        for n, (er, ec) in enumerate(extras):
+            cells = [(r, c) for r in range(er) for c in range(ec)]
+            mine = []
+            for cell, (x, y) in zip(cells, devmaps.extra_strip_points(n, len(cells))):
+                mine.append((len(xs), cell))
+                extra_pts.append(len(xs))
+                xs.append(x); ys.append(y); sz.append(0.3); kind.append("extra")
+            self.extra_cells.append(mine)
         self.x = np.array(xs, dtype=np.float64)
         self.y = np.array(ys, dtype=np.float64)
         self.size = np.array(sz, dtype=np.float64)
@@ -54,13 +75,14 @@ class Scene:
         self.u = (self.x - self.xmin) / self.width
         self.v = np.clip((self.y - self.ymin) / self.height, 0, 1)
         self.aspect_v = self.height / self.width
-        logo_i = L.LOGO_CELL[0] * kb_cols + L.LOGO_CELL[1]
+        logo_i = km.logo[0] * kb_cols + km.logo[1] if km.logo and km.logo[0] < kb_rows and km.logo[1] < kb_cols else None
         kb_keys = [i for i in range(self.n_kb) if i != logo_i]
         self.zone_idx = {
             "keyboard": np.array(kb_keys, dtype=np.int64),
-            "kb_logo": np.array([logo_i], dtype=np.int64),
+            "kb_logo": np.array([] if logo_i is None else [logo_i], dtype=np.int64),
             "mouse_logo": np.array(self.mouse_points["logo"], dtype=np.int64),
             "mouse_scroll": np.array(self.mouse_points["scroll"], dtype=np.int64),
+            "extras": np.array(extra_pts, dtype=np.int64),
         }
         self.zone_present = {z: len(v) > 0 for z, v in self.zone_idx.items()}
 
@@ -120,9 +142,9 @@ class Compositor:
                 continue
             idx = []
             for name in g.get("keys", []):
-                k = L.KEY_BY_NAME.get(name)
-                if k is not None:
-                    idx.append(self.scene.cell_index(k.row, k.col))
+                cell = self.scene.keymap.cell_for_name(name)
+                if cell is not None and cell[0] < self.scene.kb_rows and cell[1] < self.scene.kb_cols:
+                    idx.append(self.scene.cell_index(*cell))
             if idx:
                 self.hl.append((np.array(idx), np.array(hex_to_rgb(g.get("color", "#ffffff"))),
                                 bool(g.get("on_top", True))))
@@ -139,9 +161,9 @@ class Compositor:
             return
         idx = []
         for name in g.get("gamer_keys", L.WASD):
-            k = L.KEY_BY_NAME.get(name)
-            if k is not None and k.row < self.scene.kb_rows and k.col < self.scene.kb_cols:
-                idx.append(self.scene.cell_index(k.row, k.col))
+            cell = self.scene.keymap.cell_for_name(name)
+            if cell is not None and cell[0] < self.scene.kb_rows and cell[1] < self.scene.kb_cols:
+                idx.append(self.scene.cell_index(*cell))
         if idx:
             self.gamer = (np.array(idx), np.array(hex_to_rgb(g.get("gamer_color", "#ffffff"))))
 
@@ -169,7 +191,7 @@ class Compositor:
     def press_key(self, code, t):
         if not self.rx.get("keyboard", True) and not self.effect.reactive_hint:
             return False
-        cell = L.KEYCODE_TO_CELL.get(code)
+        cell = self.scene.keymap.code_to_cell.get(code)
         if cell is None or cell[0] >= self.scene.kb_rows or cell[1] >= self.scene.kb_cols:
             return False
         i = self.scene.cell_index(*cell)
@@ -277,10 +299,21 @@ class Compositor:
             if mc == "all":
                 out[:, :] = v
             else:
-                for c in mc:
-                    if c < cols:
-                        out[0, c] = v
+                for r, c in mc:
+                    if r < rows and c < cols:
+                        out[r, c] = v
         return out
+
+    def extra_frames(self, rgb, dims):
+        """frames for the other devices (mats, headsets, docks...), dims: [(rows, cols), ...]"""
+        frames = []
+        for cells, (rows, cols) in zip(self.scene.extra_cells, dims):
+            out = np.zeros((rows, cols, 3), np.uint8)
+            for i, (r, c) in cells:
+                if r < rows and c < cols:
+                    out[r, c] = (rgb[i] * 255 + 0.5).astype(np.uint8)
+            frames.append(out)
+        return frames
 
     def mouse_zone_colors(self, rgb):
         """zone name -> (r,g,b) ints, for the per-zone (fx.misc) output method"""

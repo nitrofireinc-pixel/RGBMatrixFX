@@ -22,7 +22,7 @@ engine (and your lighting) running.
 
 - [Features](#features)
 - [Effects](#effects)
-- [Supported hardware](#supported-hardware)
+- [Compatibility](#compatibility)
 - [Requirements](#requirements)
 - [Download](#download)
 - [Install from source / uninstall](#install-from-source--uninstall)
@@ -96,34 +96,57 @@ public descriptions. No Razer code or assets are used.
 |---|---|---|
 | ![Wave](docs/screenshots/06-effect-wave.png) | ![Starlight](docs/screenshots/07-effect-starlight.png) | ![Aurora](docs/screenshots/08-effect-aurora.png) |
 
-## Supported hardware
+## Compatibility
 
-**Tested:**
+**Tested on real hardware:** Razer Cynosa Chroma (keyboard) and Razer Mamba Wireless (2018, mouse).
 
 | Device | USB ID | Matrix | Notes |
 |---|---|---|---|
-| Razer Cynosa Chroma | 1532:022A | 6 × 22 | Full per-key layout. The logo LED is matrix cell (0,20), confirmed on real hardware |
-| Razer Mamba Wireless (2018), wired | 1532:0073 | 1 × 16 | Column 0 is the scroll wheel, column 1 the logo. Columns 2–15 have no LEDs |
+| Razer Cynosa Chroma | 1532:022A | 6 × 22 | Hand-tuned per-key map. The logo LED is matrix cell (0,20), confirmed on real hardware |
+| Razer Mamba Wireless (2018), wired | 1532:0073 | 1 × 16 | Hand-tuned: column 0 is the scroll wheel, column 1 the logo. Columns 2–15 have no LEDs |
 | Razer Mamba Wireless (2018), receiver | 1532:0072 | 1 × 16 | As above. Lower the mouse FPS to save battery and radio traffic |
 
-**Should work, with caveats:** other OpenRazer keyboards and mice that support custom matrix
-frames (`matrix_custom_frame`, the "advanced" matrix API in `openrazer.client`).
-Devices are **auto-detected**. RazorFX picks the first matrix keyboard and the first matrix mouse
-that `openrazer-daemon` reports. Nothing is tied to a serial number. Caveats:
+**Everything else is best-effort, using OpenRazer's layout data.** Any device that
+`openrazer-daemon` drives with a custom-frame matrix (`matrix_custom_frame`) is detected
+automatically, and nothing is tied to a serial number. At start-up the engine builds an LED map for
+each one from its matrix size (`device.fx.advanced.rows/cols`), its type and OpenRazer's key tables,
+then logs which map it chose (`layout: keyboard …` in `journalctl --user -u razorfx-engine`;
+also `"layout"` in the engine status). Maps are chosen in this order:
 
-* **Keyboard layout**: the on-screen preview and the spatial and ripple geometry use the Cynosa
-  Chroma's full-size ANSI layout. On another full-size keyboard with a standard 6×22 OpenRazer
-  matrix, effects will look right or close to it. On TKL, 60% or ISO boards, some keys may be offset, and keys
-  that don't exist simply stay dark.
-* **Mouse LEDs**: the Mamba Wireless has a known zone map (`MOUSE_PROFILES` in
-  `razorfx/layout.py`). On other mice every LED column follows the *mouse logo* zone. Contributions with
-  per-model zone maps are welcome.
-* **Reactive input** (key and click events) is read from `/dev/input/by-id/usb-Razer_*` nodes. The
-  tested models are matched by name; any other Razer USB keyboard or mouse is picked up by a
-  generic fallback. You can override the nodes with `RAZORFX_KB_GLOBS` / `RAZORFX_MOUSE_GLOBS`
-  (colon-separated globs).
-* Devices without a custom-frame matrix (for example some headsets or mats) are ignored.
-* Bluetooth connections are untested.
+1. **Your layout packs** (see below), if one matches the device.
+2. **Hand-tuned maps** (the tested devices above).
+3. **OpenRazer's key tables.** Keyboards with OpenRazer's standard 6 × 22 matrix (most
+   BlackWidow, Huntsman, Ornata and Cynosa models) use the daemon's own `KEY_MAPPING` /
+   `EVENT_MAPPING`, the same tables OpenRazer's built-in ripple uses. Tartarus and Orbweaver keypads use
+   their own tables. The tables are read at run time from the installed `openrazer_daemon`
+   (GPL-2.0-or-later, © the OpenRazer contributors); RazorFX doesn't copy them.
+4. **A generic grid** sized to the matrix (TKL, 60 %, laptops such as the Blade, unknown models).
+   Every key goes to the cell nearest its physical position, so effects, ripples, highlights and
+   Gamer Controls still render, roughly in the right place.
+
+Devices that aren't keyboards are treated as strips. A mouse without a hand-tuned map has its LEDs
+placed around its outline; all of them belong to the *Mouse logo* zone. Mouse mats, headsets, docks
+and other accessories each get a strip under the keyboard, so a wave sweeps across them too. They share one
+zone, *Other devices*, on the Zones tab. Caveats:
+
+* The on-screen preview always draws the Cynosa Chroma and the Mamba. Your real devices follow
+  their own maps.
+* Matrix cells with no LED simply stay dark. On ISO boards and in the generic grid, a few keys
+  may land one cell off.
+* Reactive input (key and click events) is read from `/dev/input/by-id/usb-Razer_*`. You can
+  override the nodes with `RAZORFX_KB_GLOBS` / `RAZORFX_MOUSE_GLOBS` (colon-separated globs).
+* Devices without a custom-frame matrix are ignored. Bluetooth connections are untested.
+
+**Layout packs: add your own device, no code needed.** If your device uses the generic grid or a
+key lights the wrong LED, write a small JSON *layout pack* (device name/USB id, matrix size,
+key → `[row, col]`, and mouse zones), starting from
+[`examples/layouts/example-layout.json`](examples/layouts/example-layout.json). Drop it into
+`~/.local/share/razorfx/layouts/`, then run `systemctl --user restart razorfx-engine`. Packs are
+data only: RazorFX validates them and never executes anything in them. Plugins can register packs
+too (`ctx.register_layout`). The full order RazorFX uses is: **your layout packs**, then the
+built-in hand-tuned maps, then OpenRazer's tables, then the generic grid. The format is documented in
+[docs/LAYOUTS.md](docs/LAYOUTS.md). Please share working packs with a pull request
+([CONTRIBUTING.md](CONTRIBUTING.md#new-devices)).
 
 ## Requirements
 
@@ -287,7 +310,11 @@ journalctl --user -u razorfx-engine      # engine log
 
 Preset files (`*.razorfx.json`) hold one preset or all of them:
 `{"format": "razorfx-presets", "version": 1, "presets": {name: profile}}`. Importing never
-overwrites existing presets: clashing names get " (2)", and out-of-range values are clamped.
+overwrites existing presets: clashing names get " (2)", and out-of-range values are clamped. Use
+*File ▸ Import presets…* and *File ▸ Export all presets…*. A commented template is in
+[`examples/presets/example-preset.json`](examples/presets/example-preset.json), with every field
+documented in [`examples/presets/README.md`](examples/presets/README.md). Packages install both
+under `/usr/share/doc/razorfx/examples/`.
 
 ## Gamer Controls
 

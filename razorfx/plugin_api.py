@@ -44,8 +44,9 @@ CAP_STATUS = "engine.status"         # ctx.engine_status()
 CAP_EVENTS = "events"                # ctx.on("effect_changed" | "engine_connected" | "engine_disconnected" | "shutdown", fn)
 CAP_EDITION = "app.edition"          # ctx.set_edition() (for the RazorFX Pro add-on; a label only)
 CAP_FEATURES = "app.features"        # ctx.enable_feature() (for the RazorFX Pro add-on)
+CAP_LAYOUTS = "layouts"              # ctx.register_layout() (data-only device layout packs)
 ALL_CAPABILITIES = frozenset({CAP_LOG, CAP_SETTINGS, CAP_STORAGE, CAP_MENU, CAP_DIALOG_PARENT,
-                              CAP_STATUS, CAP_EVENTS, CAP_EDITION, CAP_FEATURES})
+                              CAP_STATUS, CAP_EVENTS, CAP_EDITION, CAP_FEATURES, CAP_LAYOUTS})
 
 # Built-in features that are locked in the free edition and shown there as Pro previews.
 # The RazorFX Pro add-on unlocks them with ctx.enable_feature(); see docs/PLUGIN_API.md.
@@ -248,6 +249,14 @@ class PluginContext:
         if feature not in PRO_FEATURES:
             raise ValueError("unknown feature %r (known: %s)" % (feature, ", ".join(sorted(PRO_FEATURES))))
         self._host.enable_feature(self._info, feature)
+
+    def register_layout(self, layout):
+        """Add device compatibility with a layout pack: a dict in the format of docs/LAYOUTS.md
+        (the same data as a ~/.local/share/razorfx/layouts/*.json file). It is validated (raises
+        ValueError with the reason), saved as layouts/plugin-<id>-<n>.json and the engine reloads
+        its maps. Data only: nothing in it is executed. Returns the saved file's path."""
+        self._need(CAP_LAYOUTS)
+        return self._host.register_layout(self._info, layout)
 
     # -- internal (host side)
     def _need(self, cap):

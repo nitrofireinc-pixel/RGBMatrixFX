@@ -156,6 +156,10 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - name: Examples download (preset template, layout pack template, docs)
+        run: |
+          v="${{ needs.check.outputs.version }}"
+          zip -q -r "dist/razorfx-$v-examples.zip" examples/presets examples/layouts docs/LAYOUTS.md
       - name: Checksums and notes
         run: |
           cd dist && sha256sum -- * > SHA256SUMS && cat SHA256SUMS && cd ..

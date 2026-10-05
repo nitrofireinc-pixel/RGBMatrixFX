@@ -51,7 +51,13 @@ class Engine:
             return None
 
     def _build_scene(self, profile):
-        self.scene = Scene(profile)
+        hub = self.hub
+        mouse = getattr(hub, "mouse", None)
+        keymap = hub.keymap() if hasattr(hub, "keymap") else None
+        extras = hub.extra_dims() if hasattr(hub, "extra_dims") else ()
+        self.scene = Scene(profile, keymap=keymap,
+                           mouse_matrix=(mouse.rows, mouse.cols) if mouse is not None and mouse.rows else None,
+                           extras=extras)
         self.comp = Compositor(self.scene, self.cfg["profile"], self.cfg["global"])
 
     def _apply_cfg(self, cfg, save=True):
@@ -96,6 +102,7 @@ class Engine:
         st = self.hub.info()
         st.update({"paused": self.cfg["global"]["paused"], "fps": round(self.fps_measured, 1),
                    "effect": self.comp.effect_id, "mouse_pid": self.mouse_pid,
+                   "layout": self.scene.keymap.source,
                    "inputs": self.inputs.info(), "uptime": round(self.clock() - self.t0, 1),
                    "audio": None if self.audio is None else (self.audio.error or ("ok" if self.audio.alive else "stopped")),
                    "pid": os.getpid()})
@@ -146,6 +153,11 @@ class Engine:
             g = dict(self.cfg["global"], paused=(cmd == "pause"))
             self._apply_cfg(dict(self.cfg, **{"global": g}))
             return {"ok": True}
+        if cmd == "reload_layouts":           # a layout pack was added/changed (ctx.register_layout)
+            self._build_scene(self.hub.mouse_profile() or self.scene.mouse_profile)
+            self.rgb = np.zeros((self.scene.n, 3))
+            log("layout reloaded: keyboard %s" % self.scene.keymap.source)
+            return {"ok": True, "layout": self.scene.keymap.source}
         if cmd == "quit":
             self.exit_mode = req.get("mode")
             self.running = False
@@ -186,15 +198,13 @@ class Engine:
             g = self.cfg["global"]
             self.hub.configure(g)
             if self.hub.maybe_scan(now, want_mouse=g["include_mouse"]):
-                prof = self.hub.mouse_profile()
-                pid = self.hub.mouse.pid if self.hub.mouse else 0x0073
-                if prof is not None and pid != self.mouse_pid and L.MOUSE_PROFILES.get(pid) is not L.MOUSE_PROFILES.get(self.mouse_pid):
-                    self.mouse_pid = pid
-                    self._build_scene(prof)
-                    self.rgb = np.zeros((self.scene.n, 3))
-                    log("mouse layout: %s" % prof["model"])
-                elif self.hub.mouse is not None:
-                    self.mouse_pid = pid
+                prof = self.hub.mouse_profile() or self.scene.mouse_profile
+                if self.hub.mouse is not None:
+                    self.mouse_pid = self.hub.mouse.pid
+                self._build_scene(prof)       # device set changed: keymap, mouse LEDs, other devices
+                self.rgb = np.zeros((self.scene.n, 3))
+                log("layout: keyboard %s, mouse %s, %d other device(s)" % (
+                    self.scene.keymap.source, prof["model"] if prof else "none", len(self.scene.extra_cells)))
             if now >= next_scan_inputs:
                 self.inputs.scan()
                 next_scan_inputs = now + 3.0
@@ -240,7 +250,8 @@ class Engine:
                     mf = None
                     if self.hub.mouse and g["include_mouse"]:
                         mf = self.comp.mouse_frame(self.rgb, self.hub.mouse.rows, self.hub.mouse.cols)
-                    self.hub.push(kb, mf, self.comp.mouse_zone_colors(self.rgb), now, g["mouse_method"])
+                    xf = self.comp.extra_frames(self.rgb, self.hub.extra_dims()) if self.hub.extras else ()
+                    self.hub.push(kb, mf, self.comp.mouse_zone_colors(self.rgb), now, g["mouse_method"], xf)
                     self.frames += 1
             if now - fps_t >= 1.0:
                 self.fps_measured = fps_n / (now - fps_t)

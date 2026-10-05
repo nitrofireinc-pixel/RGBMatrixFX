@@ -56,7 +56,13 @@ chmod 0644 "$DESTDIR$UNITDIR/razorfx-engine.service"
 
 install -d "$DESTDIR$DOCDIR/examples/plugins/hello"
 install -m 0644 "$SRC/README.md" "$SRC/CHANGELOG.md" "$SRC/PARAMETERS.md" "$SRC/LICENSE-EXCEPTION" "$DESTDIR$DOCDIR/"
-install -m 0644 "$SRC/docs/PLUGIN_API.md" "$DESTDIR$DOCDIR/"
+install -m 0644 "$SRC/docs/PLUGIN_API.md" "$SRC/docs/LAYOUTS.md" "$DESTDIR$DOCDIR/"
+for d in presets layouts; do          # example preset (File > Import presets...) and layout pack template
+    install -d "$DESTDIR$DOCDIR/examples/$d"
+    for f in "$SRC/examples/$d"/*; do
+        if [ -f "$f" ]; then install -m 0644 "$f" "$DESTDIR$DOCDIR/examples/$d/"; fi
+    done
+done
 for f in "$SRC"/examples/plugins/hello/*; do
     if [ -f "$f" ]; then install -m 0644 "$f" "$DESTDIR$DOCDIR/examples/plugins/hello/"; fi
 done

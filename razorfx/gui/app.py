@@ -1103,7 +1103,7 @@ class MainWindow(QMainWindow):
         col = 0
         rowi = 0
         for zone in L.ZONES:
-            if zone.startswith("mouse") and not self.scene.zone_present.get(zone):
+            if (zone.startswith("mouse") or zone == "extras") and not self.scene.zone_present.get(zone):
                 continue
             grid.addWidget(self._zone_card(zone), rowi, col)
             col += 1
@@ -1627,9 +1627,12 @@ class MainWindow(QMainWindow):
             self._was_connected = True
             self.status = r["status"]
             pid = self.status.get("mouse_pid") or 0x0073
-            if pid != self.mouse_pid:
-                self.mouse_pid = pid
-                self.scene = Scene(L.MOUSE_PROFILES.get(pid, L.GENERIC_MOUSE))
+            m = self.status.get("mouse") or {}
+            mm = tuple(m["matrix"]) if isinstance(m, dict) and m.get("matrix") else None
+            others = tuple(tuple(o.get("matrix") or (0, 0)) for o in self.status.get("others") or [])
+            if (pid, mm, others) != (self.mouse_pid, getattr(self, "_dev_dims", None), getattr(self, "_others", ())):
+                self.mouse_pid, self._dev_dims, self._others = pid, mm, others
+                self.scene = Scene(L.MOUSE_PROFILES.get(pid, L.GENERIC_MOUSE), mouse_matrix=mm, extras=others)
                 self.local = Compositor(self.scene, self.profile, self.g, seed=3)
                 self.preview.set_scene(self.scene)
                 self._build_zones_tab()

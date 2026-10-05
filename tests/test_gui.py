@@ -618,6 +618,23 @@ class TestGui(unittest.TestCase):
         self.assertEqual(w.profile["highlights"], [{"name": "WASD", "keys": ["W", "A", "S", "D"], "color": "#ffffff",
                                                     "on_top": True, "enabled": True}])
 
+    def test_register_layout(self):
+        import json
+        from unittest import mock
+        from razorfx import plugin_api as api, devmaps
+        with mock.patch.dict(os.environ, {"XDG_DATA_HOME": os.path.join(self.d.name, "data")}):
+            ctx = api.PluginContext(api.PluginInfo("/x", {"id": "kb-pack", "version": "1", "api": "1.0"}), self.w.plugin_host)
+            pack = {"format": "razorfx-layout", "version": 1, "name": "My Keypad", "match": {"usb": ["1532:0208"]},
+                    "matrix": [4, 6], "keys": {"Q": [0, 1], "W": [0, 2]}}
+            path = ctx.register_layout(pack)
+            self.assertEqual(os.path.basename(path), "plugin-kb-pack-my-keypad.json")
+            self.assertEqual(json.load(open(path)), pack)
+            packs = devmaps.load_packs()
+            self.assertEqual([p.name for p in packs], ["My Keypad"])
+            with self.assertRaises(ValueError):
+                ctx.register_layout(dict(pack, matrix=[4, 1]))         # cell (0, 2) is outside: refused
+            self.assertEqual(len(os.listdir(os.path.dirname(path))), 1)
+
     def test_highlight_pick(self):                                        # Pro
         from razorfx import plugin_api
         self.w.enable_feature(plugin_api.FEATURE_HIGHLIGHT_ADD)

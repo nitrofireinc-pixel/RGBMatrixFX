@@ -1,0 +1,96 @@
+{
+  "_comment": "RazorFX preset file (example). Import it with File > Import presets... Export your own with File > Export all presets... (or Presets > Export this preset...). Field reference: examples/presets/README.md",
+  "format": "razorfx-presets",
+  "version": 1,
+  "presets": {
+    "_comment": "Preset name -> profile. Names that clash with existing presets get ' (2)'.",
+    "Example: Wave + WASD": {
+      "_comment": "One preset = one profile. Unknown keys (like these _comment ones) are ignored on import; missing keys get their defaults. Field reference: examples/presets/README.md",
+      "effect": "wave",
+      "_comment_effect": "Active effect id: flame, wave, spectrum, breathing, static, starlight, fire, reactive, ripple, wheel, matrix, aurora, heatmap, audio",
+      "effects": {
+        "_comment": "Per-effect settings, keyed by effect id. Only the effects you list are changed.",
+        "wave": {
+          "speed": 1.2,
+          "direction": "Left → Right"
+        }
+      },
+      "reactive": {
+        "_comment": "Reactive layer: ripples/fades on key presses and mouse clicks",
+        "enabled": true,
+        "mode": "ripple",
+        "color": "#00ff1e",
+        "rainbow": false,
+        "speed": 26.0,
+        "width": 0.9,
+        "life": 1.2,
+        "fade_power": 0.6,
+        "fade_time": 0.8,
+        "fade_color": "#ffffff",
+        "keyboard": true,
+        "mouse_buttons": true,
+        "mouse_wheel": true,
+        "gain": 1.6,
+        "fade_curve": 1.3,
+        "click_radius": 1.3,
+        "wheel_interval": 0.15,
+        "max_ripples": 48,
+        "rainbow_step": 0.137,
+        "rainbow_sat": 1.0
+      },
+      "highlights": [
+        {
+          "_comment": "Keys held at a fixed colour. Key names: evdev names without KEY_ (W, SPACE, LEFTSHIFT, KP5) or LOGO",
+          "name": "WASD",
+          "keys": [
+            "W",
+            "A",
+            "S",
+            "D"
+          ],
+          "color": "#ffffff",
+          "on_top": true,
+          "enabled": true
+        }
+      ],
+      "zones": {
+        "_comment": "Per-zone overrides: mode follow|static|breathing|spectrum|off, colour, speed, brightness 0-1, reactive",
+        "keyboard": {
+          "mode": "follow",
+          "color": "#44d62c",
+          "speed": 1.0,
+          "brightness": 1,
+          "reactive": true
+        },
+        "kb_logo": {
+          "mode": "follow",
+          "color": "#44d62c",
+          "speed": 1.0,
+          "brightness": 1,
+          "reactive": true
+        },
+        "mouse_logo": {
+          "mode": "follow",
+          "color": "#44d62c",
+          "speed": 1.0,
+          "brightness": 1,
+          "reactive": true
+        },
+        "mouse_scroll": {
+          "mode": "follow",
+          "color": "#44d62c",
+          "speed": 1.0,
+          "brightness": 1,
+          "reactive": true
+        },
+        "extras": {
+          "mode": "follow",
+          "color": "#44d62c",
+          "speed": 1.0,
+          "brightness": 1,
+          "reactive": true
+        }
+      }
+    }
+  }
+}

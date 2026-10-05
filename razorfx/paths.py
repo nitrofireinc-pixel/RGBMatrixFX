@@ -50,6 +50,11 @@ def plugin_dir():
     return os.path.join(data_dir(), "plugins")
 
 
+def layout_dir():
+    """user layout packs (data-only JSON): ~/.local/share/razorfx/layouts/"""
+    return os.path.join(data_dir(), "layouts")
+
+
 def plugin_data_dir(plugin_id):
     """private, writable per-plugin directory"""
     return os.path.join(data_dir(), "plugin-data", plugin_id)

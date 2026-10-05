@@ -342,6 +342,14 @@ class FakeHub:
         self.any = True
         self.finished = None
         self.scans = 0
+        self.extras = []
+
+    def keymap(self):
+        from razorfx import devmaps
+        return devmaps.default_keymap()
+
+    def extra_dims(self):
+        return []
 
     def maybe_scan(self, now, want_mouse=True):
         self.scans += 1
@@ -353,7 +361,7 @@ class FakeHub:
     def configure(self, g):
         self.cfg_g = dict(g)
 
-    def push(self, kb, mf, zones, now, method):
+    def push(self, kb, mf, zones, now, method, extra_frames=()):
         self.kb.frames.append(kb)
         self.mouse.frames.append(mf)
 
@@ -865,3 +873,172 @@ class TestSdNotify(unittest.TestCase):
                 srv.close()
         with _Env(NOTIFY_SOCKET=None):
             self.assertFalse(engine.sd_notify("READY=1"))
+
+
+class TestDeviceMaps(unittest.TestCase):
+    """devmaps: per-model keymaps from fake device specs (no hardware, no daemon needed)"""
+    TABLES = {   # a cut-down copy of the shape of OpenRazer's tables (openrazer_daemon.keyboard)
+        "KEY_MAPPING": {"ESC": (0, 1), "W": (2, 3), "A": (3, 2), "S": (3, 3), "D": (3, 4), "SPACE": (5, 7),
+                        "LOGO": (0, 20), "NP5": (3, 19)},
+        "EVENT_MAPPING": {1: "ESC", 17: "W", 30: "A", 31: "S", 32: "D", 57: "SPACE", 76: "NP5"},
+        "TARTARUS_KEY_MAPPING": {"1": (0, 0), "2": (0, 1), "W": (1, 2)},
+        "TARTARUS_EVENT_MAPPING": {15: "1", 16: "2", 17: "W"},
+    }
+
+    def spec(self, name, pid, rows, cols, kind="keyboard"):
+        from razorfx import devmaps
+        return devmaps.DeviceSpec(kind, name, pid, rows, cols)
+
+    def test_cynosa_uses_the_hand_tuned_map(self):
+        from razorfx import devmaps, layout as L
+        km = devmaps.keyboard_keymap(self.spec("Razer Cynosa Chroma", 0x022A, 6, 22), self.TABLES)
+        self.assertEqual(km.source, "hand-tuned")
+        self.assertEqual(km.code_to_cell, L.KEYCODE_TO_CELL)
+        self.assertEqual(km.cell_for_name("W"), (2, 3))
+        self.assertEqual(km.logo, (0, 20))
+
+    def test_standard_matrix_uses_openrazer_tables(self):
+        from razorfx import devmaps
+        km = devmaps.keyboard_keymap(self.spec("Razer BlackWidow V3", 0x024E, 6, 22), self.TABLES)
+        self.assertEqual(km.source, "OpenRazer keyboard map")
+        self.assertEqual(km.code_to_cell[17], (2, 3))           # KEY_W
+        self.assertEqual(km.code_to_cell[76], (3, 19))          # KEY_KP5
+        self.assertEqual(km.cell_for_name("SPACE"), (5, 7))
+        self.assertEqual(km.logo, (0, 20))
+        self.assertNotIn(2, km.code_to_cell)                     # KEY_1 isn't in these tables
+
+    def test_unknown_size_gets_a_generic_grid(self):
+        from razorfx import devmaps, layout as L
+        for rows, cols in ((6, 16), (5, 15), (1, 1)):
+            km = devmaps.keyboard_keymap(self.spec("Razer Blade", 0x0253, rows, cols), self.TABLES)
+            self.assertTrue(km.source.startswith("generic grid"))
+            self.assertEqual(len(km.cell_pos), rows * cols)
+            for cell in km.code_to_cell.values():
+                self.assertTrue(0 <= cell[0] < rows and 0 <= cell[1] < cols, cell)
+            w, d = km.cell_for_name("W"), km.cell_for_name("D")
+            self.assertTrue(w[1] <= d[1])                        # left-to-right order survives
+            self.assertIsNone(km.logo)
+        km = devmaps.keyboard_keymap(self.spec("Razer BlackWidow", 0x0221, 6, 22), None)   # no daemon tables
+        self.assertTrue(km.source.startswith("generic grid"))
+
+    def test_keypad_uses_the_tartarus_table(self):
+        from razorfx import devmaps
+        km = devmaps.keyboard_keymap(self.spec("Razer Tartarus V2", 0x022B, 4, 6, "keypad"), self.TABLES)
+        self.assertEqual(km.source, "OpenRazer Tartarus map")
+        self.assertEqual(km.code_to_cell, {15: (0, 0), 16: (0, 1), 17: (1, 2)})
+
+    def test_real_openrazer_tables_if_installed(self):
+        from razorfx import devmaps
+        t = devmaps.openrazer_tables()
+        if not t:
+            self.skipTest("openrazer_daemon not importable here")
+        km = devmaps.keyboard_keymap(self.spec("Razer Huntsman", 0x0227, 6, 22), t)
+        self.assertEqual(km.cell_for_name("W"), (2, 3))
+        self.assertEqual(km.cell_for_name("ESC"), (0, 1))
+
+    def test_scene_compositor_with_other_devices(self):
+        from razorfx import devmaps, layout as L
+        from razorfx.scene import Scene, Compositor
+        from razorfx import config
+        km = devmaps.keyboard_keymap(self.spec("Razer Blade", 0x0253, 6, 16), self.TABLES)
+        sc = Scene(L.GENERIC_MOUSE, keymap=km, mouse_matrix=(1, 9), extras=[(1, 15), (1, 4)])
+        self.assertEqual((sc.kb_rows, sc.kb_cols, sc.n_kb), (6, 16, 96))
+        self.assertEqual(len(sc.mouse_points["logo"]), 9)              # strip around the outline
+        self.assertEqual([len(c) for c in sc.extra_cells], [15, 4])
+        self.assertTrue(sc.zone_present["extras"] and not sc.zone_present["kb_logo"])
+        prof = config.make_profile("wave")
+        comp = Compositor(sc, prof, dict(config.DEFAULT_GLOBAL, gamer_controls=True))
+        rgb = comp.render(1.0)
+        self.assertEqual(comp.kb_frame(rgb, 6, 16).shape, (6, 16, 3))
+        mf = comp.mouse_frame(rgb, 1, 9)
+        self.assertTrue(mf.any())
+        xf = comp.extra_frames(rgb, [(1, 15), (1, 4)])
+        self.assertEqual([f.shape for f in xf], [(1, 15, 3), (1, 4, 3)])
+        self.assertTrue(all(f.any() for f in xf))
+        w = sc.cell_index(*km.cell_for_name("W"))
+        self.assertTrue((comp.render(1.1)[w] == 1.0).all())              # Gamer Controls on the grid
+        self.assertTrue(comp.press_key(17, 1.2))                         # KEY_W ripples on this map
+
+
+class TestLayoutPacks(unittest.TestCase):
+    """user layout packs (docs/LAYOUTS.md): validation, loading, precedence"""
+    HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    def pack(self, **kw):
+        d = {"format": "razorfx-layout", "version": 1, "name": "Test board", "kind": "keyboard",
+             "match": {"usb": ["1532:022A"]}, "matrix": [6, 22], "keys": {"W": [0, 0], "KEY_A": [0, 1], "32": [0, 2]}}
+        d.update(kw)
+        return d
+
+    def write(self, d, files):
+        import json
+        for name, data in files.items():
+            with open(os.path.join(d, name), "w") as f:
+                f.write(data if isinstance(data, str) else json.dumps(data))
+
+    def test_example_layout_is_valid(self):
+        import json
+        from razorfx import devmaps
+        p = devmaps.validate_pack(json.load(open(os.path.join(self.HERE, "examples/layouts/example-layout.json"))))
+        self.assertEqual(p["matrix"], (5, 15))
+        self.assertEqual(p["keys"][17], (1, 2))                  # W
+
+    def test_validation_errors(self):
+        from razorfx import devmaps
+        for bad, why in ((dict(format="x"), "format"), (dict(version=2), "version"), (dict(matrix=[0, 5]), "matrix"),
+                         (dict(match={}), "match"), (dict(keys={"NOPE": [0, 0]}), "unknown key"),
+                         (dict(keys={"W": [6, 0]}), "outside"), (dict(keys={"W": "0,0"}), "row, col"),
+                         (dict(kind="headset"), "kind"), (dict(kind="mouse", zones={"side": [[0, 0]]}), "zones")):
+            with self.assertRaises(ValueError, msg=why) as cm:
+                devmaps.validate_pack(self.pack(**bad))
+            self.assertIn(why, str(cm.exception))
+
+    def test_precedence_and_loading(self):
+        import tempfile
+        from razorfx import devmaps
+        cynosa = devmaps.DeviceSpec("keyboard", "Razer Cynosa Chroma", 0x022A, 6, 22)
+        with tempfile.TemporaryDirectory() as d:
+            self.write(d, {"b-broken.json": "{not json", "c-wrong.json": self.pack(matrix=[99, 1]),
+                           "a-mine.json": self.pack(), "readme.txt": "ignored",
+                           "d-second.json": self.pack(name="Second", keys={"W": [5, 5]})})
+            logged = []
+            packs = devmaps.load_packs([d], log=logged.append)
+            self.assertEqual([p.name for p in packs], ["Test board", "Second"])
+            self.assertEqual(len(logged), 2)                          # broken files are reported, skipped
+            km = devmaps.keyboard_keymap(cynosa, TestDeviceMaps.TABLES, packs)
+            self.assertTrue(km.source.startswith("layout pack \u201cTest board\u201d (a-mine.json)"), km.source)
+            self.assertEqual(km.code_to_cell, {17: (0, 0), 30: (0, 1), 32: (0, 2)})   # 1) user pack beats hand-tuned
+        self.assertEqual(devmaps.keyboard_keymap(cynosa, TestDeviceMaps.TABLES, []).source, "hand-tuned")   # 2)
+        bw = devmaps.DeviceSpec("keyboard", "Razer BlackWidow", 0x0221, 6, 22)
+        self.assertEqual(devmaps.keyboard_keymap(bw, TestDeviceMaps.TABLES, []).source, "OpenRazer keyboard map")  # 3)
+        self.assertTrue(devmaps.keyboard_keymap(bw, None, []).source.startswith("generic grid"))           # 4)
+        by_name = devmaps.LayoutPack(devmaps.validate_pack(self.pack(match={"name": ["blackwidow"]})))
+        self.assertTrue(devmaps.keyboard_keymap(bw, TestDeviceMaps.TABLES, [by_name]).source.startswith("layout pack"))
+
+    def test_mouse_pack_and_scene(self):
+        from razorfx import devmaps
+        from razorfx.scene import Scene, Compositor
+        from razorfx import config
+        pk = devmaps.LayoutPack(devmaps.validate_pack(self.pack(kind="mouse", match={"usb": ["1532:0084"]}, matrix=[1, 3],
+                                                                keys={}, zones={"logo": [[0, 2]], "scroll": [[0, 0]]})))
+        spec = devmaps.DeviceSpec("mouse", "Razer DeathAdder V2", 0x0084, 1, 3)
+        self.assertIs(devmaps.find_pack(spec, [pk]), pk)
+        self.assertIsNone(devmaps.find_pack(spec._replace(kind="keyboard"), [pk]))
+        prof = pk.mouse_profile()
+        sc = Scene(prof, mouse_matrix=(1, 3))
+        comp = Compositor(sc, config.make_profile("static", {"color": "#ff0000"}), dict(config.DEFAULT_GLOBAL))
+        mf = comp.mouse_frame(comp.render(0.5), 1, 3)
+        self.assertTrue(mf[0, 0].any() and mf[0, 2].any() and not mf[0, 1].any())
+
+    def test_example_preset_imports_unchanged(self):
+        import json
+        from razorfx import config
+        d = json.load(open(os.path.join(self.HERE, "examples/presets/example-preset.json")))
+        self.assertEqual(d["format"], "razorfx-presets")
+        profs = {k: v for k, v in d["presets"].items() if isinstance(v, dict)}
+        self.assertEqual(list(profs), ["Example: Wave + WASD"])
+        p = profs["Example: Wave + WASD"]
+        clean = config.sanitize_profile(p)
+        strip = lambda o: ({k: strip(v) for k, v in o.items() if not k.startswith("_")} if isinstance(o, dict)
+                           else [strip(x) for x in o] if isinstance(o, list) else o)
+        self.assertEqual(clean, strip(p))                       # every documented field round-trips

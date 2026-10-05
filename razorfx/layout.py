@@ -200,13 +200,14 @@ MOUSE_PROFILES = {
     0x0072: {"model": "Razer Mamba Wireless (2018), receiver",
              "leds": {"scroll": [0], "logo": [1]}},
 }
-GENERIC_MOUSE = {"model": "unknown mouse (all LEDs follow the logo zone)",
-                 "leds": {"logo": "all"}}
+GENERIC_MOUSE = {"model": "unknown mouse (LEDs as a strip around the outline, all in the logo zone)",
+                 "leds": "strip"}
 
-ZONES = ("keyboard", "kb_logo", "mouse_logo", "mouse_scroll")
+ZONES = ("keyboard", "kb_logo", "mouse_logo", "mouse_scroll", "extras")
 ZONE_LABELS = {
     "keyboard": "Keyboard keys",
     "kb_logo": "Keyboard logo",
     "mouse_logo": "Mouse logo",
     "mouse_scroll": "Mouse scroll wheel",
+    "extras": "Other devices (mats, headsets, docks)",
 }

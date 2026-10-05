@@ -38,6 +38,7 @@ import time
 import numpy as np
 
 from . import layout as L
+from . import devmaps
 
 KB_PIDS = (0x022A,)
 SYSFS_ROOT = os.environ.get("RAZORFX_SYSFS_ROOT", "/sys/bus/hid/drivers")
@@ -272,6 +273,8 @@ class DeviceHub:
         self.opts = dict(DEFAULT_IO)
         self.openrazer = None                  # {"daemon": version, "client": version} once connected
         self.detected = []                     # every OpenRazer device: name, type, USB id (no serials)
+        self.extras = []                       # Out for every other device with a matrix (mats, docks...)
+        self.tables = None                     # OpenRazer key tables (devmaps.openrazer_tables), once
 
     def _note(self, msg):
         if msg != self._last_msg:
@@ -280,7 +283,20 @@ class DeviceHub:
 
     @property
     def any(self):
-        return self.kb is not None or self.mouse is not None
+        return self.kb is not None or self.mouse is not None or bool(self.extras)
+
+    def keymap(self):
+        """devmaps.Keymap for the connected keyboard (hand-tuned, OpenRazer tables or a grid)"""
+        if self.kb is None:
+            return devmaps.default_keymap()
+        if self.tables is None:
+            self.tables = devmaps.openrazer_tables() or {}
+        return devmaps.keyboard_keymap(devmaps.DeviceSpec("keyboard", self.kb.name, self.kb.pid,
+                                                          self.kb.rows, self.kb.cols), self.tables,
+                                       devmaps.load_packs(log=log))
+
+    def extra_dims(self):
+        return [(o.rows, o.cols) for o in self.extras]
 
     def configure(self, g):
         """apply the I/O related global settings (cheap; called every frame)"""
@@ -303,11 +319,19 @@ class DeviceHub:
                 out.stop()
                 new = Out(out.dev, out.kind, self.lock, self.opts)
                 setattr(self, which, new.start() if self.threaded else new)
+        for i, out in enumerate(self.extras):
+            out.stop()
+            new = Out(out.dev, out.kind, self.lock, self.opts)
+            self.extras[i] = new.start() if self.threaded else new
         self._log_devices()
 
     def mouse_profile(self):
         if self.mouse is None:
             return None
+        pack = devmaps.find_pack(devmaps.DeviceSpec("mouse", self.mouse.name, self.mouse.pid,
+                                                    self.mouse.rows, self.mouse.cols), devmaps.load_packs(log=log))
+        if pack is not None:                               # user layout packs come first
+            return pack.mouse_profile()
         return L.MOUSE_PROFILES.get(self.mouse.pid, L.GENERIC_MOUSE)
 
     def maybe_scan(self, now, want_mouse=True):
@@ -322,7 +346,8 @@ class DeviceHub:
                                        "sysfs " + o.sysfs if o.sysfs else "D-Bus") if o else "none"
 
     def _log_devices(self):
-        log("devices: keyboard=%s, mouse=%s" % (self._desc(self.kb), self._desc(self.mouse)))
+        log("devices: keyboard=%s, mouse=%s%s" % (self._desc(self.kb), self._desc(self.mouse),
+            "".join(", other=" + self._desc(o) for o in self.extras)))
 
     def scan(self):
         """(re)connect. Returns True if the device set changed."""
@@ -332,7 +357,8 @@ class DeviceHub:
             self.state = "no-openrazer"
             self._note("cannot import openrazer.client (%s)" % e)
             return False
-        before = (self.kb.serial if self.kb else None, self.mouse.serial if self.mouse else None)
+        before = (self.kb.serial if self.kb else None, self.mouse.serial if self.mouse else None,
+                  tuple(o.serial for o in self.extras))
         try:
             with self.lock:
                 dm = DeviceManager()
@@ -349,11 +375,11 @@ class DeviceHub:
                         kb = d
                     elif typ == "mouse" and (mouse is None or pid in L.MOUSE_PROFILES):
                         mouse = d
-                if kb is None:
+                for want in ("keyboard", "keypad"):          # any keyboard, else a keypad (Tartarus...)
                     for d in devs:
-                        if str(getattr(d, "type", "")) == "keyboard" and d.fx.advanced is not None:
+                        if kb is None and str(getattr(d, "type", "")) == want and d.fx.advanced is not None:
                             kb = d
-                            break
+                extras = [d for d in devs if d.fx.advanced is not None and d is not kb and d is not mouse]
             for which, d, kind in (("kb", kb, "keyboard"), ("mouse", mouse, "mouse")):
                 old = getattr(self, which)
                 if old is not None and d is not None and old.serial == str(d.serial) and old.error is None:
@@ -364,11 +390,26 @@ class DeviceHub:
                 if new is not None and self.threaded:
                     new.start()
                 setattr(self, which, new)
+            old = {o.serial: o for o in self.extras}
+            new_extras = []
+            for d in extras:
+                o = old.pop(str(d.serial), None)
+                if o is None or o.error is not None:
+                    if o is not None:
+                        o.stop()
+                    o = Out(d, "extra", self.lock, self.opts)
+                    if self.threaded:
+                        o.start()
+                new_extras.append(o)
+            for o in old.values():
+                o.stop()
+            self.extras = new_extras
             self.dm = dm
             self.openrazer = self._versions(dm)
             self.detected = detected
             self.state = "ok" if self.any else "no-devices"
-            after = (self.kb.serial if self.kb else None, self.mouse.serial if self.mouse else None)
+            after = (self.kb.serial if self.kb else None, self.mouse.serial if self.mouse else None,
+                     tuple(o.serial for o in self.extras))
             if after != before:
                 self._log_devices()
                 self._last_msg = None
@@ -376,13 +417,14 @@ class DeviceHub:
                 self._note("daemon is up but no Razer keyboard/mouse with a matrix found; retrying")
             return after != before
         except Exception as e:
-            for o in (self.kb, self.mouse):
+            for o in [self.kb, self.mouse] + self.extras:
                 if o is not None:
                     o.stop()
             self.kb = self.mouse = None
+            self.extras = []
             self.state = "no-daemon"
             self._note("openrazer daemon not reachable (%s: %s); retrying" % (type(e).__name__, e))
-            return before != (None, None)
+            return before != (None, None, ())
 
     def _fail(self, which, e):
         log("lost %s (%s: %s); will reconnect" % (which, type(e).__name__, e))
@@ -396,9 +438,24 @@ class DeviceHub:
         self.state = "degraded"
         self.next_scan = time.monotonic() + self.retry
 
-    def push(self, kb_frame, mouse_frame, mouse_zone_colors=None, now=0.0, method="matrix"):
+    def push(self, kb_frame, mouse_frame, mouse_zone_colors=None, now=0.0, method="matrix", extra_frames=()):
         """hand the newest frames to the writer threads (never blocks on USB)"""
         changed = False
+        for o, f in zip(list(self.extras), extra_frames):
+            if o.error is not None:
+                log("lost %s (%s); will reconnect" % (o.name, o.error))
+                o.stop(timeout=0)
+                self.extras.remove(o)
+                self.next_scan = time.monotonic() + self.retry
+                changed = True
+            elif f is not None:
+                if self.threaded:
+                    o.submit("matrix", f)
+                else:
+                    try:
+                        o._write_matrix(np.asarray(f, np.uint8), time.monotonic())
+                    except Exception as e:
+                        o.error = e
         for which, out, job in (("keyboard", self.kb, ("matrix", kb_frame)),
                                 ("mouse", self.mouse,
                                  ("zones", mouse_zone_colors) if method == "zones" and mouse_zone_colors
@@ -425,10 +482,11 @@ class DeviceHub:
         return changed
 
     def finish(self, mode):
-        for out in (self.kb, self.mouse):
+        outs = [self.kb, self.mouse] + list(self.extras)
+        for out in outs:
             if out is not None:
                 out.stop(timeout=1.0)
-        for out in (self.kb, self.mouse):
+        for out in outs:
             if out is None:
                 continue
             try:
@@ -436,7 +494,7 @@ class DeviceHub:
                     if mode == "restore":
                         out.dev.fx.advanced.restore()
                     elif mode == "off":
-                        if out.kind == "keyboard":
+                        if out.kind in ("keyboard", "extra"):
                             out.dev.fx.none()
                         else:
                             for led in (out.dev.fx.misc.logo, out.dev.fx.misc.scroll_wheel):
@@ -472,4 +530,5 @@ class DeviceHub:
         return {"state": self.state,
                 "keyboard": self.kb.info() if self.kb else None,
                 "mouse": self.mouse.info() if self.mouse else None,
+                "others": [o.info() for o in self.extras],
                 "openrazer": self.openrazer, "detected": list(self.detected)}

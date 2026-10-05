@@ -13,7 +13,8 @@ Test builds for Trevor's PC are numbered 1.1.0-dev.N. Nothing is published until
   with Copy system info, .deb/.rpm/AUR/AppImage packages and the release workflow, Gamer Controls
   key chips, no About button in the header, and the icon-cache fix for the gear icon.
 - 1.1.0-dev.3 (2026-10-05): Highlight keys uses the same keycap chips; the free build can no
-  longer add arbitrary keys or groups there ("Pro: coming soon").
+  longer add arbitrary keys or groups there ("Pro: coming soon"); broader device compatibility,
+  community layout packs, and an example preset file.
 
 ### Fixed
 - **Generic gear icon instead of the RazorFX logo on GNOME** after the rename from razer-fx:
@@ -58,6 +59,25 @@ Test builds for Trevor's PC are numbered 1.1.0-dev.N. Nothing is published until
   your *Start engine at login* choice on upgrade. `uninstall.sh` keeps your plugins unless `--purge`.
 
 ### Added
+- **Layout packs: community device support without code.** Data-only JSON files in
+  `~/.local/share/razorfx/layouts/` (device name/USB id, matrix size, key → `[row, col]`, logo, mouse
+  zones) are validated and never executed. The new plugin call `ctx.register_layout()` saves one
+  there and reloads the engine. Precedence: user packs, then built-in hand-tuned maps, then
+  OpenRazer's tables, then the generic grid. Template: `examples/layouts/example-layout.json`.
+  Format: `docs/LAYOUTS.md`. Submit packs by pull request (CONTRIBUTING.md).
+- **Example preset file** `examples/presets/example-preset.json`, with a field-by-field reference
+  in `examples/presets/README.md`. Import it with *File ▸ Import presets…* (the existing menu;
+  no new UI).
+- Packages ship both examples and `LAYOUTS.md` under `/usr/share/doc/razorfx/`, and GitHub
+  releases add `razorfx-<version>-examples.zip`.
+- **Broader device compatibility.** The engine builds an LED map per device at run time: the
+  hand-tuned Cynosa/Mamba maps first, then OpenRazer's own key tables for keyboards with the
+  standard 6 × 22 matrix and for Tartarus/Orbweaver keypads (read from the installed
+  `openrazer_daemon`, not copied), then a generic grid sized to the matrix
+  (`fx.advanced.rows/cols`) for anything else. Mice without a hand-tuned map light as a strip around
+  the outline. Mouse mats, headsets, docks and other matrix devices are now driven too, as strips,
+  in a new *Other devices* zone. The chosen map is logged and reported as `layout` in the engine
+  status. The README's new *Compatibility* section explains this and how to contribute a layout.
 - **Highlight keys: keycap chips, free-form adding is Pro.** A group's keys show as chips
   (remove with Backspace, Delete or ×). The typed Keys field and the WASD/Arrows/F-keys/Numbers/
   Numpad/Logo/Clear buttons are gone. In the free build, Add group, + Add key and Pick keys on the
