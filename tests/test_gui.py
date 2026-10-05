@@ -40,8 +40,15 @@ class TestGui(unittest.TestCase):
         self.assertEqual(razorfx.__version__, "1.1.0-dev")
         with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION")) as f:
             self.assertEqual(f.read().strip(), razorfx.__version__)
-        titles = [a.text().replace("&", "") for a in self.w.menuBar().actions()]
-        self.assertIn("Help", titles)
+        mb = self.w.menuBar()
+        titles = [a.text().replace("&", "") for a in mb.actions()]
+        self.assertEqual(titles[0], "File")
+        self.assertEqual(titles[-1], "Help")
+        self.assertFalse(mb.isNativeMenuBar())         # never moved to a global menu bar
+        self.assertTrue(mb.isVisible())
+        self.assertGreater(mb.height(), 10)
+        self.assertEqual(self.w.about_action.shortcut().toString(), "F1")
+        self.assertTrue(self.w.about_btn.isVisible())  # header backup for Help > About
         self.assertEqual(self.w.windowTitle(), "RazorFX")
         self.assertEqual(self.w.about_action.text().replace("&", ""), "About RazorFX")
         t = self.w.about_text()
@@ -55,6 +62,10 @@ class TestGui(unittest.TestCase):
         self.assertTrue(box.isVisible())
         self.assertEqual(box.windowTitle(), "About RazorFX")
         box.close()
+        self.w.about_btn.click()
+        spin(50)
+        self.assertTrue(self.w._about_box.isVisible())
+        self.w._about_box.close()
 
     def test_slot_exception_under_exec_goes_to_excepthook(self):
         # PySide6 (unlike PyQt6) never aborts: under app.exec() a slot's exception goes to
@@ -99,7 +110,7 @@ class TestGui(unittest.TestCase):
             self.assertIn("Hello plugin 0.1.0", info)
             self.assertIn("broken", info)
             titles = [a.text().replace("&", "") for a in w.menuBar().actions()]
-            self.assertEqual(titles, ["Plugins", "Help"])
+            self.assertEqual(titles, ["File", "Plugins", "Help"])
             act = dict(w.plugin_host.actions)["hello"]
             w.plugin_host.dialog_parent = lambda: None        # no modal box in the test
             act.trigger()

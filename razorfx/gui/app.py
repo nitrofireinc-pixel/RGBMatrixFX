@@ -14,12 +14,12 @@ import traceback
 
 import numpy as np
 from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QSettings, QUrl, Signal
-from PySide6.QtGui import QPainter, QColor, QIcon, QFont, QPixmap, QDesktopServices
+from PySide6.QtGui import QPainter, QColor, QIcon, QFont, QPixmap, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (QFileDialog, QToolButton, QMenu,
                              QApplication, QMainWindow, QWidget, QFrame, QHBoxLayout, QVBoxLayout,
                              QLabel, QPushButton, QComboBox, QTabWidget, QScrollArea, QSplitter,
                              QCheckBox, QFormLayout, QGridLayout, QListWidget, QListWidgetItem,
-                             QLineEdit, QInputDialog, QMessageBox, QSpinBox, QGroupBox, QSizePolicy)
+                             QLineEdit, QInputDialog, QMessageBox, QSpinBox, QGroupBox, QSizePolicy, QStyle)
 
 from .. import paths as P
 from .. import (config, ipc, layout as L, plugin_api, __version__, APP_ID, APP_NAME, REPO_URL, COPYRIGHT,
@@ -424,11 +424,22 @@ class MainWindow(QMainWindow):
 
     def _build_menu(self):
         mb = self.menuBar()
+        # Always draw the menu bar inside the window: no global/native menu bar (Unity/KDE
+        # global menus, macOS) may take it away, so Help ▸ About is always visible.
+        mb.setNativeMenuBar(False)
+        fm = self.file_menu = mb.addMenu("&File")
+        fm.addAction("&Import presets\u2026", self.import_presets)
+        fm.addAction("&Export all presets\u2026", self.export_all)
+        fm.addSeparator()
+        close = fm.addAction("&Close window", self.close)
+        close.setShortcut(QKeySequence.StandardKey.Quit)
+        close.setToolTip("The engine keeps your lighting running after the window closes")
         hm = self.help_menu = mb.addMenu("&Help")
         hm.addAction("Project website", self.open_website)
         hm.addAction("Report an issue", self.open_issues)
         hm.addSeparator()
         self.about_action = hm.addAction("&About %s" % APP_NAME, self.show_about)
+        self.about_action.setShortcut(QKeySequence("F1"))
         hm.addAction("About &Qt", self.show_about_qt)
 
     def open_website(self):
@@ -562,6 +573,14 @@ class MainWindow(QMainWindow):
         self.engine_btn.setToolTip("Stop the RazorFX engine so Polychromatic controls the lighting again")
         self.engine_btn.clicked.connect(self.toggle_engine)
         lay.addWidget(self.engine_btn)
+        self.about_btn = QToolButton(objectName="AboutBtn")   # backup for the Help menu
+        self.about_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation))
+        self.about_btn.setText("About")
+        self.about_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.about_btn.setToolTip("About %s (F1): version, license, system info" % APP_NAME)
+        self.about_btn.setFixedHeight(32)
+        self.about_btn.clicked.connect(self.show_about)
+        lay.addWidget(self.about_btn)
         return h
 
     # ---------------------------------------------------------------- refresh
