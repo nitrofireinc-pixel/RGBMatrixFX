@@ -1,0 +1,1425 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Trevor Olsen
+"""razer-fx GUI: pick effects, tune them live, manage presets and zones.
+Talks to razer-fx-engine over its Unix socket; closing the window leaves the
+engine running. If the engine isn't running, the preview renders locally and
+edits are saved to ~/.config/razer-fx/config.json."""
+import copy
+import os
+import shutil
+import subprocess
+import sys
+import time
+import traceback
+
+import numpy as np
+from PyQt6.QtCore import Qt, QTimer, QRect, QRectF, QSettings, QUrl, pyqtSignal
+from PyQt6.QtGui import QPainter, QColor, QIcon, QFont, QPixmap, QDesktopServices
+from PyQt6.QtWidgets import (QFileDialog, QToolButton, QMenu,
+                             QApplication, QMainWindow, QWidget, QFrame, QHBoxLayout, QVBoxLayout,
+                             QLabel, QPushButton, QComboBox, QTabWidget, QScrollArea, QSplitter,
+                             QCheckBox, QFormLayout, QGridLayout, QListWidget, QListWidgetItem,
+                             QLineEdit, QInputDialog, QMessageBox, QSpinBox, QGroupBox, QSizePolicy)
+
+from .. import config, ipc, layout as L, __version__, REPO_URL, COPYRIGHT, LICENSE
+from ..effects import EFFECTS, EFFECT_BY_ID
+from ..scene import Scene, Compositor, ZONE_MODES, ZONE_MODE_LABELS
+from . import theme, safety
+from .preview import PreviewWidget, ScenePainter
+from .layoututil import FlowLayout, install_wheel_guard
+from .widgets import ColorButton, SliderRow, ParamForm, Collapsible, make_control
+from ..effects import A as ADV
+
+# Advanced reactive-layer settings (everything not on the main reactive panel)
+REACTIVE_ADV = [
+    ADV("gain", "Ring intensity", "float", 1.6, "Peak strength of a ripple ring (above 1 = solid core)", min=0.2, max=4.0, step=0.05),
+    ADV("fade_curve", "Key-fade curve", "float", 1.3, "Exponent of the key fade (higher = drops faster at first)", min=0.2, max=5.0, step=0.05),
+    ADV("click_radius", "Mouse click radius", "float", 1.3, "Key-fade: mouse LEDs within this many key widths of a click light up", min=0.3, max=6.0, step=0.1),
+    ADV("wheel_interval", "Scroll ripple interval (s)", "float", 0.15, "Minimum time between ripples while scrolling", min=0.0, max=1.0, step=0.01),
+    ADV("max_ripples", "Max simultaneous ripples", "int", 48, "Oldest ripples are dropped beyond this", min=4, max=200),
+    ADV("rainbow_step", "Rainbow hue step", "float", 0.137, "Hue change between consecutive rainbow ripples", min=0.01, max=0.5, step=0.001),
+    ADV("rainbow_sat", "Rainbow saturation", "float", 1.0, "", min=0.0, max=1.0, step=0.01),
+]
+PRESET_FILE_FILTER = "Razer FX presets (*.razerfx.json *.json)"
+
+UNIT = "razer-fx-engine.service"
+HERE = os.path.dirname(os.path.abspath(__file__))
+ICON_CANDIDATES = [os.path.join(HERE, "..", "..", "data", "razer-fx.png"),
+                   os.path.expanduser("~/.local/share/icons/hicolor/256x256/apps/razer-fx.png")]
+
+
+def systemctl(*args):
+    if not shutil.which("systemctl"):
+        return None
+    try:
+        r = subprocess.run(["systemctl", "--user", *args], capture_output=True, text=True, timeout=8)
+        return r
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+class EngineLink:
+    def __init__(self, path=None):
+        self.client = ipc.Client(path, timeout=0.6)
+        self.ok = False
+
+    def call(self, cmd, **kw):
+        try:
+            r = self.client.call(cmd, **kw)
+            self.ok = True
+            return r
+        except (OSError, ValueError):
+            self.ok = False
+            return None
+
+
+# ------------------------------------------------------------------ effect tiles
+class EffectTile(QFrame):
+    clicked = pyqtSignal(str)
+
+    def __init__(self, cls, painter, parent=None):
+        super().__init__(parent)
+        self.cls = cls
+        self.painter_ = painter
+        self.rgb = [(0, 0, 0)] * painter.scene.n
+        self.selected = False
+        self.setFixedHeight(92)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip("%s\n\nMimics: %s" % (cls.description, cls.mimics))
+
+    def set_selected(self, s):
+        self.selected = s
+        self.update()
+
+    def mousePressEvent(self, ev):
+        self.clicked.emit(self.cls.id)
+
+    def paintEvent(self, ev):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = QRectF(self.rect()).adjusted(2, 2, -2, -2)
+        p.setPen(QColor(theme.ACCENT) if self.selected else QColor(theme.BORDER))
+        p.setBrush(QColor("#1d2a1a") if self.selected else QColor(theme.PANEL))
+        p.drawRoundedRect(r, 10, 10)
+        thumb = QRectF(r.x() + 6, r.y() + 6, max(80.0, min(150.0, r.width() * 0.45)), r.height() - 12)
+        self.painter_.paint_fast(p, thumb, self.rgb)
+        p.setPen(QColor(theme.TEXT))
+        f = QFont(); f.setPixelSize(14); f.setBold(True); p.setFont(f)
+        tx = QRectF(thumb.right() + 10, r.y() + 10, r.right() - thumb.right() - 16, 22)
+        p.drawText(tx, int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter), self.cls.name)
+        f.setPixelSize(11); f.setBold(False); p.setFont(f)
+        p.setPen(QColor(theme.MUTED))
+        sub = QRectF(tx.x(), tx.bottom() + 2, tx.width(), r.bottom() - tx.bottom() - 8)
+        p.drawText(sub, int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap),
+                   self.cls.mimics.split(":")[0])
+        p.end()
+
+
+class Gallery(QScrollArea):
+    selected = pyqtSignal(str)
+
+    def __init__(self, scene, parent=None):
+        super().__init__(parent)
+        self.setWidgetResizable(True)
+        self.setMinimumWidth(220)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        box = QWidget()
+        v = QVBoxLayout(box)
+        v.setContentsMargins(4, 4, 8, 4)
+        v.setSpacing(6)
+        head = QLabel("EFFECTS")
+        head.setStyleSheet("color:%s; font-weight:700; letter-spacing:2px; padding:4px;" % theme.MUTED)
+        v.addWidget(head)
+        self.painter_ = ScenePainter(scene)
+        self.tiles = {}
+        self.fx = {}
+        for i, cls in enumerate(EFFECTS):
+            t = EffectTile(cls, self.painter_)
+            t.clicked.connect(self.selected.emit)
+            v.addWidget(t)
+            self.tiles[cls.id] = t
+            self.fx[cls.id] = cls(scene, {}, seed=100 + i)
+        v.addStretch(1)
+        self.setWidget(box)
+        self.scene = scene
+        self.t0 = time.monotonic()
+        self.last = None
+        self.rng = np.random.default_rng(5)
+        self.keys = [k for k in L.KEYS if k.name != "LOGO"]
+        self.next_press = 0.0
+
+    def set_current(self, eid):
+        for k, t in self.tiles.items():
+            t.set_selected(k == eid)
+
+    def tick(self):
+        t = time.monotonic() - self.t0
+        dt = 0.1 if self.last is None else min(0.2, t - self.last)
+        self.last = t
+        press = t >= self.next_press
+        if press:
+            self.next_press = t + 0.45
+            k = self.keys[int(self.rng.integers(0, len(self.keys)))]
+            i = self.scene.cell_index(k.row, k.col)
+        for eid, fx in self.fx.items():
+            tile = self.tiles[eid]
+            if tile.visibleRegion().isEmpty():
+                continue            # scrolled out of view
+            if press and fx.reactive_hint:
+                fx.on_press(self.scene.x[i], self.scene.y[i], i, t)
+            rgb = (np.clip(fx.step(t, dt), 0, 1) * 255).astype(np.uint8).tolist()
+            if rgb != tile.rgb:
+                tile.rgb = rgb
+                tile.update()
+
+
+# ------------------------------------------------------------------ main window
+class MainWindow(QMainWindow):
+    def __init__(self, sock_path=None, cfg_path=config.CONFIG_FILE):
+        super().__init__()
+        self.cfg_path = cfg_path
+        self.link = EngineLink(sock_path)
+        self.status = {}
+        self.cfg = None
+        self.mouse_pid = 0x0073
+        self.scene = Scene(L.MOUSE_PROFILES[0x0073])
+        self.local = None
+        self._push_pending = False
+        self._save_pending = False
+        self._hl_index = 0
+        self.pick_mode = False
+        self.zone_hl_until = 0
+        self.t0 = time.monotonic()
+        self._was_connected = False
+
+        self.setWindowTitle("Razer FX")
+        for ic in ICON_CANDIDATES:
+            if os.path.exists(ic):
+                self.setWindowIcon(QIcon(ic))
+                break
+        self._load_initial()
+        install_wheel_guard(QApplication.instance())
+        self._build()
+        self.refresh_all()
+        self._restore_window()
+
+        self.frame_timer = QTimer(self, interval=33, timeout=self._tick_frame)
+        self.frame_timer.start()
+        self.status_timer = QTimer(self, interval=1000, timeout=self._tick_status)
+        self.status_timer.start()
+        self.thumb_timer = QTimer(self, interval=125, timeout=self._tick_thumbs)
+        self.thumb_timer.start()
+        self.push_timer = QTimer(self, singleShot=True, interval=60, timeout=self._push_now)
+        self.save_timer = QTimer(self, singleShot=True, interval=500, timeout=self._save_local)
+        self._tick_status()
+
+    # ---------------------------------------------------------------- state
+    def _load_initial(self):
+        r = self.link.call("get_state")
+        if r and r.get("ok"):
+            self.cfg = config.sanitize_config(r["config"])
+            self.status = r["status"]
+        else:
+            self.cfg = config.load(self.cfg_path)
+        L.set_mouse_position(self.cfg["global"]["mouse_gap"], self.cfg["global"]["mouse_dy"])
+        self.scene = Scene(self.scene.mouse_profile)
+        self.local = Compositor(self.scene, self.cfg["profile"], self.cfg["global"], seed=3)
+
+    @property
+    def profile(self):
+        return self.cfg["profile"]
+
+    @property
+    def g(self):
+        return self.cfg["global"]
+
+    def changed(self, rebuild=False):
+        """call after editing self.cfg"""
+        self.cfg = config.sanitize_config(self.cfg)
+        self._apply_geometry()
+        self.local.set_profile(self.profile)
+        self.local.set_global(self.g)
+        self.push_timer.start()
+        self._update_modified()
+        if rebuild:
+            self.refresh_all()
+
+    def _apply_geometry(self):
+        """mouse gap / offset changed -> rebuild the scene used by preview + local render"""
+        pos = (self.g["mouse_gap"], self.g["mouse_dy"])
+        if pos == (L.MOUSE_GAP, L.MOUSE_DY):
+            return
+        L.set_mouse_position(*pos)
+        self.scene = Scene(self.scene.mouse_profile)
+        self.local = Compositor(self.scene, self.profile, self.g, seed=3)
+        self.preview.set_scene(self.scene)
+        if hasattr(self, "delay_lbl"):
+            self._update_delay()
+
+    def _push_now(self):
+        if self.link.call("set_config", config=self.cfg) is None:
+            self.save_timer.start()
+
+    def _save_local(self):
+        try:
+            config.save(self.cfg, self.cfg_path)
+        except OSError as e:
+            self.statusBar().showMessage("Could not save config: %s" % e, 5000)
+
+    # ---------------------------------------------------------------- window geometry
+    def _settings(self):
+        """GUI-only state (window size, splitters) next to config.json, never inside it"""
+        return QSettings(os.path.join(os.path.dirname(os.path.abspath(self.cfg_path)), "gui.ini"),
+                         QSettings.Format.IniFormat)
+
+    def _restore_window(self):
+        st = self._settings()
+        scr = self.screen() or QApplication.primaryScreen()
+        avail = scr.availableGeometry() if scr is not None else QRect(0, 0, 1366, 768)
+        w = int(st.value("window/width", 0) or 0)
+        h = int(st.value("window/height", 0) or 0)
+        if w <= 0 or h <= 0:                    # first run: 90% of the usable screen
+            w, h = int(avail.width() * 0.9), int(avail.height() * 0.9)
+        mn = self.minimumSizeHint()
+        w = max(mn.width(), min(w, avail.width()))
+        h = max(mn.height(), min(h, avail.height()))
+        self.resize(w, h)
+        if QApplication.platformName() not in ("wayland", "offscreen"):   # Wayland places windows itself
+            self.move(avail.x() + (avail.width() - w) // 2, avail.y() + max(0, (avail.height() - h) // 2))
+        self.start_maximized = str(st.value("window/maximized", "false")).lower() == "true"
+        for name in ("split_h", "split_v"):
+            v = st.value("window/" + name)
+            if v is not None:
+                getattr(self, name).restoreState(v)
+
+    def _save_window(self):
+        st = self._settings()
+        maxed = self.isMaximized() or self.isFullScreen()
+        st.setValue("window/maximized", "true" if maxed else "false")
+        if not maxed:
+            st.setValue("window/width", self.width())
+            st.setValue("window/height", self.height())
+        st.setValue("window/split_h", self.split_h.saveState())
+        st.setValue("window/split_v", self.split_v.saveState())
+        st.sync()
+
+    def show_initial(self):
+        if getattr(self, "start_maximized", False):
+            self.showMaximized()
+        else:
+            self.show()
+
+    def closeEvent(self, ev):
+        try:
+            self._save_window()
+        except Exception:
+            safety.log("saving window state failed:\n" + traceback.format_exc())
+        super().closeEvent(ev)
+
+    # ---------------------------------------------------------------- layout
+    def _build(self):
+        root = QWidget()
+        self.setCentralWidget(root)
+        v = QVBoxLayout(root)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(0)
+        self._build_menu()
+        v.addWidget(self._build_header())
+        split = self.split_h = QSplitter(Qt.Orientation.Horizontal)
+        split.setHandleWidth(6)
+        split.setChildrenCollapsible(False)
+        self.gallery = Gallery(Scene(L.MOUSE_PROFILES[0x0073]))
+        self.gallery.selected.connect(self.select_effect)
+        split.addWidget(self.gallery)
+        right = QWidget()
+        rv = QVBoxLayout(right)
+        rv.setContentsMargins(8, 10, 12, 10)
+        rv.setSpacing(0)
+        self.split_v = QSplitter(Qt.Orientation.Vertical)
+        self.split_v.setHandleWidth(8)
+        self.split_v.setChildrenCollapsible(False)
+        rv.addWidget(self.split_v)
+        card = QFrame(objectName="Card")
+        cv = QVBoxLayout(card)
+        cv.setContentsMargins(10, 8, 10, 8)
+        top = QHBoxLayout()
+        self.preview_title = QLabel("Live preview")
+        self.preview_title.setStyleSheet("font-weight:700;")
+        self.preview_hint = QLabel("Click keys or mouse buttons to try reactions")
+        self.preview_hint.setProperty("muted", True)
+        for lbl in (self.preview_title, self.preview_hint):   # wrap instead of forcing a wide window
+            lbl.setWordWrap(True)
+            lbl.setMinimumWidth(60)
+        self.preview_hint.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        top.addWidget(self.preview_title, 1)
+        top.addWidget(self.preview_hint, 1)
+        cv.addLayout(top)
+        self.preview = PreviewWidget(self.scene)
+        self.preview.setMinimumHeight(120)
+        self.preview.keyClicked.connect(self._preview_key)
+        self.preview.mouseClicked.connect(self._preview_mouse)
+        cv.addWidget(self.preview, 1)
+        card.setMinimumHeight(150)
+        self.split_v.addWidget(card)
+        self.tabs = QTabWidget()
+        self.tabs.setMinimumHeight(180)
+        self.tabs.setUsesScrollButtons(True)
+        self.tabs.currentChanged.connect(lambda *_: self._update_selection())
+        self.tab_effect = QScrollArea(widgetResizable=True)
+        self.tab_react = QScrollArea(widgetResizable=True)
+        self.tab_hl = QScrollArea(widgetResizable=True)
+        self.tab_hl_page = QWidget()
+        self.tab_hl.setWidget(self.tab_hl_page)
+        self.tab_zones = QScrollArea(widgetResizable=True)
+        self.tab_settings = QScrollArea(widgetResizable=True)
+        self.tabs.addTab(self.tab_effect, "Effect")
+        self.tabs.addTab(self.tab_react, "Reactive layer")
+        self.tabs.addTab(self.tab_hl, "Highlight keys")
+        self.tabs.addTab(self.tab_zones, "Zones")
+        self.tabs.addTab(self.tab_settings, "Settings")
+        for area in (self.tab_effect, self.tab_react, self.tab_hl, self.tab_zones, self.tab_settings):
+            area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            area.setFrameShape(QFrame.Shape.NoFrame)
+        self.split_v.addWidget(self.tabs)
+        self.split_v.setStretchFactor(0, 4)
+        self.split_v.setStretchFactor(1, 7)
+        self.split_v.setSizes([330, 560])
+        split.addWidget(right)
+        split.setStretchFactor(0, 0)
+        split.setStretchFactor(1, 1)
+        split.setSizes([340, 1100])
+        v.addWidget(split, 1)
+        self.statusBar().setStyleSheet("color:%s;" % theme.MUTED)
+
+    def _build_menu(self):
+        mb = self.menuBar()
+        hm = mb.addMenu("&Help")
+        hm.addAction("Project website", self.open_website)
+        hm.addAction("Report an issue", self.open_issues)
+        hm.addSeparator()
+        self.about_action = hm.addAction("&About Razer FX", self.show_about)
+        hm.addAction("About &Qt", self.show_about_qt)
+
+    def open_website(self):
+        QDesktopServices.openUrl(QUrl(REPO_URL))
+
+    def open_issues(self):
+        QDesktopServices.openUrl(QUrl(REPO_URL + "/issues"))
+
+    def show_about_qt(self):
+        QMessageBox.aboutQt(self, "About Qt")
+
+    def about_text(self):
+        return ("<h3>Razer FX %(v)s</h3>"
+                "<p>Selectable, Chroma-style lighting effects for Razer keyboards and mice "
+                "on Linux, built on OpenRazer.</p>"
+                "<p>%(c)s</p>"
+                "<p>This program is free software: you can redistribute it and/or modify it under "
+                "the terms of the GNU General Public License as published by the Free Software "
+                "Foundation, either version 3 of the License, or (at your option) any later version "
+                "(SPDX: %(l)s).<br>This program is distributed in the hope that it will be useful, "
+                "but <b>without any warranty</b>; without even the implied warranty of "
+                "merchantability or fitness for a particular purpose. See the "
+                "<a style='color:#44d62c' href='https://www.gnu.org/licenses/gpl-3.0.html'>GNU GPL v3</a> for details.</p>"
+                "<p>Source code: <a style='color:#44d62c' href='%(r)s'>%(r)s</a></p>"
+                "<p style='color:#8c8c96'>Uses OpenRazer (GPL-2.0-or-later); keyboard/mouse layout "
+                "facts cross-checked against OpenRazer, OpenRGB and Polychromatic. Not affiliated "
+                "with or endorsed by Razer Inc. Razer and Chroma are trademarks of Razer Inc.</p>"
+                % {"v": __version__, "c": COPYRIGHT, "l": LICENSE, "r": REPO_URL})
+
+    def show_about(self):
+        box = QMessageBox(self)
+        box.setWindowTitle("About Razer FX")
+        box.setTextFormat(Qt.TextFormat.RichText)
+        box.setText(self.about_text())
+        box.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        ic = self.windowIcon()
+        if not ic.isNull():
+            box.setIconPixmap(ic.pixmap(64, 64))
+        box.setStandardButtons(QMessageBox.StandardButton.Close)
+        self._about_box = box
+        box.open()
+        return box
+
+    def _build_header(self):
+        h = QFrame(objectName="Header")
+        flow = FlowLayout(h, margins=(14, 8, 14, 8), hspacing=14, vspacing=8)
+        h.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+
+        def group():
+            g = QWidget(objectName="Plain")
+            gl = QHBoxLayout(g)
+            gl.setContentsMargins(0, 0, 0, 0)
+            gl.setSpacing(8)
+            flow.addWidget(g)
+            return gl
+        lay = group()                          # logo + title
+        ic = QLabel()
+        for path in ICON_CANDIDATES:
+            if os.path.exists(path):
+                ic.setPixmap(QPixmap(path).scaled(38, 38, Qt.AspectRatioMode.KeepAspectRatio,
+                                                  Qt.TransformationMode.SmoothTransformation))
+                break
+        lay.addWidget(ic)
+        tv = QVBoxLayout()
+        tv.setSpacing(0)
+        t = QLabel("Razer FX", objectName="Title")
+        self.subtitle = QLabel("Cynosa Chroma + Mamba Wireless", objectName="Subtitle")
+        tv.addWidget(t)
+        tv.addWidget(self.subtitle)
+        lay.addLayout(tv)
+        lay = group()                          # presets
+        lay.addWidget(QLabel("Preset"))
+        self.preset_combo = QComboBox()
+        self.preset_combo.setMinimumWidth(150)
+        self.preset_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.preset_combo.setMinimumContentsLength(16)
+        self.preset_combo.activated.connect(lambda i: self.load_preset(self.preset_combo.itemData(i)))
+        lay.addWidget(self.preset_combo)
+        self.modified_lbl = QLabel("")
+        self.modified_lbl.setStyleSheet("color:#ffd88a;")
+        lay.addWidget(self.modified_lbl)
+        self.save_btn = QPushButton("Save")
+        self.save_btn.setToolTip("Save the current settings into the selected preset")
+        self.save_btn.clicked.connect(self.save_preset)
+        lay.addWidget(self.save_btn)
+        more = QToolButton()
+        more.setText("Presets \u25be")
+        more.setToolTip("Save as, duplicate, rename, delete, import and export presets")
+        more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        m = QMenu(more)
+        m.addAction("Save as new preset\u2026", self.save_preset_as)
+        m.addAction("Duplicate", self.duplicate_preset)
+        m.addAction("Rename\u2026", self.rename_preset)
+        m.addAction("Revert changes", lambda: self.load_preset(self.g.get("active_preset")))
+        m.addAction("Delete", self.delete_preset)
+        m.addSeparator()
+        m.addAction("Export this preset\u2026", self.export_preset)
+        m.addAction("Export all presets\u2026", self.export_all)
+        m.addAction("Import presets\u2026", self.import_presets)
+        m.addSeparator()
+        m.addAction("Restore built-in presets", self._restore_builtins)
+        more.setMenu(m)
+        more.setFixedHeight(32)
+        lay.addWidget(more)
+        lay = group()                          # brightness + pause + gamer
+        lay.addWidget(QLabel("\u2600"))
+        self.master = SliderRow(0, 1, 0.01, 1.0, decimals=2)
+        self.master.setFixedWidth(200)
+        self.master.setToolTip("Master brightness (all devices)")
+        self.master.valueChanged.connect(self._set_master)
+        lay.addWidget(self.master)
+        self.pause_btn = QPushButton("Pause", checkable=True)
+        self.pause_btn.setToolTip("Freeze the animation (the engine keeps control of the lights)")
+        self.pause_btn.toggled.connect(self._set_paused)
+        lay.addWidget(self.pause_btn)
+        self.gamer_btn = QPushButton("Gamer Controls", checkable=True, objectName="Gamer")
+        self.gamer_btn.setToolTip("Keep W A S D (editable on the Highlight keys tab) solid white on top of every "
+                                  "effect, ripple and highlight, in every preset")
+        self.gamer_btn.toggled.connect(self._set_gamer)
+        lay.addWidget(self.gamer_btn)
+        lay = group()                          # engine state
+        self.pill = QLabel("\u25cf connecting\u2026", objectName="Pill")
+        lay.addWidget(self.pill)
+        self.engine_btn = QPushButton("Hand back to Polychromatic", objectName="Danger")
+        self.engine_btn.setToolTip("Stop the razer-fx engine so Polychromatic controls the lighting again")
+        self.engine_btn.clicked.connect(self.toggle_engine)
+        lay.addWidget(self.engine_btn)
+        return h
+
+    # ---------------------------------------------------------------- refresh
+    def refresh_all(self):
+        self.preset_combo.blockSignals(True)
+        self.preset_combo.clear()
+        for name in self.cfg["presets"]:
+            self.preset_combo.addItem(name, name)
+        i = self.preset_combo.findData(self.g.get("active_preset"))
+        if i >= 0:
+            self.preset_combo.setCurrentIndex(i)
+        self.preset_combo.blockSignals(False)
+        self.master.setValue(self.g["master_brightness"])
+        self.pause_btn.blockSignals(True)
+        self.pause_btn.setChecked(self.g["paused"])
+        self.pause_btn.setText("Resume" if self.g["paused"] else "Pause")
+        self.pause_btn.blockSignals(False)
+        self.gamer_btn.blockSignals(True)
+        self.gamer_btn.setChecked(self.g["gamer_controls"])
+        self.gamer_btn.blockSignals(False)
+        self.gallery.set_current(self.profile["effect"])
+        self._build_effect_tab()
+        self._build_react_tab()
+        self._build_hl_tab()
+        self._build_zones_tab()
+        self._build_settings_tab()
+        self._update_modified()
+
+    def _update_modified(self):
+        name = self.g.get("active_preset")
+        pre = self.cfg["presets"].get(name)
+        mod = pre is None or config.sanitize_profile(pre) != self.profile
+        self.modified_lbl.setText("\u25cf modified" if mod else "")
+        self.save_btn.setEnabled(mod)
+
+    # ---------------------------------------------------------------- effect tab
+    def select_effect(self, eid):
+        if eid == self.profile["effect"]:
+            return
+        self.profile["effect"] = eid
+        self.profile.setdefault("effects", {}).setdefault(eid, {})
+        self.gallery.set_current(eid)
+        self.changed()
+        self._build_effect_tab()
+
+    def _build_effect_tab(self):
+        eid = self.profile["effect"]
+        cls = EFFECT_BY_ID[eid]
+        w = QWidget()
+        v = QVBoxLayout(w)
+        v.setContentsMargins(16, 14, 16, 14)
+        top = QHBoxLayout()
+        name = QLabel(cls.name)
+        name.setStyleSheet("font-size:16pt; font-weight:700;")
+        top.addWidget(name)
+        top.addStretch(1)
+        reset = QPushButton("Reset to defaults")
+        reset.clicked.connect(self._reset_effect)
+        top.addWidget(reset)
+        v.addLayout(top)
+        d = QLabel(cls.description)
+        d.setWordWrap(True)
+        v.addWidget(d)
+        m = QLabel("Mimics: " + cls.mimics)
+        m.setWordWrap(True)
+        m.setProperty("muted", True)
+        v.addWidget(m)
+        if cls.reactive_hint:
+            n = QLabel("This effect reacts to key presses / mouse clicks by itself.")
+            n.setStyleSheet("color:%s;" % theme.ACCENT)
+            v.addWidget(n)
+        params = self.profile.get("effects", {}).get(eid, {})
+        form = ParamForm(cls.schema(), params)
+        form.changed.connect(self._effect_params)
+        box = QGroupBox("Settings")
+        bl = QVBoxLayout(box)
+        bl.addWidget(form)
+        v.addWidget(box)
+        v.addStretch(1)
+        self.tab_effect.setWidget(w)
+
+    def _effect_params(self, values):
+        eid = self.profile["effect"]
+        self.profile.setdefault("effects", {})[eid] = values
+        self.changed()
+
+    def _reset_effect(self):
+        self.profile.setdefault("effects", {})[self.profile["effect"]] = {}
+        self.changed()
+        self._build_effect_tab()
+
+    # ---------------------------------------------------------------- reactive tab
+    def _build_react_tab(self):
+        rx = self.profile["reactive"]
+        w = QWidget()
+        v = QVBoxLayout(w)
+        v.setContentsMargins(16, 14, 16, 14)
+        intro = QLabel("Adds reactions on top of <b>any</b> effect. Ripples travel across the keyboard "
+                       "and continue onto the mouse \u2014 the delay follows the real distance.")
+        intro.setWordWrap(True)
+        v.addWidget(intro)
+        grid = QHBoxLayout()
+        a = QGroupBox("Reaction")
+        f = QFormLayout(a)
+        f.setVerticalSpacing(10)
+        en = QCheckBox("Enabled")
+        en.setChecked(rx["enabled"])
+        en.toggled.connect(lambda x: self._rx("enabled", x))
+        f.addRow("Reactive layer", en)
+        mode = QComboBox()
+        for k, lab in (("ripple", "Ripple"), ("fade", "Key fade (Razer Reactive)"), ("both", "Ripple + key fade")):
+            mode.addItem(lab, k)
+        mode.setCurrentIndex(max(0, mode.findData(rx["mode"])))
+        mode.currentIndexChanged.connect(lambda i: self._rx("mode", mode.itemData(i)))
+        f.addRow("Type", mode)
+        cb = ColorButton(rx["color"])
+        cb.colorChanged.connect(lambda c: self._rx("color", c))
+        rb = QCheckBox("Rainbow")
+        rb.setChecked(rx["rainbow"])
+        rb.toggled.connect(lambda x: self._rx("rainbow", x))
+        row = QHBoxLayout(); row.addWidget(cb); row.addWidget(rb); row.addStretch(1)
+        f.addRow("Colour", self._wrap(row))
+        fc = ColorButton(rx["fade_color"])
+        fc.colorChanged.connect(lambda c: self._rx("fade_color", c))
+        f.addRow("Key-fade colour (both)", fc)
+        ft = SliderRow(0.05, 5, 0.05, rx["fade_time"], suffix=" s")
+        ft.valueChanged.connect(lambda x: self._rx("fade_time", x))
+        f.addRow("Key-fade time", ft)
+        grid.addWidget(a, 1)
+        b = QGroupBox("Ripple")
+        f2 = QFormLayout(b)
+        f2.setVerticalSpacing(10)
+        self.delay_lbl = QLabel()
+        self.delay_lbl.setProperty("muted", True)
+        for key, lab, lo, hi, st, suf in (("speed", "Speed", 3, 80, 0.5, " keys/s"), ("width", "Ring width", 0.2, 5, 0.05, ""),
+                                          ("life", "Life", 0.2, 4, 0.05, " s"), ("fade_power", "Fade curve", 0.1, 3, 0.05, "")):
+            s = SliderRow(lo, hi, st, rx[key], decimals=2, suffix=suf)
+            s.valueChanged.connect(lambda x, key=key: (self._rx(key, x), self._update_delay()))
+            f2.addRow(lab, s)
+        f2.addRow("", self.delay_lbl)
+        grid.addWidget(b, 1)
+        c = QGroupBox("Triggers")
+        f3 = QFormLayout(c)
+        for key, lab in (("keyboard", "Key presses"), ("mouse_buttons", "Mouse clicks"), ("mouse_wheel", "Mouse scrolling")):
+            ch = QCheckBox()
+            ch.setChecked(rx[key])
+            ch.toggled.connect(lambda x, key=key: self._rx(key, x))
+            f3.addRow(lab, ch)
+        grid.addWidget(c, 1)
+        v.addLayout(grid)
+        box = QWidget()
+        af = QFormLayout(box)
+        af.setContentsMargins(0, 0, 0, 0)
+        af.setVerticalSpacing(10)
+        af.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        for sch in REACTIVE_ADV:
+            lab = QLabel(sch["label"]); lab.setToolTip(sch["help"])
+            af.addRow(lab, make_control(sch, rx[sch["id"]], lambda x, k=sch["id"]: self._rx(k, x)))
+        v.addWidget(Collapsible("Advanced  (%d)" % len(REACTIVE_ADV), box, key="reactive"))
+        v.addStretch(1)
+        self.tab_react.setWidget(w)
+        self._update_delay()
+
+    def _update_delay(self):
+        rx = self.profile["reactive"]
+        w = L.KEY_BY_NAME["W"]
+        sx, sy, _ = L.MOUSE_LED_POS["scroll"]
+        d = ((w.cx - sx) ** 2 + (w.cy - sy) ** 2) ** 0.5
+        t = d / rx["speed"]
+        reach = "reaches" if t < rx["life"] else "fades out before reaching"
+        self.delay_lbl.setText("From W the ripple %s the mouse wheel after %.2f s (%.0f keys away)." % (reach, t, d))
+
+    def _rx(self, k, v):
+        self.profile["reactive"][k] = v
+        self.changed()
+
+    @staticmethod
+    def _wrap(layout):
+        w = QWidget(objectName="Plain")
+        layout.setContentsMargins(0, 0, 0, 0)
+        w.setLayout(layout)
+        return w
+
+    # ---------------------------------------------------------------- highlights tab
+    def _build_hl_tab(self):
+        old = self.tab_hl_page.layout()
+        if old is not None:
+            QWidget().setLayout(old)       # discard old layout
+        outer = QVBoxLayout(self.tab_hl_page)
+        outer.setContentsMargins(16, 14, 16, 14)
+        outer.addWidget(self._build_gamer_box())
+        h = QHBoxLayout()
+        outer.addLayout(h, 1)
+        left = QVBoxLayout()
+        self.hl_list = QListWidget()
+        self.hl_list.setMaximumWidth(260)
+        self.hl_list.setMinimumHeight(160)
+        for g in self.profile["highlights"]:
+            it = QListWidgetItem("%s  (%d keys)" % (g["name"], len(g["keys"])))
+            pm = QPixmap(14, 14); pm.fill(QColor(g["color"]))
+            it.setIcon(QIcon(pm))
+            self.hl_list.addItem(it)
+        self.hl_list.currentRowChanged.connect(self._hl_select)
+        left.addWidget(self.hl_list)
+        row = QHBoxLayout()
+        add = QPushButton("Add group")
+        add.clicked.connect(self._hl_add)
+        rem = QPushButton("Remove")
+        rem.clicked.connect(self._hl_remove)
+        row.addWidget(add); row.addWidget(rem)
+        left.addLayout(row)
+        h.addLayout(left)
+        self.hl_editor = QGroupBox("Group")
+        h.addWidget(self.hl_editor, 1)
+        n = len(self.profile["highlights"])
+        if n:
+            self.hl_list.setCurrentRow(min(self._hl_index, n - 1))
+        else:
+            self._hl_select(-1)
+
+    def _build_gamer_box(self):
+        box = QGroupBox("Gamer Controls \u2014 all presets (also in the header)")
+        f = QFormLayout(box)
+        f.setVerticalSpacing(8)
+        self.gamer_cb = QCheckBox("Keep these keys solid on top of every effect, ripple and highlight")
+        self.gamer_cb.setChecked(self.g["gamer_controls"])
+        self.gamer_cb.toggled.connect(self._set_gamer)
+        f.addRow("On", self.gamer_cb)
+        cb = ColorButton(self.g["gamer_color"])
+        cb.colorChanged.connect(lambda c: self._gamer_set("gamer_color", c))
+        f.addRow("Colour", cb)
+        keys = QLineEdit(", ".join(self.g["gamer_keys"]))
+        keys.setPlaceholderText("e.g. W, A, S, D")
+        keys.editingFinished.connect(lambda: self._gamer_set(
+            "gamer_keys", [k.strip().upper() for k in keys.text().split(",") if k.strip()], rebuild=True))
+        f.addRow("Keys", keys)
+        quick = QHBoxLayout()
+        for lab, ks in (("WASD", list(L.WASD)), ("+ Arrows", ["UP", "DOWN", "LEFT", "RIGHT"]),
+                        ("+ Space / Shift / Ctrl", ["SPACE", "LEFTSHIFT", "LEFTCTRL"]),
+                        ("+ Q E R F", ["Q", "E", "R", "F"])):
+            b = QPushButton(lab)
+            b.clicked.connect(lambda _, ks=ks, lab=lab: self._gamer_set(
+                "gamer_keys", list(ks) if lab == "WASD" else self.g["gamer_keys"] + [k for k in ks if k not in self.g["gamer_keys"]],
+                rebuild=True))
+            quick.addWidget(b)
+        rst = QPushButton("Reset (WASD, white)")
+        rst.clicked.connect(self._gamer_reset)
+        quick.addWidget(rst)
+        quick.addStretch(1)
+        f.addRow("Set", self._wrap(quick))
+        return box
+
+    def _gamer_reset(self):
+        self.g.update(gamer_keys=list(L.WASD), gamer_color="#ffffff")
+        self.changed()
+        self._build_hl_tab()
+
+    def _hl_select(self, row):
+        self._hl_index = max(0, row)
+        old = self.hl_editor.layout()
+        if old is not None:
+            QWidget().setLayout(old)
+        f = QFormLayout(self.hl_editor)
+        f.setVerticalSpacing(10)
+        if row < 0 or row >= len(self.profile["highlights"]):
+            f.addRow(QLabel("No highlight groups. Add one to keep keys (e.g. WASD) a fixed colour."))
+            self._update_selection()
+            return
+        g = self.profile["highlights"][row]
+        name = QLineEdit(g["name"])
+        name.editingFinished.connect(lambda: self._hl_set(row, "name", name.text(), relist=True))
+        f.addRow("Name", name)
+        cb = ColorButton(g["color"])
+        cb.colorChanged.connect(lambda c: self._hl_set(row, "color", c, relist=True))
+        f.addRow("Colour", cb)
+        en = QCheckBox(); en.setChecked(g["enabled"])
+        en.toggled.connect(lambda x: self._hl_set(row, "enabled", x))
+        f.addRow("Enabled", en)
+        top = QCheckBox("Stay on top of ripples")
+        top.setChecked(g["on_top"])
+        top.toggled.connect(lambda x: self._hl_set(row, "on_top", x))
+        f.addRow("Layer", top)
+        self.hl_keys = QLineEdit(", ".join(g["keys"]))
+        self.hl_keys.setPlaceholderText("e.g. W, A, S, D, SPACE, LEFTSHIFT")
+        self.hl_keys.editingFinished.connect(
+            lambda: self._hl_set(row, "keys", [k.strip().upper() for k in self.hl_keys.text().split(",") if k.strip()], relist=True))
+        f.addRow("Keys", self.hl_keys)
+        pick = QPushButton("Pick keys on the preview", checkable=True)
+        pick.setChecked(self.pick_mode)
+        pick.toggled.connect(self._set_pick)
+        quick = QHBoxLayout()
+        for lab, keys in (("WASD", list(L.WASD)), ("Arrows", ["UP", "DOWN", "LEFT", "RIGHT"]),
+                          ("F-keys", ["F%d" % i for i in range(1, 13)]),
+                          ("Numbers", list("1234567890")),
+                          ("Numpad", [k.name for k in L.KEYS if k.name.startswith("KP") or k.name == "NUMLOCK"]),
+                          ("Logo", ["LOGO"])):
+            b = QPushButton(lab)
+            b.clicked.connect(lambda _, keys=keys: self._hl_set(row, "keys", sorted(set(g["keys"]) | set(keys)), relist=True, rebuild=True))
+            quick.addWidget(b)
+        clr = QPushButton("Clear")
+        clr.clicked.connect(lambda: self._hl_set(row, "keys", [], relist=True, rebuild=True))
+        quick.addWidget(clr)
+        quick.addStretch(1)
+        f.addRow("", pick)
+        f.addRow("Add", self._wrap(quick))
+        tip = QLabel("Key names follow Linux evdev (LEFTSHIFT, KP5, SPACE, COMPOSE\u2026). LOGO = keyboard logo cell.")
+        tip.setProperty("muted", True)
+        tip.setWordWrap(True)
+        f.addRow("", tip)
+        self._update_selection()
+
+    def _set_pick(self, on):
+        self.pick_mode = on
+        self.preview_hint.setText("Click keys to add/remove them from the group" if on
+                                  else "Click keys or mouse buttons to try reactions")
+
+    def _hl_set(self, row, k, v, relist=False, rebuild=False):
+        if row >= len(self.profile["highlights"]):
+            return
+        self.profile["highlights"][row][k] = v
+        self.changed()
+        if relist or rebuild:
+            self._hl_index = row
+            self._build_hl_tab()
+        self._update_selection()
+
+    def _hl_add(self):
+        self.profile["highlights"].append({"name": "Group %d" % (len(self.profile["highlights"]) + 1),
+                                           "keys": [], "color": "#ffffff", "on_top": True, "enabled": True})
+        self._hl_index = len(self.profile["highlights"]) - 1
+        self.changed()
+        self._build_hl_tab()
+
+    def _hl_remove(self):
+        r = self.hl_list.currentRow()
+        if 0 <= r < len(self.profile["highlights"]):
+            del self.profile["highlights"][r]
+            self._hl_index = max(0, r - 1)
+            self.changed()
+            self._build_hl_tab()
+
+    def _update_selection(self):
+        sel = ()
+        if self.tabs.currentWidget() is self.tab_hl and self.profile["highlights"]:
+            r = min(self._hl_index, len(self.profile["highlights"]) - 1)
+            sel = tuple(self.profile["highlights"][r]["keys"])
+        self.preview.selected = sel
+        self.preview.update()
+
+    # ---------------------------------------------------------------- zones tab
+    def _build_zones_tab(self):
+        w = QWidget()
+        v = QVBoxLayout(w)
+        v.setContentsMargins(16, 14, 16, 14)
+        intro = QLabel("Each zone can <b>follow the effect</b> (the mouse sits to the right of the keyboard, "
+                       "so waves and ripples flow onto it) or run its own colour/effect.")
+        intro.setWordWrap(True)
+        v.addWidget(intro)
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(10)
+        col = 0
+        rowi = 0
+        for zone in L.ZONES:
+            if zone.startswith("mouse") and not self.scene.zone_present.get(zone):
+                continue
+            grid.addWidget(self._zone_card(zone), rowi, col)
+            col += 1
+            if col == 2:
+                col, rowi = 0, rowi + 1
+        v.addLayout(grid)
+        note = QLabel("Mamba Wireless (2018): only the scroll wheel (matrix col 0) and logo (col 1) have LEDs \u2014 "
+                      "no side strips. Cynosa Chroma: the logo LED is matrix cell (0,20) (confirmed on this keyboard). "
+                      "It sits on the bottom edge of the frame, below the gap between Right Alt and Fn, and spatial "
+                      "effects and ripples treat it as being there.")
+        note.setWordWrap(True)
+        note.setProperty("muted", True)
+        v.addWidget(note)
+        v.addStretch(1)
+        self.tab_zones.setWidget(w)
+
+    def _zone_card(self, zone):
+        z = self.profile["zones"][zone]
+        box = QGroupBox(L.ZONE_LABELS[zone])
+        f = QFormLayout(box)
+        f.setVerticalSpacing(8)
+        if zone != "keyboard":
+            mode = QComboBox()
+            for m in ZONE_MODES:
+                mode.addItem(ZONE_MODE_LABELS[m], m)
+            mode.setCurrentIndex(max(0, mode.findData(z["mode"])))
+            mode.currentIndexChanged.connect(lambda i, zone=zone, mode=mode: self._zone(zone, "mode", mode.itemData(i)))
+            f.addRow("Mode", mode)
+            cb = ColorButton(z["color"])
+            cb.colorChanged.connect(lambda c, zone=zone: self._zone(zone, "color", c))
+            f.addRow("Colour", cb)
+            sp = SliderRow(0.1, 5, 0.05, z["speed"])
+            sp.valueChanged.connect(lambda x, zone=zone: self._zone(zone, "speed", x))
+            f.addRow("Speed", sp)
+            rc = QCheckBox("Ripples pass over it")
+            rc.setChecked(z["reactive"])
+            rc.toggled.connect(lambda x, zone=zone: self._zone(zone, "reactive", x))
+            f.addRow("Reactive", rc)
+        br = SliderRow(0, 1, 0.01, z["brightness"])
+        br.valueChanged.connect(lambda x, zone=zone: self._zone(zone, "brightness", x))
+        f.addRow("Brightness", br)
+        idb = QPushButton("Identify")
+        idb.setToolTip("Blink this zone on the real device")
+        idb.clicked.connect(lambda _, zone=zone: self.identify(zone))
+        f.addRow("", idb)
+        return box
+
+    def _zone(self, zone, k, v):
+        self.profile["zones"][zone][k] = v
+        self.changed()
+
+    def identify(self, zone):
+        now = time.monotonic()
+        self.local.start_identify(zone, now)
+        self.link.call("identify", zone=zone)
+        self.preview.zone_hl = zone
+        self.zone_hl_until = now + 1.8
+
+    # ---------------------------------------------------------------- settings tab
+    def _build_settings_tab(self):
+        w = QWidget()
+        v = QVBoxLayout(w)
+        v.setContentsMargins(16, 14, 16, 14)
+        row = QHBoxLayout()
+        a = QGroupBox("Engine")
+        f = QFormLayout(a)
+        f.setVerticalSpacing(10)
+        fps = QSpinBox(); fps.setRange(5, 60); fps.setValue(self.g["fps"]); fps.setSuffix(" fps")
+        fps.valueChanged.connect(lambda x: self._g("fps", int(x)))
+        f.addRow("Frame rate", fps)
+        im = QCheckBox(); im.setChecked(self.g["include_mouse"])
+        im.toggled.connect(lambda x: self._g("include_mouse", x))
+        f.addRow("Drive the mouse", im)
+        mm = QComboBox()
+        mm.addItem("Custom matrix frame (smooth, default)", "matrix")
+        mm.addItem("Per-zone static colours (fallback)", "zones")
+        mm.setCurrentIndex(max(0, mm.findData(self.g["mouse_method"])))
+        mm.currentIndexChanged.connect(lambda i: self._g("mouse_method", mm.itemData(i)))
+        f.addRow("Mouse output", mm)
+        ex = QComboBox()
+        for k, lab in (("restore", "Restore Polychromatic's effect"), ("off", "Turn lights off"), ("leave", "Leave last frame")):
+            ex.addItem(lab, k)
+        ex.setCurrentIndex(max(0, ex.findData(self.g["exit_mode"])))
+        ex.currentIndexChanged.connect(lambda i: self._g("exit_mode", ex.itemData(i)))
+        f.addRow("When the engine stops", ex)
+        adv = QWidget()
+        af = QFormLayout(adv)
+        af.setContentsMargins(0, 0, 0, 0)
+        io = QComboBox()
+        io.addItem("Direct to driver when allowed (fast)", "auto")
+        io.addItem("Through openrazer-daemon (D-Bus)", "dbus")
+        io.setCurrentIndex(max(0, io.findData(self.g["device_io"])))
+        io.setToolTip("Direct writes go to /sys/bus/hid/drivers/razer*/…/matrix_custom_frame (group plugdev) "
+                      "from one thread per device, so the mouse and keyboard don't wait for each other")
+        io.currentIndexChanged.connect(lambda i: self._g("device_io", io.itemData(i)))
+        af.addRow("Device writes", io)
+        mfps = QSpinBox(); mfps.setRange(1, 60); mfps.setValue(self.g["mouse_max_fps"]); mfps.setSuffix(" fps")
+        mfps.setToolTip("The Mamba's driver waits 31 ms after every report, so it tops out at ~27 updates/s")
+        mfps.valueChanged.connect(lambda x: self._g("mouse_max_fps", int(x)))
+        af.addRow("Mouse update cap", mfps)
+        rd = QSpinBox(); rd.setRange(0, 32); rd.setValue(self.g["row_delta"])
+        rd.setToolTip("A keyboard row is only re-sent when a colour channel moved by more than this (0 = any change). "
+                      "Every row is refreshed every 2 s regardless")
+        rd.valueChanged.connect(lambda x: self._g("row_delta", int(x)))
+        af.addRow("Row change threshold", rd)
+        ce = QCheckBox("Re-send “custom effect” after every frame")
+        ce.setChecked(self.g["custom_every_frame"])
+        ce.setToolTip("Only needed if a device ignores new frames once in custom mode (costs 6 ms keyboard / 36 ms mouse per frame)")
+        ce.toggled.connect(lambda x: self._g("custom_every_frame", x))
+        af.addRow("", ce)
+        f.addRow(Collapsible("Advanced", adv, key="settings-io"))
+        row.addWidget(a, 1)
+        b = QGroupBox("Startup")
+        f2 = QFormLayout(b)
+        f2.setVerticalSpacing(10)
+        self.login_cb = QCheckBox()
+        r = systemctl("is-enabled", UNIT)
+        self.login_cb.setChecked(bool(r and r.stdout.strip() == "enabled"))
+        self.login_cb.setEnabled(r is not None)
+        self.login_cb.toggled.connect(self._set_login)
+        f2.addRow("Start engine at login", self.login_cb)
+        self.engine_btn2 = QPushButton()
+        self.engine_btn2.clicked.connect(self.toggle_engine)
+        f2.addRow("Engine", self.engine_btn2)
+        info = QLabel("Closing this window keeps the engine running. While it runs it overrides "
+                      "whatever Polychromatic sets; use \u201cHand back to Polychromatic\u201d to stop it.")
+        info.setWordWrap(True)
+        info.setProperty("muted", True)
+        f2.addRow(info)
+        row.addWidget(b, 1)
+        v.addLayout(row)
+        mp = QGroupBox("Mouse position (for waves and ripples)")
+        mf = QFormLayout(mp)
+        mf.setVerticalSpacing(10)
+        gap = SliderRow(0, 15, 0.1, self.g["mouse_gap"], decimals=1, suffix=" keys")
+        gap.setToolTip("Distance from the numpad's right edge to the mouse, in key widths (1 key \u2248 19 mm)")
+        gap.valueChanged.connect(lambda x: self._g("mouse_gap", x))
+        mf.addRow("Gap to keyboard", gap)
+        dy = SliderRow(-4, 4, 0.1, self.g["mouse_dy"], decimals=1, suffix=" keys")
+        dy.setToolTip("Move the mouse towards you (+) or away (\u2212) relative to the keyboard centre")
+        dy.valueChanged.connect(lambda x: self._g("mouse_dy", x))
+        mf.addRow("Forward / back", dy)
+        v.addWidget(mp)
+        self.dev_info = QLabel()
+        self.dev_info.setWordWrap(True)
+        self.dev_info.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        c = QGroupBox("Devices")
+        cl = QVBoxLayout(c)
+        cl.addWidget(self.dev_info)
+        v.addWidget(c)
+        ver = QLabel("razer-fx %s \u2022 config: %s" % (__version__, self.cfg_path))
+        ver.setProperty("muted", True)
+        v.addWidget(ver)
+        v.addStretch(1)
+        self.tab_settings.setWidget(w)
+        self._update_engine_ui()
+
+    def _g(self, k, v):
+        self.g[k] = v
+        self.changed()
+
+    def _set_master(self, v):
+        self.g["master_brightness"] = v
+        self.changed()
+
+    def _set_gamer(self, on):
+        self.g["gamer_controls"] = bool(on)
+        self.changed()
+        for wdg in (getattr(self, "gamer_btn", None), getattr(self, "gamer_cb", None)):
+            if wdg is not None and wdg.isChecked() != bool(on):
+                wdg.blockSignals(True)
+                wdg.setChecked(bool(on))
+                wdg.blockSignals(False)
+
+    def _gamer_set(self, k, v, rebuild=False):
+        self.g[k] = v
+        self.changed()
+        if rebuild:
+            self._build_hl_tab()
+
+    def _set_paused(self, on):
+        self.g["paused"] = on
+        self.pause_btn.setText("Resume" if on else "Pause")
+        self.changed()
+
+    def _set_login(self, on):
+        r = systemctl("enable" if on else "disable", UNIT)
+        if r is None or r.returncode != 0:
+            self.statusBar().showMessage("systemctl failed: %s" % (r.stderr.strip() if r else "not available"), 6000)
+
+    def _restore_builtins(self):
+        self.cfg["presets"].update(config.builtin_presets())
+        self.changed(rebuild=True)
+
+    def toggle_engine(self):
+        if self.link.ok:
+            r = systemctl("stop", UNIT)
+            if r is None or r.returncode != 0:
+                self.link.call("quit", mode="restore")
+            self.link.ok = False
+            self.statusBar().showMessage("Engine stopped \u2014 Polychromatic is in control again.", 8000)
+        else:
+            self._save_local()
+            r = systemctl("start", UNIT)
+            if r is None or r.returncode != 0:
+                self.statusBar().showMessage("Could not start %s: %s" % (UNIT, r.stderr.strip() if r else "systemctl not available"), 8000)
+        QTimer.singleShot(800, self._tick_status)
+
+    # ---------------------------------------------------------------- presets
+    def load_preset(self, name):
+        pre = self.cfg["presets"].get(name)
+        if pre is None:
+            return
+        self.cfg["profile"] = copy.deepcopy(pre)
+        self.g["active_preset"] = name
+        self.changed(rebuild=True)
+
+    def save_preset(self):
+        name = self.g.get("active_preset")
+        if not name:
+            return self.save_preset_as()
+        self.cfg["presets"][name] = copy.deepcopy(self.profile)
+        self.changed()
+        self.statusBar().showMessage("Saved preset \u201c%s\u201d" % name, 4000)
+
+    def save_preset_as(self):
+        name, ok = QInputDialog.getText(self, "Save preset", "Preset name:", text=self.g.get("active_preset", "") + " (mine)")
+        name = name.strip()
+        if ok and name:
+            self.cfg["presets"][name] = copy.deepcopy(self.profile)
+            self.g["active_preset"] = name
+            self.changed(rebuild=True)
+
+    def _warn(self, title, text):
+        QMessageBox.warning(self, title, text)
+
+    def _unique_name(self, base):
+        name, n = base, 2
+        while name in self.cfg["presets"]:
+            name = "%s (%d)" % (base, n)
+            n += 1
+        return name
+
+    def duplicate_preset(self):
+        src = self.g.get("active_preset", "Preset")
+        name = self._unique_name(src + " copy")
+        self.cfg["presets"][name] = copy.deepcopy(self.profile)
+        self.g["active_preset"] = name
+        self.changed(rebuild=True)
+        self.statusBar().showMessage("Duplicated as \u201c%s\u201d" % name, 4000)
+
+    def rename_preset(self, new_name=None):
+        old = self.g.get("active_preset")
+        if old not in self.cfg["presets"]:
+            return
+        if new_name is None:
+            new_name, ok = QInputDialog.getText(self, "Rename preset", "New name:", text=old)
+            if not ok:
+                return
+        new_name = str(new_name).strip()[:60]
+        if not new_name or new_name == old:
+            return
+        if new_name in self.cfg["presets"]:
+            self._warn("Rename preset", "A preset named \u201c%s\u201d already exists." % new_name)
+            return
+        # keep the menu order
+        self.cfg["presets"] = {(new_name if k == old else k): v for k, v in self.cfg["presets"].items()}
+        self.g["active_preset"] = new_name
+        self.changed(rebuild=True)
+
+    @staticmethod
+    def preset_file_data(presets):
+        return {"format": "razer-fx-presets", "version": 1, "presets": presets}
+
+    def export_preset(self, path=None):
+        name = self.g.get("active_preset", "Preset")
+        if path is None:
+            safe = "".join(c if c.isalnum() or c in " -_" else "_" for c in name).strip() or "preset"
+            path, _ = QFileDialog.getSaveFileName(self, "Export preset", os.path.expanduser("~/%s.razerfx.json" % safe),
+                                                  PRESET_FILE_FILTER)
+            if not path:
+                return
+        self._write_presets(path, {name: copy.deepcopy(self.profile)})
+
+    def export_all(self, path=None):
+        if path is None:
+            path, _ = QFileDialog.getSaveFileName(self, "Export all presets", os.path.expanduser("~/razer-fx-presets.razerfx.json"),
+                                                  PRESET_FILE_FILTER)
+            if not path:
+                return
+        self._write_presets(path, copy.deepcopy(self.cfg["presets"]))
+
+    def _write_presets(self, path, presets):
+        import json
+        try:
+            with open(path, "w") as f:
+                json.dump(self.preset_file_data(presets), f, indent=1)
+            self.statusBar().showMessage("Exported %d preset(s) to %s" % (len(presets), path), 6000)
+        except OSError as e:
+            self._warn("Export failed", str(e))
+
+    def import_presets(self, paths=None):
+        import json
+        if paths is None:
+            paths, _ = QFileDialog.getOpenFileNames(self, "Import presets", os.path.expanduser("~"), PRESET_FILE_FILTER)
+            if not paths:
+                return
+        added, errors = [], []
+        for path in paths:
+            try:
+                with open(path) as f:
+                    data = json.load(f)
+                if isinstance(data, dict) and isinstance(data.get("presets"), dict):
+                    items = data["presets"].items()
+                elif isinstance(data, dict) and "effect" in data:          # a bare profile
+                    items = [(os.path.basename(path).split(".")[0], data)]
+                else:
+                    raise ValueError("not a razer-fx preset file")
+                for name, prof in items:
+                    if not isinstance(prof, dict):
+                        continue
+                    nm = self._unique_name(str(name).strip()[:60] or "Imported")
+                    self.cfg["presets"][nm] = config.sanitize_profile(prof)
+                    added.append(nm)
+            except (OSError, ValueError) as e:
+                errors.append("%s: %s" % (os.path.basename(path), e))
+        if added:
+            self.g["active_preset"] = added[-1]
+            self.cfg["profile"] = copy.deepcopy(self.cfg["presets"][added[-1]])
+            self.changed(rebuild=True)
+        msg = "Imported %d preset(s)" % len(added) + (": " + ", ".join(added) if added else "")
+        if errors:
+            self._warn("Import", msg + "\n\nProblems:\n" + "\n".join(errors))
+        else:
+            self.statusBar().showMessage(msg, 6000)
+        return added
+
+    def delete_preset(self):
+        name = self.g.get("active_preset")
+        if name not in self.cfg["presets"] or len(self.cfg["presets"]) <= 1:
+            return
+        if QMessageBox.question(self, "Delete preset", "Delete preset \u201c%s\u201d?" % name) != QMessageBox.StandardButton.Yes:
+            return
+        del self.cfg["presets"][name]
+        self.g["active_preset"] = next(iter(self.cfg["presets"]))
+        self.changed(rebuild=True)
+
+    # ---------------------------------------------------------------- preview input
+    def _preview_key(self, key):
+        if self.pick_mode and self.profile["highlights"]:
+            r = min(self._hl_index, len(self.profile["highlights"]) - 1)
+            keys = list(self.profile["highlights"][r]["keys"])
+            if key.name in keys:
+                keys.remove(key.name)
+            else:
+                keys.append(key.name)
+            self._hl_set(r, "keys", keys)
+            if hasattr(self, "hl_keys"):
+                self.hl_keys.setText(", ".join(keys))
+            return
+        code = key.codes[0] if key.codes else None
+        if code is None:
+            return
+        if self.link.call("inject", kind="key", code=code) is None:
+            self.local.press_key(code, time.monotonic())
+
+    def _preview_mouse(self, button):
+        if self.link.call("inject", kind="button", code=button) is None:
+            self.local.press_mouse(button, time.monotonic())
+
+    # ---------------------------------------------------------------- timers
+    def _throttled(self, every):
+        """skip work when minimised; run only every Nth tick when the window is unfocused"""
+        if self.isMinimized() or not self.isVisible():
+            return True
+        self._tick_n = getattr(self, "_tick_n", 0) + 1
+        return not self.isActiveWindow() and self._tick_n % every != 0
+
+    def _tick_thumbs(self):
+        if self.isMinimized() or not self.isVisible():
+            return
+        self._thumb_n = getattr(self, "_thumb_n", -1) + 1
+        if self.isActiveWindow() or self._thumb_n % 8 == 0:     # 8 fps focused, 1 fps otherwise
+            self.gallery.tick()
+
+    def _tick_frame(self):
+        try:
+            self._tick_frame_inner()
+        except Exception:
+            safety.log("frame tick failed:\n" + traceback.format_exc())
+            self.link.ok = False
+
+    def _tick_frame_inner(self):
+        if self._throttled(3):
+            return
+        now = time.monotonic()
+        if self.preview.zone_hl and now > self.zone_hl_until:
+            self.preview.zone_hl = None
+        if self.link.ok:
+            r = self.link.call("frame")
+            if r and r.get("ok") and r.get("n") == self.scene.n and len(r.get("rgb", "")) == 6 * self.scene.n:
+                a = np.frombuffer(bytes.fromhex(r["rgb"]), dtype=np.uint8).reshape(-1, 3)
+                self.preview.set_frame(a.tolist())
+                return
+        rgb = self.local.render(now)
+        self.preview.set_frame((rgb * 255).astype(np.uint8).tolist())
+
+    def _tick_status(self):
+        try:
+            self._tick_status_inner()
+        except Exception:                      # never let a status hiccup take the window down
+            safety.log("status tick failed:\n" + traceback.format_exc())
+            self.link.ok = False
+
+    def _tick_status_inner(self):
+        was = self.link.ok
+        r = self.link.call("status")
+        if was and not self.link.ok:
+            safety.log("engine connection lost; reconnecting")
+        if r and r.get("ok"):
+            if not was and self._was_connected:
+                safety.log("reconnected to engine (pid %s)" % r["status"].get("pid"))
+            self._was_connected = True
+            self.status = r["status"]
+            pid = self.status.get("mouse_pid") or 0x0073
+            if pid != self.mouse_pid:
+                self.mouse_pid = pid
+                self.scene = Scene(L.MOUSE_PROFILES.get(pid, L.GENERIC_MOUSE))
+                self.local = Compositor(self.scene, self.profile, self.g, seed=3)
+                self.preview.set_scene(self.scene)
+                self._build_zones_tab()
+            if not was:
+                st = self.link.call("get_state")
+                if st and st.get("ok"):
+                    self.cfg = config.sanitize_config(st["config"])
+                    self.local.set_profile(self.profile)
+                    self.refresh_all()
+        self._update_engine_ui()
+
+    def _update_engine_ui(self):
+        st = self.status if self.link.ok else {}
+        if self.link.ok:
+            kb, ms = st.get("keyboard"), st.get("mouse")
+            parts = ["Engine running"]
+            parts.append("%s %s" % ("\u2714" if kb else "\u2716", "keyboard"))
+            parts.append("%s %s" % ("\u2714" if ms else "\u2716", "mouse"))
+            if not self.g["paused"]:
+                parts.append("%.0f fps" % st.get("fps", 0))
+            else:
+                parts.append("paused")
+            state = "ok" if kb and ms else ("warn" if kb or ms else "bad")
+            self.pill.setText("\u25cf  " + "  \u2022  ".join(parts))
+            self.engine_btn.setText("Hand back to Polychromatic")
+            self.engine_btn.setObjectName("Danger")
+            self.preview_title.setText("Live \u2014 mirroring your devices")
+            names = []
+            for k, lab in (("keyboard", "Keyboard"), ("mouse", "Mouse")):
+                d = st.get(k)
+                names.append("%s: %s" % (lab, "%s  (serial %s, matrix %s\u00d7%s, %d frames sent, %s, %.0f updates/s, %.0f ms/write)" % (
+                    d["name"], d["serial"], d["matrix"][0], d["matrix"][1], d["frames"], d.get("io", "?"),
+                    d.get("hw_fps", 0), d.get("write_ms", 0)) if d else "not connected"))
+            inp = st.get("inputs", {})
+            names.append("Input: %s" % (", ".join(inp.get("nodes", [])) or ("no event nodes found" if inp.get("evdev") else "python3-evdev missing")))
+            if st.get("audio"):
+                names.append("Audio meter: %s" % st["audio"])
+            if hasattr(self, "dev_info"):
+                self.dev_info.setText("\n".join(names))
+            self.subtitle.setText(" + ".join(d["name"] for d in (kb, ms) if d) or "no devices connected")
+        else:
+            state = "bad"
+            self.pill.setText("\u25cf  Engine stopped \u2014 reconnecting\u2026" if self._was_connected
+                              else "\u25cf  Engine not running \u2014 waiting for it\u2026")
+            self.engine_btn.setText("Start engine")
+            self.engine_btn.setObjectName("Primary")
+            self.preview_title.setText("Preview (engine not running \u2014 changes are saved)")
+            if hasattr(self, "dev_info"):
+                self.dev_info.setText("Engine not running. Start it to drive the keyboard and mouse.")
+        self.pill.setProperty("state", state)
+        for wdg in (self.pill, self.engine_btn):
+            wdg.style().unpolish(wdg)
+            wdg.style().polish(wdg)
+        if hasattr(self, "engine_btn2"):
+            self.engine_btn2.setText("Stop (hand back to Polychromatic)" if self.link.ok else "Start engine")
+        self.pause_btn.setEnabled(True)
+
+
+def main(argv=None):
+    import argparse
+    ap = argparse.ArgumentParser(description="razer-fx GUI")
+    ap.add_argument("--socket", default=None)
+    ap.add_argument("--config", default=config.CONFIG_FILE)
+    ap.add_argument("--screenshot", default=None, help="(testing) save a screenshot after N ms and quit")
+    ap.add_argument("--tab", type=int, default=0)
+    ap.add_argument("--effect", default=None)
+    ap.add_argument("--delay", type=int, default=2500)
+    ap.add_argument("--advanced", action="store_true", help="(testing) open the Advanced sections")
+    args, rest = ap.parse_known_args(argv)
+    safety.install()
+    app = QApplication([sys.argv[0]] + rest)
+    app._sig_timer = safety.quit_on_signals(app)
+    app.setApplicationName("Razer FX")
+    app.setDesktopFileName("razer-fx")
+    theme.apply(app)
+    if args.advanced:
+        from .widgets import Collapsible
+        Collapsible._state.update({"effect": True, "reactive": True})
+    w = MainWindow(sock_path=args.socket, cfg_path=args.config)
+    w.show_initial()
+    if args.effect:
+        w.select_effect(args.effect)
+    w.tabs.setCurrentIndex(args.tab)
+    if args.advanced:
+        def scroll():
+            for area in (w.tab_effect, w.tab_react):
+                sb = area.verticalScrollBar()
+                sb.setValue(sb.maximum())
+        QTimer.singleShot(max(200, args.delay - 600), scroll)
+    if args.screenshot:
+        def shot():
+            w.grab().save(args.screenshot)
+            app.quit()
+        QTimer.singleShot(args.delay, shot)
+    rc = app.exec()
+    # Destroy the window (and its menu/actions) while the QApplication still exists;
+    # leaving it to interpreter teardown can segfault in Qt's destructors.
+    w.hide()
+    w.deleteLater()
+    del w
+    app.sendPostedEvents(None, 0)  # QEvent::DeferredDelete
+    app.processEvents()
+    return rc

@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Editors / OS
+*~
+*.swp
+.idea/
+.vscode/
+.DS_Store
+
+# Local artifacts
+*.bak*
+*.orig
+*.log
+/preview.mp4
+*.mp4
+/build/
+/dist/
+/screenshots/
+*.razerfx.json
+*.tar.gz
+*.zip

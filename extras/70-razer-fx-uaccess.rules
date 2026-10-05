@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Trevor Olsen
+#
+# OPTIONAL: only needed if Razer FX's Settings tab says it cannot open the input
+# nodes (reactive effects need to read key/button events). Lets the user logged
+# in at the local seat read events from the tested devices: Razer Cynosa Chroma
+# (1532:022a) and Mamba Wireless (1532:0072 receiver, 1532:0073 wired).
+# For other Razer devices add their USB product id to the list (see `lsusb`),
+# or use the commented generic line (all Razer input devices) instead.
+# Install with:
+#   sudo install -m644 extras/70-razer-fx-uaccess.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules   (then re-plug the devices)
+# Must sort before 73-seat-late.rules (where TAG "uaccess" becomes an ACL).
+ACTION=="remove", GOTO="razer_fx_uaccess_end"
+SUBSYSTEM=="input", KERNEL=="event[0-9]*", ATTRS{idVendor}=="1532", ATTRS{idProduct}=="022a|0072|0073", TAG+="uaccess"
+# SUBSYSTEM=="input", KERNEL=="event[0-9]*", ATTRS{idVendor}=="1532", TAG+="uaccess"
+LABEL="razer_fx_uaccess_end"
