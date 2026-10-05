@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
 # Copyright (C) 2026 Trevor Olsen
 """Config file, defaults and built-in presets."""
 import copy
@@ -7,10 +7,10 @@ import os
 import tempfile
 
 from .effects import EFFECT_BY_ID
-from . import layout as L
+from . import layout as L, paths
 
-CONFIG_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "razer-fx")
-CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
+CONFIG_DIR = paths.config_dir()            # ~/.config/razorfx (1.0.x: ~/.config/razer-fx, see migrate.py)
+CONFIG_FILE = paths.config_file()
 
 DEFAULT_GLOBAL = {
     "master_brightness": 1.0,

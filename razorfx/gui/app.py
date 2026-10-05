@@ -1,9 +1,9 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
 # Copyright (C) 2026 Trevor Olsen
-"""razer-fx GUI: pick effects, tune them live, manage presets and zones.
-Talks to razer-fx-engine over its Unix socket; closing the window leaves the
+"""RazorFX GUI: pick effects, tune them live, manage presets and zones.
+Talks to razorfx-engine over its Unix socket; closing the window leaves the
 engine running. If the engine isn't running, the preview renders locally and
-edits are saved to ~/.config/razer-fx/config.json."""
+edits are saved to ~/.config/razorfx/config.json."""
 import copy
 import os
 import shutil
@@ -13,21 +13,24 @@ import time
 import traceback
 
 import numpy as np
-from PyQt6.QtCore import Qt, QTimer, QRect, QRectF, QSettings, QUrl, pyqtSignal
-from PyQt6.QtGui import QPainter, QColor, QIcon, QFont, QPixmap, QDesktopServices
-from PyQt6.QtWidgets import (QFileDialog, QToolButton, QMenu,
+from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QSettings, QUrl, Signal
+from PySide6.QtGui import QPainter, QColor, QIcon, QFont, QPixmap, QDesktopServices
+from PySide6.QtWidgets import (QFileDialog, QToolButton, QMenu,
                              QApplication, QMainWindow, QWidget, QFrame, QHBoxLayout, QVBoxLayout,
                              QLabel, QPushButton, QComboBox, QTabWidget, QScrollArea, QSplitter,
                              QCheckBox, QFormLayout, QGridLayout, QListWidget, QListWidgetItem,
                              QLineEdit, QInputDialog, QMessageBox, QSpinBox, QGroupBox, QSizePolicy)
 
-from .. import config, ipc, layout as L, __version__, REPO_URL, COPYRIGHT, LICENSE
+from .. import paths as P
+from .. import (config, ipc, layout as L, plugin_api, __version__, APP_ID, APP_NAME, REPO_URL, COPYRIGHT,
+               LICENSE, TRADEMARK_NOTICE)
 from ..effects import EFFECTS, EFFECT_BY_ID
 from ..scene import Scene, Compositor, ZONE_MODES, ZONE_MODE_LABELS
 from . import theme, safety
 from .preview import PreviewWidget, ScenePainter
 from .layoututil import FlowLayout, install_wheel_guard
 from .widgets import ColorButton, SliderRow, ParamForm, Collapsible, make_control
+from .plugin_host import GuiPluginHost
 from ..effects import A as ADV
 
 # Advanced reactive-layer settings (everything not on the main reactive panel)
@@ -40,12 +43,13 @@ REACTIVE_ADV = [
     ADV("rainbow_step", "Rainbow hue step", "float", 0.137, "Hue change between consecutive rainbow ripples", min=0.01, max=0.5, step=0.001),
     ADV("rainbow_sat", "Rainbow saturation", "float", 1.0, "", min=0.0, max=1.0, step=0.01),
 ]
-PRESET_FILE_FILTER = "Razer FX presets (*.razerfx.json *.json)"
+PRESET_FILE_FILTER = "%s presets (*.razorfx.json *.razerfx.json *.json)" % APP_NAME   # .razerfx.json: 1.0.x exports
+PRESET_FORMAT = "razorfx-presets"
 
-UNIT = "razer-fx-engine.service"
+UNIT = APP_ID + "-engine.service"
 HERE = os.path.dirname(os.path.abspath(__file__))
-ICON_CANDIDATES = [os.path.join(HERE, "..", "..", "data", "razer-fx.png"),
-                   os.path.expanduser("~/.local/share/icons/hicolor/256x256/apps/razer-fx.png")]
+ICON_CANDIDATES = [os.path.join(HERE, "..", "..", "data", APP_ID + ".png"),
+                   os.path.expanduser("~/.local/share/icons/hicolor/256x256/apps/%s.png" % APP_ID)]
 
 
 def systemctl(*args):
@@ -75,7 +79,7 @@ class EngineLink:
 
 # ------------------------------------------------------------------ effect tiles
 class EffectTile(QFrame):
-    clicked = pyqtSignal(str)
+    clicked = Signal(str)
 
     def __init__(self, cls, painter, parent=None):
         super().__init__(parent)
@@ -116,7 +120,7 @@ class EffectTile(QFrame):
 
 
 class Gallery(QScrollArea):
-    selected = pyqtSignal(str)
+    selected = Signal(str)
 
     def __init__(self, scene, parent=None):
         super().__init__(parent)
@@ -176,7 +180,7 @@ class Gallery(QScrollArea):
 
 # ------------------------------------------------------------------ main window
 class MainWindow(QMainWindow):
-    def __init__(self, sock_path=None, cfg_path=config.CONFIG_FILE):
+    def __init__(self, sock_path=None, cfg_path=config.CONFIG_FILE, plugins=False, plugin_dirs=None):
         super().__init__()
         self.cfg_path = cfg_path
         self.link = EngineLink(sock_path)
@@ -192,8 +196,11 @@ class MainWindow(QMainWindow):
         self.zone_hl_until = 0
         self.t0 = time.monotonic()
         self._was_connected = False
+        self._last_effect = None
+        self.plugin_host = GuiPluginHost(self)
+        self.plugins = plugin_api.PluginManager(self.plugin_host, plugin_dirs)
 
-        self.setWindowTitle("Razer FX")
+        self.setWindowTitle(APP_NAME)
         for ic in ICON_CANDIDATES:
             if os.path.exists(ic):
                 self.setWindowIcon(QIcon(ic))
@@ -212,7 +219,10 @@ class MainWindow(QMainWindow):
         self.thumb_timer.start()
         self.push_timer = QTimer(self, singleShot=True, interval=60, timeout=self._push_now)
         self.save_timer = QTimer(self, singleShot=True, interval=500, timeout=self._save_local)
+        self._last_effect = self.profile["effect"]
         self._tick_status()
+        if plugins:
+            self.load_plugins()
 
     # ---------------------------------------------------------------- state
     def _load_initial(self):
@@ -244,6 +254,25 @@ class MainWindow(QMainWindow):
         self._update_modified()
         if rebuild:
             self.refresh_all()
+        if self.profile["effect"] != self._last_effect:
+            self._last_effect = self.profile["effect"]
+            self.plugins.emit("effect_changed", self._last_effect)
+
+    # ---------------------------------------------------------------- plugins
+    def load_plugins(self):
+        """discover + register plugins (see razorfx/plugin_api.py); failures are only logged"""
+        try:
+            self.plugins.load_all()
+        except Exception:
+            safety.log("plugin loading failed:\n" + traceback.format_exc())
+        if hasattr(self, "plugin_info"):
+            self._update_plugin_info()
+
+    def unload_plugins(self):
+        try:
+            self.plugins.unload_all()
+        except Exception:
+            safety.log("plugin unloading failed:\n" + traceback.format_exc())
 
     def _apply_geometry(self):
         """mouse gap / offset changed -> rebuild the scene used by preview + local render"""
@@ -395,11 +424,11 @@ class MainWindow(QMainWindow):
 
     def _build_menu(self):
         mb = self.menuBar()
-        hm = mb.addMenu("&Help")
+        hm = self.help_menu = mb.addMenu("&Help")
         hm.addAction("Project website", self.open_website)
         hm.addAction("Report an issue", self.open_issues)
         hm.addSeparator()
-        self.about_action = hm.addAction("&About Razer FX", self.show_about)
+        self.about_action = hm.addAction("&About %s" % APP_NAME, self.show_about)
         hm.addAction("About &Qt", self.show_about_qt)
 
     def open_website(self):
@@ -412,26 +441,32 @@ class MainWindow(QMainWindow):
         QMessageBox.aboutQt(self, "About Qt")
 
     def about_text(self):
-        return ("<h3>Razer FX %(v)s</h3>"
+        return ("<h3>%(n)s %(v)s</h3>"
                 "<p>Selectable, Chroma-style lighting effects for Razer keyboards and mice "
                 "on Linux, built on OpenRazer.</p>"
                 "<p>%(c)s</p>"
                 "<p>This program is free software: you can redistribute it and/or modify it under "
                 "the terms of the GNU General Public License as published by the Free Software "
-                "Foundation, either version 3 of the License, or (at your option) any later version "
-                "(SPDX: %(l)s).<br>This program is distributed in the hope that it will be useful, "
+                "Foundation, either version 3 of the License, or (at your option) any later version, "
+                "with the RazorFX plugin exception: independent plugins that use only the documented "
+                "plugin API may carry their own license (SPDX: %(l)s).<br>"
+                "This program is distributed in the hope that it will be useful, "
                 "but <b>without any warranty</b>; without even the implied warranty of "
                 "merchantability or fitness for a particular purpose. See the "
-                "<a style='color:#44d62c' href='https://www.gnu.org/licenses/gpl-3.0.html'>GNU GPL v3</a> for details.</p>"
+                "<a style='color:#44d62c' href='https://www.gnu.org/licenses/gpl-3.0.html'>GNU GPL v3</a> and "
+                "<a style='color:#44d62c' href='%(r)s/blob/main/LICENSE-EXCEPTION'>LICENSE-EXCEPTION</a> for details.</p>"
                 "<p>Source code: <a style='color:#44d62c' href='%(r)s'>%(r)s</a></p>"
-                "<p style='color:#8c8c96'>Uses OpenRazer (GPL-2.0-or-later); keyboard/mouse layout "
-                "facts cross-checked against OpenRazer, OpenRGB and Polychromatic. Not affiliated "
-                "with or endorsed by Razer Inc. Razer and Chroma are trademarks of Razer Inc.</p>"
-                % {"v": __version__, "c": COPYRIGHT, "l": LICENSE, "r": REPO_URL})
+                "<p><b>%(tm)s</b></p>"
+                "<p style='color:#8c8c96'>Uses OpenRazer (GPL-2.0-or-later) and Qt for Python / PySide6 "
+                "(LGPL-3.0); keyboard/mouse layout facts cross-checked against OpenRazer, OpenRGB and "
+                "Polychromatic. Chroma is also a trademark of Razer Inc.; Razer product names are used "
+                "only to describe compatibility.</p>"
+                % {"n": APP_NAME, "v": __version__, "c": COPYRIGHT, "l": LICENSE, "r": REPO_URL,
+                   "tm": TRADEMARK_NOTICE})
 
     def show_about(self):
         box = QMessageBox(self)
-        box.setWindowTitle("About Razer FX")
+        box.setWindowTitle("About %s" % APP_NAME)
         box.setTextFormat(Qt.TextFormat.RichText)
         box.setText(self.about_text())
         box.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
@@ -465,7 +500,7 @@ class MainWindow(QMainWindow):
         lay.addWidget(ic)
         tv = QVBoxLayout()
         tv.setSpacing(0)
-        t = QLabel("Razer FX", objectName="Title")
+        t = QLabel(APP_NAME, objectName="Title")
         self.subtitle = QLabel("Cynosa Chroma + Mamba Wireless", objectName="Subtitle")
         tv.addWidget(t)
         tv.addWidget(self.subtitle)
@@ -524,7 +559,7 @@ class MainWindow(QMainWindow):
         self.pill = QLabel("\u25cf connecting\u2026", objectName="Pill")
         lay.addWidget(self.pill)
         self.engine_btn = QPushButton("Hand back to Polychromatic", objectName="Danger")
-        self.engine_btn.setToolTip("Stop the razer-fx engine so Polychromatic controls the lighting again")
+        self.engine_btn.setToolTip("Stop the RazorFX engine so Polychromatic controls the lighting again")
         self.engine_btn.clicked.connect(self.toggle_engine)
         lay.addWidget(self.engine_btn)
         return h
@@ -1042,12 +1077,47 @@ class MainWindow(QMainWindow):
         cl = QVBoxLayout(c)
         cl.addWidget(self.dev_info)
         v.addWidget(c)
-        ver = QLabel("razer-fx %s \u2022 config: %s" % (__version__, self.cfg_path))
+        pg = QGroupBox("Plugins")
+        pl = QVBoxLayout(pg)
+        self.plugin_info = QLabel()
+        self.plugin_info.setWordWrap(True)
+        self.plugin_info.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        pl.addWidget(self.plugin_info)
+        prow = QHBoxLayout()
+        pbtn = QPushButton("Open plugin folder")
+        pbtn.setToolTip(P.plugin_dir())
+        pbtn.clicked.connect(self.open_plugin_folder)
+        prow.addWidget(pbtn)
+        prow.addStretch(1)
+        pl.addLayout(prow)
+        v.addWidget(pg)
+        self._update_plugin_info()
+        ver = QLabel("%s %s \u2022 config: %s" % (APP_NAME, __version__, self.cfg_path))
         ver.setProperty("muted", True)
         v.addWidget(ver)
         v.addStretch(1)
         self.tab_settings.setWidget(w)
         self._update_engine_ui()
+
+    def _update_plugin_info(self):
+        pm = self.plugins
+        lines = ["Plugins add features through the documented plugin API "
+                 "(API %s). They load from %s when the window opens." % (plugin_api.API_VERSION_STR, P.plugin_dir())]
+        for lp in pm.loaded:
+            lines.append("\u2714 %s %s (%s)" % (lp.info.name, lp.info.version, lp.info.id))
+        for path, why in pm.failed:
+            lines.append("\u2716 %s: %s" % (os.path.basename(path.rstrip("/")) or path, why.splitlines()[0]))
+        if not pm.loaded and not pm.failed:
+            lines.append("No plugins installed.")
+        self.plugin_info.setText("\n".join(lines))
+
+    def open_plugin_folder(self):
+        d = P.plugin_dir()
+        try:
+            os.makedirs(d, exist_ok=True)
+        except OSError:
+            pass
+        QDesktopServices.openUrl(QUrl.fromLocalFile(d))
 
     def _g(self, k, v):
         self.g[k] = v
@@ -1164,13 +1234,13 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def preset_file_data(presets):
-        return {"format": "razer-fx-presets", "version": 1, "presets": presets}
+        return {"format": PRESET_FORMAT, "version": 1, "presets": presets}
 
     def export_preset(self, path=None):
         name = self.g.get("active_preset", "Preset")
         if path is None:
             safe = "".join(c if c.isalnum() or c in " -_" else "_" for c in name).strip() or "preset"
-            path, _ = QFileDialog.getSaveFileName(self, "Export preset", os.path.expanduser("~/%s.razerfx.json" % safe),
+            path, _ = QFileDialog.getSaveFileName(self, "Export preset", os.path.expanduser("~/%s.razorfx.json" % safe),
                                                   PRESET_FILE_FILTER)
             if not path:
                 return
@@ -1178,7 +1248,7 @@ class MainWindow(QMainWindow):
 
     def export_all(self, path=None):
         if path is None:
-            path, _ = QFileDialog.getSaveFileName(self, "Export all presets", os.path.expanduser("~/razer-fx-presets.razerfx.json"),
+            path, _ = QFileDialog.getSaveFileName(self, "Export all presets", os.path.expanduser("~/razorfx-presets.razorfx.json"),
                                                   PRESET_FILE_FILTER)
             if not path:
                 return
@@ -1209,7 +1279,7 @@ class MainWindow(QMainWindow):
                 elif isinstance(data, dict) and "effect" in data:          # a bare profile
                     items = [(os.path.basename(path).split(".")[0], data)]
                 else:
-                    raise ValueError("not a razer-fx preset file")
+                    raise ValueError("not a RazorFX (or Razer FX 1.0) preset file")
                 for name, prof in items:
                     if not isinstance(prof, dict):
                         continue
@@ -1311,6 +1381,7 @@ class MainWindow(QMainWindow):
         r = self.link.call("status")
         if was and not self.link.ok:
             safety.log("engine connection lost; reconnecting")
+            self.plugins.emit("engine_disconnected")
         if r and r.get("ok"):
             if not was and self._was_connected:
                 safety.log("reconnected to engine (pid %s)" % r["status"].get("pid"))
@@ -1324,6 +1395,7 @@ class MainWindow(QMainWindow):
                 self.preview.set_scene(self.scene)
                 self._build_zones_tab()
             if not was:
+                self.plugins.emit("engine_connected")
                 st = self.link.call("get_state")
                 if st and st.get("ok"):
                     self.cfg = config.sanitize_config(st["config"])
@@ -1380,7 +1452,7 @@ class MainWindow(QMainWindow):
 
 def main(argv=None):
     import argparse
-    ap = argparse.ArgumentParser(description="razer-fx GUI")
+    ap = argparse.ArgumentParser(description="%s GUI" % APP_NAME)
     ap.add_argument("--socket", default=None)
     ap.add_argument("--config", default=config.CONFIG_FILE)
     ap.add_argument("--screenshot", default=None, help="(testing) save a screenshot after N ms and quit")
@@ -1388,17 +1460,22 @@ def main(argv=None):
     ap.add_argument("--effect", default=None)
     ap.add_argument("--delay", type=int, default=2500)
     ap.add_argument("--advanced", action="store_true", help="(testing) open the Advanced sections")
+    ap.add_argument("--no-plugins", action="store_true", help="start without loading any plugins (also: RAZORFX_NO_PLUGINS=1)")
     args, rest = ap.parse_known_args(argv)
     safety.install()
+    if args.config == config.CONFIG_FILE:          # default location: pick up 1.0.x settings once
+        from ..migrate import migrate_config
+        migrate_config(log=safety.log)
     app = QApplication([sys.argv[0]] + rest)
     app._sig_timer = safety.quit_on_signals(app)
-    app.setApplicationName("Razer FX")
-    app.setDesktopFileName("razer-fx")
+    app.setApplicationName(APP_NAME)
+    app.setDesktopFileName(APP_ID)
     theme.apply(app)
     if args.advanced:
         from .widgets import Collapsible
         Collapsible._state.update({"effect": True, "reactive": True})
-    w = MainWindow(sock_path=args.socket, cfg_path=args.config)
+    use_plugins = not args.no_plugins and os.environ.get("RAZORFX_NO_PLUGINS", "") not in ("1", "true", "yes")
+    w = MainWindow(sock_path=args.socket, cfg_path=args.config, plugins=use_plugins)
     w.show_initial()
     if args.effect:
         w.select_effect(args.effect)
@@ -1415,6 +1492,7 @@ def main(argv=None):
             app.quit()
         QTimer.singleShot(args.delay, shot)
     rc = app.exec()
+    w.unload_plugins()
     # Destroy the window (and its menu/actions) while the QApplication still exists;
     # leaving it to interpreter teardown can segfault in Qt's destructors.
     w.hide()

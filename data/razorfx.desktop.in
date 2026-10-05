@@ -1,16 +1,16 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
 # Copyright (C) 2026 Trevor Olsen
 [Desktop Entry]
 Type=Application
 Version=1.5
-Name=Razer FX
+Name=RazorFX
 GenericName=Lighting Effects
 Comment=Chroma-style live lighting effects for Razer keyboards and mice (OpenRazer)
-Exec=/usr/bin/python3 @PREFIX@/bin/razer-fx
-Icon=razer-fx
+Exec=/usr/bin/python3 @PREFIX@/bin/razorfx
+Icon=razorfx
 Terminal=false
 Categories=Settings;HardwareSettings;
-Keywords=razer;chroma;rgb;keyboard;mouse;lighting;effects;openrazer;
+Keywords=razorfx;razer;chroma;rgb;keyboard;mouse;lighting;effects;openrazer;
 StartupNotify=true
-StartupWMClass=razer-fx
+StartupWMClass=razorfx
 SingleMainWindow=true

@@ -1,9 +1,9 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
 # Copyright (C) 2026 Trevor Olsen
 """Reusable controls: colour button, gradient editor, slider row, schema-driven param form."""
-from PyQt6.QtCore import Qt, pyqtSignal, QRectF
-from PyQt6.QtGui import QColor, QPainter, QLinearGradient, QBrush, QPen
-from PyQt6.QtWidgets import (QWidget, QPushButton, QColorDialog, QHBoxLayout, QVBoxLayout, QSlider,
+from PySide6.QtCore import Qt, Signal, QRectF
+from PySide6.QtGui import QColor, QPainter, QLinearGradient, QBrush, QPen
+from PySide6.QtWidgets import (QWidget, QPushButton, QColorDialog, QHBoxLayout, QVBoxLayout, QSlider,
                              QDoubleSpinBox, QSpinBox, QComboBox, QCheckBox, QFormLayout, QLabel,
                              QToolButton, QMenu, QSizePolicy)
 
@@ -22,7 +22,7 @@ GRADIENT_PRESETS = {
 
 
 class ColorButton(QPushButton):
-    colorChanged = pyqtSignal(str)
+    colorChanged = Signal(str)
 
     def __init__(self, color="#ffffff", parent=None, small=False):
         super().__init__(parent)
@@ -73,7 +73,7 @@ class GradientBar(QWidget):
 
 
 class GradientEditor(QWidget):
-    changed = pyqtSignal(list)
+    changed = Signal(list)
 
     def __init__(self, colors, parent=None):
         super().__init__(parent)
@@ -148,7 +148,7 @@ class GradientEditor(QWidget):
 
 
 class SliderRow(QWidget):
-    valueChanged = pyqtSignal(float)
+    valueChanged = Signal(float)
 
     def __init__(self, lo, hi, step, value, decimals=2, suffix="", parent=None):
         super().__init__(parent)
@@ -277,7 +277,7 @@ def _form():
 class ParamForm(QWidget):
     """Builds controls from a PARAMS schema: main settings, then a collapsible
     'Advanced' section with every remaining tunable (entries with adv=True)."""
-    changed = pyqtSignal(dict)
+    changed = Signal(dict)
 
     def __init__(self, schema, values, parent=None, adv_key="effect"):
         super().__init__(parent)

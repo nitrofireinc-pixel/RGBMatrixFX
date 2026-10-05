@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
 # Copyright (C) 2026 Trevor Olsen
 """
 Effect library. Every effect renders an (N, 3) float RGB array (0..1) for the

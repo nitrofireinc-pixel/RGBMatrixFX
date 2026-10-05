@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
 # Copyright (C) 2026 Trevor Olsen
-"""Render data/razer-fx.png (same design as data/razer-fx.svg) with QPainter (no QtSvg needed)."""
+"""Render data/razorfx.png (same design as data/razorfx.svg) with QPainter (no QtSvg needed)."""
 import os, sys
-from PyQt6.QtCore import Qt, QRectF, QPointF
-from PyQt6.QtGui import QGuiApplication, QImage, QPainter, QLinearGradient, QColor, QPen, QBrush, QPainterPath
+from PySide6.QtCore import Qt, QRectF, QPointF
+from PySide6.QtGui import QGuiApplication, QImage, QPainter, QLinearGradient, QColor, QPen, QBrush, QPainterPath
 
 def grad(x1, y1, x2, y2, stops):
     g = QLinearGradient(QPointF(x1, y1), QPointF(x2, y2))
@@ -46,6 +46,6 @@ def render(size, out):
 if __name__ == "__main__":
     app = QGuiApplication(sys.argv[:1])
     here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
-    render(256, os.path.join(here, "razer-fx.png"))
-    render(64, os.path.join(here, "razer-fx-64.png"))
+    render(256, os.path.join(here, "razorfx.png"))
+    render(64, os.path.join(here, "razorfx-64.png"))
     print("ok")

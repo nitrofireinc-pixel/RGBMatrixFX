@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
 # Copyright (C) 2026 Trevor Olsen
 """GUI tests (offscreen Qt, engine not running): python3 -m unittest tests/test_gui.py"""
 import json, os, sys, tempfile, time, unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from PyQt6.QtWidgets import (QApplication, QGroupBox, QSlider, QAbstractSpinBox, QComboBox, QScrollBar,
+from PySide6.QtWidgets import (QApplication, QGroupBox, QSlider, QAbstractSpinBox, QComboBox, QScrollBar,
                              QAbstractSlider)
-from PyQt6.QtCore import QPointF, QPoint, Qt
-from PyQt6.QtGui import QWheelEvent
-from razerfx import layout as L
-from razerfx.effects import EFFECTS
-from razerfx.gui import theme
-from razerfx.gui.app import MainWindow
+from PySide6.QtCore import QPointF, QPoint, Qt
+from PySide6.QtGui import QWheelEvent
+from razorfx import layout as L
+from razorfx.effects import EFFECTS
+from razorfx.gui import theme
+from razorfx.gui.app import MainWindow
 
 app = QApplication.instance() or QApplication([])
 theme.apply(app)
@@ -36,19 +36,92 @@ class TestGui(unittest.TestCase):
         spin(200)
 
     def test_help_about(self):
-        import razerfx
-        self.assertEqual(razerfx.__version__, "1.0.0")
+        import razorfx
+        self.assertEqual(razorfx.__version__, "1.1.0-dev")
         with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION")) as f:
-            self.assertEqual(f.read().strip(), razerfx.__version__)
+            self.assertEqual(f.read().strip(), razorfx.__version__)
         titles = [a.text().replace("&", "") for a in self.w.menuBar().actions()]
         self.assertIn("Help", titles)
+        self.assertEqual(self.w.windowTitle(), "RazorFX")
+        self.assertEqual(self.w.about_action.text().replace("&", ""), "About RazorFX")
         t = self.w.about_text()
-        for want in ("1.0.0", "GNU General Public License", "version 3", "GPL-3.0-or-later",
-                     "https://github.com/nitrofireinc-pixel/razorFX", "Trevor Olsen", "Not affiliated"):
+        for want in ("<h3>RazorFX 1.1.0-dev", "GNU General Public License", "version 3",
+                     "GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception", "plugin exception",
+                     "LICENSE-EXCEPTION", "https://github.com/nitrofireinc-pixel/razorFX", "Trevor Olsen",
+                     "Not affiliated with or endorsed by Razer Inc. Razer is a trademark of Razer Inc."):
             self.assertIn(want, t)
+        self.assertNotIn("Razer FX", t)
         box = self.w.show_about()
         self.assertTrue(box.isVisible())
+        self.assertEqual(box.windowTitle(), "About RazorFX")
         box.close()
+
+    def test_slot_exception_under_exec_goes_to_excepthook(self):
+        # PySide6 (unlike PyQt6) never aborts: under app.exec() a slot's exception goes to
+        # sys.excepthook (our safety hook logs it) and the event loop carries on.
+        from PySide6.QtCore import QTimer
+        seen, after = [], []
+        old = sys.excepthook
+        sys.excepthook = lambda t, v, tb: seen.append(t)
+        try:
+            QTimer.singleShot(20, lambda: 1 / 0)
+            QTimer.singleShot(60, lambda: after.append(self.w.isVisible()))
+            QTimer.singleShot(120, app.quit)
+            app.exec()
+        finally:
+            sys.excepthook = old
+        self.assertEqual(seen, [ZeroDivisionError])
+        self.assertEqual(after, [True])
+
+    def test_qt_binding_is_pyside6(self):
+        self.assertIn("PySide6", sys.modules)
+        self.assertFalse([m for m in sys.modules if m == "PyQt6" or m.startswith(("PyQt6.", "PyQt5"))])
+
+    def test_plugins(self):
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        pdir = os.path.join(self.d.name, "plugins")
+        os.makedirs(os.path.join(pdir, "broken"))
+        with open(os.path.join(pdir, "broken", "plugin.json"), "w") as f:
+            json.dump({"id": "broken", "name": "Broken", "version": "1", "api": "1.0", "module": "broken"}, f)
+        with open(os.path.join(pdir, "broken", "broken.py"), "w") as f:
+            f.write("def register(ctx):\n    raise RuntimeError('boom')\n")
+        old = {k: os.environ.get(k) for k in ("XDG_DATA_HOME", "XDG_CONFIG_HOME")}
+        os.environ.update(XDG_DATA_HOME=os.path.join(self.d.name, "data"), XDG_CONFIG_HOME=os.path.join(self.d.name, "cfg"))
+        try:
+            w = MainWindow(sock_path=os.path.join(self.d.name, "none.sock"), cfg_path=self.cfg, plugins=True,
+                           plugin_dirs=[os.path.join(here, "examples", "plugins"), pdir])
+            w.show()
+            spin(100)
+            self.assertEqual([lp.info.id for lp in w.plugins.loaded], ["hello"])
+            self.assertEqual(len(w.plugins.failed), 1)
+            self.assertIn("boom", w.plugins.failed[0][1])
+            info = w.plugin_info.text()
+            self.assertIn("Hello plugin 0.1.0", info)
+            self.assertIn("broken", info)
+            titles = [a.text().replace("&", "") for a in w.menuBar().actions()]
+            self.assertEqual(titles, ["Plugins", "Help"])
+            act = dict(w.plugin_host.actions)["hello"]
+            w.plugin_host.dialog_parent = lambda: None        # no modal box in the test
+            act.trigger()
+            act.trigger()
+            ctx = w.plugins.loaded[0].ctx
+            self.assertEqual(ctx.settings.get("greetings"), 2)
+            seen = []
+            ctx.on("effect_changed", seen.append)
+            w.select_effect("wave")
+            self.assertEqual(seen, ["wave"])
+            st = ctx.engine_status()
+            self.assertEqual((st["running"], st["effect"]), (False, "wave"))
+            w.unload_plugins()
+            with open(os.path.join(self.d.name, "cfg", "razorfx", "plugins", "hello.json")) as f:
+                self.assertEqual(json.load(f)["greetings"], 2)
+            w.close()
+        finally:
+            for k, v in old.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
 
     def tearDown(self):
         self.w.close()
@@ -98,13 +171,13 @@ class TestGui(unittest.TestCase):
         self.assertNotIn("Aurora copy", self.w.cfg["presets"])
         self.w._effect_params({"style": "Plasma"})
         self.w.save_preset()
-        one = os.path.join(self.d.name, "one.razerfx.json")
-        allp = os.path.join(self.d.name, "all.razerfx.json")
+        one = os.path.join(self.d.name, "one.razorfx.json")
+        allp = os.path.join(self.d.name, "all.razorfx.json")
         self.w.export_preset(one)
         self.w.export_all(allp)
         with open(one) as f:
             data = json.load(f)
-        self.assertEqual(data["format"], "razer-fx-presets")
+        self.assertEqual(data["format"], "razorfx-presets")
         self.assertEqual(list(data["presets"]), ["My Aurora"])
         added = self.w.import_presets([one])
         self.assertEqual(added, ["My Aurora (2)"])
@@ -118,7 +191,7 @@ class TestGui(unittest.TestCase):
         self.assertTrue(self.warnings)
 
     def test_advanced_sections(self):
-        from razerfx.gui.widgets import Collapsible, ParamForm
+        from razorfx.gui.widgets import Collapsible, ParamForm
         for cls in EFFECTS:
             self.w.select_effect(cls.id)
             n_adv = len([s for s in cls.schema() if s.get("adv")])

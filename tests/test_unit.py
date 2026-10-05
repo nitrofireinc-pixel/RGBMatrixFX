@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
 # Copyright (C) 2026 Trevor Olsen
 """Unit tests (stdlib unittest): python3 -m unittest discover -s tests -v"""
 import math, os, sys, tempfile, threading, time, unittest
 import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from razerfx import config, ipc, layout as L
-from razerfx.effects import EFFECTS, EFFECT_BY_ID
-from razerfx.scene import Scene, Compositor
+from razorfx import config, ipc, layout as L
+from razorfx.effects import EFFECTS, EFFECT_BY_ID
+from razorfx.scene import Scene, Compositor
 
 MAMBA = L.MOUSE_PROFILES[0x0073]
 
@@ -455,15 +455,15 @@ class TestDeviceIO(unittest.TestCase):
         return dd
 
     def test_sysfs_changed_rows_and_single_custom(self):
-        from razerfx import devices
+        from razorfx import devices
         with tempfile.TemporaryDirectory() as d:
             dd = self._sysfs(d)
-            os.environ["RAZERFX_SYSFS_ROOT"] = d
+            os.environ["RAZORFX_SYSFS_ROOT"] = d
             try:
                 dev = _FakeDev(6, 22, 0x022A)
                 out = devices.Out(dev, "keyboard")
             finally:
-                del os.environ["RAZERFX_SYSFS_ROOT"]
+                del os.environ["RAZORFX_SYSFS_ROOT"]
             self.assertEqual(out.path, "sysfs")
             self.assertEqual(out.sysfs, dd)
             def rd(a):
@@ -496,7 +496,7 @@ class TestDeviceIO(unittest.TestCase):
             self.assertEqual(out.kicks, 2)
 
     def test_dbus_fallback_and_custom_every_frame(self):
-        from razerfx import devices
+        from razorfx import devices
         dev = _FakeDev(1, 16, 0x0073)
         out = devices.Out(dev, "mouse", opts={"device_io": "dbus", "custom_every_frame": True})
         self.assertEqual(out.path, "dbus")
@@ -508,7 +508,7 @@ class TestDeviceIO(unittest.TestCase):
         self.assertEqual(len(dev.light.calls[0][1]), 3 + 48)
 
     def test_writer_thread_never_blocks_and_keeps_latest(self):
-        from razerfx import devices
+        from razorfx import devices
         dev = _FakeDev(1, 16, 0x0073, delay=0.06)
         out = devices.Out(dev, "mouse", opts={"device_io": "dbus", "mouse_max_fps": 60}).start()
         try:
@@ -531,7 +531,7 @@ class TestDeviceIO(unittest.TestCase):
 
     def test_eviocsmask_codes_size_is_whole_longs(self):
         import struct
-        from razerfx import inputs
+        from razorfx import inputs
         seen = {}
         orig = inputs.fcntl.ioctl
         inputs.fcntl.ioctl = lambda fd, req, arg: seen.update(req=req, arg=arg)
@@ -545,7 +545,7 @@ class TestDeviceIO(unittest.TestCase):
 
 class TestEngine(unittest.TestCase):
     def test_engine_loop_fake_hub(self):
-        from razerfx.engine import Engine
+        from razorfx.engine import Engine
         with tempfile.TemporaryDirectory() as d:
             hub = FakeHub()
             eng = Engine(cfg_path=os.path.join(d, "c.json"), sock_path=os.path.join(d, "s"), hub=hub, inputs=FakeInputs())
@@ -565,7 +565,7 @@ class TestEngine(unittest.TestCase):
 
 class TestGenericInputDetection(unittest.TestCase):
     def test_classify(self):
-        from razerfx.inputs import classify_generic
+        from razorfx.inputs import classify_generic
         b = "/dev/input/by-id/"
         paths = [b + n for n in (
             "usb-Razer_Razer_BlackWidow_V3-event-kbd", "usb-Razer_Razer_BlackWidow_V3-if01-event-kbd",
@@ -584,7 +584,7 @@ class TestGenericInputDetection(unittest.TestCase):
         self.assertNotIn(b + "usb-Logitech_USB_Receiver-event-mouse", got)
 
     def test_fallback_only_without_specific_nodes(self):
-        import razerfx.inputs as I
+        import razorfx.inputs as I
         d = tempfile.mkdtemp()
         for n in ("usb-Razer_Razer_Huntsman-event-kbd", "usb-Razer_Razer_Viper-event-mouse"):
             open(os.path.join(d, n), "w").close()
@@ -610,6 +610,197 @@ class TestGenericInputDetection(unittest.TestCase):
         self.assertEqual(kinds, [("usb-Razer_Razer_Huntsman-event-kbd", "kb"),
                                  ("usb-Razer_Razer_Viper-event-mouse", "mouse")])
         self.assertFalse(I.InputHub(kb_globs=("/x",)).auto_kb)
+
+
+def _read(path, mode="r"):
+    with open(path, mode) as f:
+        return f.read()
+
+
+class _Env:
+    """temporarily point XDG_* at a scratch directory"""
+    def __init__(self, **kw):
+        self.kw, self.old = kw, {}
+
+    def __enter__(self):
+        for k, v in self.kw.items():
+            self.old[k] = os.environ.get(k)
+            os.environ[k] = v
+        return self
+
+    def __exit__(self, *a):
+        for k, v in self.old.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
+class TestRenameAndMigration(unittest.TestCase):
+    def test_identity(self):
+        import razorfx
+        self.assertEqual((razorfx.APP_ID, razorfx.APP_NAME, razorfx.LEGACY_APP_ID), ("razorfx", "RazorFX", "razer-fx"))
+        self.assertEqual(razorfx.LICENSE, "GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception")
+        self.assertTrue(config.CONFIG_FILE.endswith(os.path.join("razorfx", "config.json")))
+        with _Env(XDG_RUNTIME_DIR="/run/user/4242"):
+            self.assertEqual(ipc.socket_path(), "/run/user/4242/razorfx/engine.sock")
+
+    def test_migrates_1_0_config_once_and_leaves_it_alone(self):
+        from razorfx import migrate, paths
+        d = tempfile.mkdtemp()
+        with _Env(XDG_CONFIG_HOME=d):
+            old = os.path.join(d, "razer-fx")
+            os.makedirs(old)
+            cfg = config.default_config()
+            cfg["global"]["active_preset"] = "Razer Fire"
+            cfg["presets"]["Trevor's"] = config.make_profile("wave")
+            config.save(cfg, os.path.join(old, "config.json"))
+            with open(os.path.join(old, "gui.ini"), "w") as f:
+                f.write("[window]\nwidth=1500\n")
+            open(os.path.join(old, ".config.abc.json"), "w").close()       # stray temp file
+            before = {n: _read(os.path.join(old, n), "rb") for n in os.listdir(old)}
+            self.assertEqual(migrate.migrate_config(), ["config.json", "gui.ini"])
+            new = paths.config_dir()
+            self.assertEqual(new, os.path.join(d, "razorfx"))
+            got = config.load(os.path.join(new, "config.json"))
+            self.assertEqual(got["global"]["active_preset"], "Razer Fire")
+            self.assertIn("Trevor's", got["presets"])
+            self.assertTrue(os.path.exists(os.path.join(new, migrate.NOTE)))
+            self.assertFalse(os.path.exists(os.path.join(new, ".config.abc.json")))
+            self.assertEqual(before, {n: _read(os.path.join(old, n), "rb") for n in os.listdir(old)})
+            # second run (or a 2nd process): nothing to do, and new edits are never overwritten
+            got["global"]["active_preset"] = "Matrix"
+            config.save(got, os.path.join(new, "config.json"))
+            self.assertEqual(migrate.migrate_config(), [])
+            self.assertEqual(config.load(os.path.join(new, "config.json"))["global"]["active_preset"], "Matrix")
+
+    def test_no_legacy_nothing_happens(self):
+        from razorfx import migrate
+        d = tempfile.mkdtemp()
+        with _Env(XDG_CONFIG_HOME=d):
+            self.assertEqual(migrate.migrate_config(), [])
+            self.assertEqual(os.listdir(d), [])
+
+    def test_partial_new_dir_keeps_existing_files(self):
+        from razorfx import migrate
+        d = tempfile.mkdtemp()
+        with _Env(XDG_CONFIG_HOME=d):
+            os.makedirs(os.path.join(d, "razer-fx"))
+            os.makedirs(os.path.join(d, "razorfx"))
+            config.save(config.default_config(), os.path.join(d, "razer-fx", "config.json"))
+            for sub, txt in (("razer-fx", "old"), ("razorfx", "new")):
+                with open(os.path.join(d, sub, "gui.ini"), "w") as f:
+                    f.write(txt)
+            self.assertEqual(migrate.migrate_config(), ["config.json"])
+            self.assertEqual(_read(os.path.join(d, "razorfx", "gui.ini")), "new")
+
+
+class TestNoPyQt(unittest.TestCase):
+    def test_sources_use_pyside6_only(self):
+        import re
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        bad = []
+        for dp, dn, fn in os.walk(root):
+            dn[:] = [x for x in dn if x not in (".git", "__pycache__")]
+            for f in fn:
+                if f.endswith(".py") or dp.endswith("bin"):
+                    path = os.path.join(dp, f)
+                    for i, line in enumerate(_read(path).splitlines(), 1):
+                        if re.match(r"\s*(from|import)\s+(PyQt[56]|sip)\b", line) or re.search(r"\bpyqt(Signal|Slot|Property)\b", line):
+                            bad.append("%s:%d: %s" % (os.path.relpath(path, root), i, line.strip()))
+        self.assertEqual(bad, [])
+
+
+class TestPluginApi(unittest.TestCase):
+    class Host:
+        capabilities = frozenset({"log", "settings", "storage", "events", "engine.status"})
+
+        def __init__(self):
+            self.lines = []
+
+        def log(self, m):
+            self.lines.append(m)
+
+        def engine_status(self):
+            return {"running": True, "effect": "wave"}
+
+    def _plugin(self, base, pid, manifest=None, code="def register(ctx):\n    ctx.log('hi')\n", module=None):
+        d = os.path.join(base, pid)
+        os.makedirs(d, exist_ok=True)
+        m = {"id": pid, "name": pid.title(), "version": "1.0", "api": "1.0"}
+        m.update(manifest or {})
+        import json
+        with open(os.path.join(d, "plugin.json"), "w") as f:
+            json.dump(m, f)
+        if code is not None:
+            with open(os.path.join(d, (module or m.get("module") or "plugin") + ".py"), "w") as f:
+                f.write(code)
+        return d
+
+    def test_discover_load_and_isolate_failures(self):
+        from razorfx import plugin_api as api
+        base, base2 = tempfile.mkdtemp(), tempfile.mkdtemp()
+        self._plugin(base, "good", code="seen = []\ndef register(ctx):\n    ctx.log('hi')\n"
+                     "    ctx.on('effect_changed', seen.append)\n    ctx.settings.set('n', 1)\n"
+                     "def unregister():\n    seen.append('bye')\n")
+        self._plugin(base, "newer", {"api": "1.9"})
+        self._plugin(base, "major2", {"api": "2.0"})
+        self._plugin(base, "noreg", code="x = 1\n")
+        self._plugin(base, "crash", code="raise ImportError('nope')\n")
+        self._plugin(base, "Bad Id")
+        os.makedirs(os.path.join(base, "nomanifest"))
+        os.makedirs(os.path.join(base, ".hidden"))
+        self._plugin(base2, "good", code="def register(ctx):\n    raise SystemExit\n")   # duplicate: skipped
+        d = tempfile.mkdtemp()
+        with _Env(XDG_CONFIG_HOME=d, XDG_DATA_HOME=d):
+            host = self.Host()
+            pm = api.PluginManager(host, dirs=[base, base2])
+            pm.load_all()
+            self.assertEqual([p.info.id for p in pm.loaded], ["good"])
+            why = {os.path.basename(p): r for p, r in pm.failed}
+            self.assertEqual(set(why), {"newer", "major2", "noreg", "crash", "Bad Id", "nomanifest", "good"})
+            self.assertIn("needs plugin API 2.0", why["major2"])
+            self.assertIn("register", why["noreg"])
+            self.assertIn("nope", why["crash"])
+            self.assertIn("duplicate", why["good"])
+            self.assertIn("plugin good: hi", host.lines)
+            ctx = pm.loaded[0].ctx
+            self.assertTrue(ctx.has("settings") and not ctx.has("gui.menu"))
+            with self.assertRaises(api.PluginError):
+                ctx.add_menu_action("x", lambda: None)
+            self.assertEqual(ctx.engine_status()["effect"], "wave")
+            self.assertTrue(os.path.isdir(ctx.data_dir) and ctx.data_dir.endswith("plugin-data/good"))
+            pm.emit("effect_changed", "fire")
+            mod = pm.loaded[0].module
+            ctx.on("effect_changed", lambda e: 1 / 0)              # a failing handler is logged, not raised
+            pm.emit("effect_changed", "wave")
+            self.assertTrue(any("ZeroDivisionError" in l for l in host.lines))
+            pm.unload_all()
+            self.assertEqual(mod.seen, ["fire", "wave", "bye"])
+            self.assertTrue(os.path.exists(os.path.join(d, "razorfx", "plugins", "good.json")))
+
+    def test_package_plugin_and_search_path(self):
+        from razorfx import plugin_api as api
+        base = tempfile.mkdtemp()
+        d = self._plugin(base, "pkg", {"module": "pkgmod"}, code=None)
+        os.makedirs(os.path.join(d, "pkgmod"))
+        with open(os.path.join(d, "pkgmod", "__init__.py"), "w") as f:
+            f.write("from .helper import VALUE\ndef register(ctx):\n    ctx.log('value %d' % VALUE)\n")
+        with open(os.path.join(d, "pkgmod", "helper.py"), "w") as f:
+            f.write("VALUE = 42\n")
+        with _Env(RAZORFX_PLUGIN_PATH=base, XDG_DATA_HOME="/nonexistent-data"):
+            self.assertEqual(api.plugin_search_path(), [base, "/nonexistent-data/razorfx/plugins"])
+            host = self.Host()
+            pm = api.PluginManager(host)
+            pm.load_all()
+        self.assertEqual([p.info.id for p in pm.loaded], ["pkg"])
+        self.assertIn("plugin pkg: value 42", host.lines)
+
+    def test_api_version_rules(self):
+        from razorfx.plugin_api import PluginInfo
+        ok = lambda v: PluginInfo("/x", {"id": "a", "api": v}).api_compatible((1, 3))
+        self.assertEqual([ok(v) for v in ("1", "1.0", "1.3", "1.4", "2.0", "0.9", "", "x")],
+                         [True, True, True, False, False, False, False, False])
 
 if __name__ == "__main__":
     unittest.main()

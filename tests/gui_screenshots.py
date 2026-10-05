@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
 # Copyright (C) 2026 Trevor Olsen
 """Start fake devices + real daemon + engine, then run the GUI under Xvfb and
 grab screenshots of each tab / a few effects.
@@ -27,7 +27,7 @@ procs.append(subprocess.Popen([sys.executable, HERE + "/tests/run_daemon_testmod
                                "--run-dir", W + "/data", "--log-dir", W + "/logs", "--test-dir", W + "/dev",
                                "--config=" + OR + "/daemon/resources/razer.conf"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
 time.sleep(3)
-procs.append(subprocess.Popen([sys.executable, HERE + "/bin/razer-fx-engine"], env=eenv, stdout=open(W + "/engine.log", "w"), stderr=subprocess.STDOUT))
+procs.append(subprocess.Popen([sys.executable, HERE + "/bin/razorfx-engine"], env=eenv, stdout=open(W + "/engine.log", "w"), stderr=subprocess.STDOUT))
 time.sleep(3)
 shots = [("01-main-flame.png", ["--tab", "0"]),
          ("02-reactive.png", ["--tab", "1"]),
@@ -41,12 +41,12 @@ shots = [("01-main-flame.png", ["--tab", "0"]),
          ("11-reactive-advanced.png", ["--tab", "1", "--advanced"])]
 try:
     for name, args in shots:
-        r = subprocess.run([sys.executable, HERE + "/bin/razer-fx", "--screenshot", os.path.join(OUT, name), "--delay", "3000"] + args,
+        r = subprocess.run([sys.executable, HERE + "/bin/razorfx", "--screenshot", os.path.join(OUT, name), "--delay", "3000"] + args,
                            env=eenv, capture_output=True, text=True, timeout=60)
         print(name, "rc", r.returncode, r.stderr.strip()[-500:])
     # engine offline screenshot
     procs[-1].terminate(); procs[-1].wait(10)
-    r = subprocess.run([sys.executable, HERE + "/bin/razer-fx", "--screenshot", os.path.join(OUT, "09-engine-stopped.png"), "--delay", "2500"],
+    r = subprocess.run([sys.executable, HERE + "/bin/razorfx", "--screenshot", os.path.join(OUT, "09-engine-stopped.png"), "--delay", "2500"],
                        env=eenv, capture_output=True, text=True, timeout=60)
     print("09-engine-stopped.png rc", r.returncode, r.stderr.strip()[-500:])
 finally:

@@ -23,5 +23,6 @@ venv/
 /dist/
 /screenshots/
 *.razerfx.json
+*.razorfx.json
 *.tar.gz
 *.zip

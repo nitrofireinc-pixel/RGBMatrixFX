@@ -1,0 +1,10 @@
+{
+  "id": "hello",
+  "name": "Hello plugin",
+  "version": "0.1.0",
+  "api": "1.0",
+  "module": "hello",
+  "description": "Example RazorFX plugin: adds Plugins ▸ Say hello and logs effect changes.",
+  "author": "RazorFX project",
+  "license": "0BSD"
+}

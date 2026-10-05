@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
 # Copyright (C) 2026 Trevor Olsen
 """OpenRazer output for one keyboard + one mouse, with reconnect handling.
 
@@ -40,9 +40,9 @@ import numpy as np
 from . import layout as L
 
 KB_PIDS = (0x022A,)
-SYSFS_ROOT = os.environ.get("RAZERFX_SYSFS_ROOT", "/sys/bus/hid/drivers")
+SYSFS_ROOT = os.environ.get("RAZORFX_SYSFS_ROOT", "/sys/bus/hid/drivers")
 FULL_REFRESH_S = 2.0
-FORCE_FULL = os.environ.get("RAZERFX_FULL_FRAMES") == "1"   # debug/tests: always send every row
+FORCE_FULL = os.environ.get("RAZORFX_FULL_FRAMES") == "1"   # debug/tests: always send every row
 
 DEFAULT_IO = {"device_io": "auto", "custom_every_frame": False, "custom_refresh_s": 5.0,
               "row_delta": 1, "kb_max_fps": 30, "mouse_max_fps": 30}
@@ -50,14 +50,14 @@ DEFAULT_IO = {"device_io": "auto", "custom_every_frame": False, "custom_refresh_
 
 def log(msg):
     import sys
-    print("razer-fx: " + msg, file=sys.stderr, flush=True)
+    print("razorfx: " + msg, file=sys.stderr, flush=True)
 
 
 def find_sysfs(pid, serial=None, root=None):
     """driver directory for this device if its matrix attributes are writable, else None"""
     if pid is None:
         return None
-    root = root or os.environ.get("RAZERFX_SYSFS_ROOT") or SYSFS_ROOT
+    root = root or os.environ.get("RAZORFX_SYSFS_ROOT") or SYSFS_ROOT
     pats = [os.path.join(root, drv, "*:1532:%04X.*" % pid) for drv in ("razerkbd", "razermouse")]
     pats.append(os.path.join(root, "*:1532:%04X.*" % pid))
     cands = sorted({d for p in pats for d in glob.glob(p) if os.path.exists(os.path.join(d, "matrix_custom_frame"))})
@@ -119,7 +119,7 @@ class Out:
     # ------------------------------------------------------------ main-thread API
     def start(self):
         if self.thread is None:
-            self.thread = threading.Thread(target=self._run, name="razer-fx-" + self.kind, daemon=True)
+            self.thread = threading.Thread(target=self._run, name="razorfx-" + self.kind, daemon=True)
             self.thread.start()
         return self
 

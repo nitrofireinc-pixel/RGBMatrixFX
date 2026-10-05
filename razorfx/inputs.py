@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
 # Copyright (C) 2026 Trevor Olsen
 """evdev input for the keyboard and the mouse (optional; missing nodes are rescanned)."""
 import ctypes
@@ -17,7 +17,7 @@ MOUSE_GLOBS = ("/dev/input/by-id/usb-Razer_Razer_Mamba_Wireless_000000000000-eve
                "/dev/input/by-id/usb-Razer_Razer_Mamba_Wireless_Receiver-event-mouse",
                "/dev/input/by-id/usb-Razer_Razer_Mamba_Wireless_Receiver-if0*-event-kbd")
 # Fallback for other Razer devices (used per kind only when the model-specific
-# globs above match nothing and no RAZERFX_*_GLOBS override is set).
+# globs above match nothing and no RAZORFX_*_GLOBS override is set).
 GENERIC_GLOB = "/dev/input/by-id/usb-Razer_*-event-*"
 _BYID_RE = re.compile(r"^(usb-Razer_.+?)(-if\d+)?-event-(kbd|mouse)$")
 
@@ -71,9 +71,9 @@ def _env_globs(name, default):
 
 class InputHub:
     def __init__(self, kb_globs=None, mouse_globs=None, enable_mouse=True):
-        # RAZERFX_KB_GLOBS / RAZERFX_MOUSE_GLOBS (colon separated) override the node paths
-        self.kb_globs = kb_globs or _env_globs("RAZERFX_KB_GLOBS", KB_GLOBS)
-        self.mouse_globs = mouse_globs or _env_globs("RAZERFX_MOUSE_GLOBS", MOUSE_GLOBS)
+        # RAZORFX_KB_GLOBS / RAZORFX_MOUSE_GLOBS (colon separated) override the node paths
+        self.kb_globs = kb_globs or _env_globs("RAZORFX_KB_GLOBS", KB_GLOBS)
+        self.mouse_globs = mouse_globs or _env_globs("RAZORFX_MOUSE_GLOBS", MOUSE_GLOBS)
         # generic Razer auto-detection only when the built-in defaults are in use
         self.auto_kb = self.kb_globs is KB_GLOBS
         self.auto_mouse = self.mouse_globs is MOUSE_GLOBS

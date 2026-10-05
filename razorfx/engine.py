@@ -1,9 +1,9 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
 # Copyright (C) 2026 Trevor Olsen
 """
-razer-fx engine: renders the active profile at FPS onto the keyboard and
+RazorFX engine: renders the active profile at FPS onto the keyboard and
 mouse through openrazer-daemon, reads key/mouse events for reactive effects,
-and serves the GUI over a Unix socket. Runs as razer-fx-engine.service.
+and serves the GUI over a Unix socket. Runs as razorfx-engine.service.
 """
 import argparse
 import os
@@ -258,7 +258,7 @@ class Engine:
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="razer-fx lighting engine")
+    ap = argparse.ArgumentParser(description="RazorFX lighting engine")
     ap.add_argument("--config", default=config.CONFIG_FILE)
     ap.add_argument("--socket", default=None)
     ap.add_argument("--status", action="store_true", help="print the running engine's status and exit")
@@ -267,7 +267,7 @@ def main(argv=None):
         try:
             st = ipc.Client(args.socket, timeout=2).call("status")["status"]
         except (OSError, ValueError) as e:
-            print("razer-fx engine not reachable: %s" % e)
+            print("razorfx engine not reachable: %s" % e)
             return 1
         kb, ms = st.get("keyboard"), st.get("mouse")
         print("   engine pid %s, %.0f fps%s, effect %s" % (st.get("pid"), st.get("fps", 0),
@@ -282,6 +282,9 @@ def main(argv=None):
         print("   mouse:    %s" % dev(ms))
         print("   inputs:   %s" % (", ".join(st["inputs"]["nodes"]) or "none"))
         return 0
+    if args.config == config.CONFIG_FILE:          # default location: pick up 1.0.x settings once
+        from .migrate import migrate_config
+        migrate_config(log=log)
     eng = Engine(cfg_path=args.config, sock_path=args.socket)
     signal.signal(signal.SIGTERM, eng.stop)
     signal.signal(signal.SIGINT, eng.stop)

@@ -1,8 +1,8 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
 # Copyright (C) 2026 Trevor Olsen
-"""Dark theme (Razer-green accent) for the razer-fx GUI."""
-from PyQt6.QtGui import QPalette, QColor
-from PyQt6.QtWidgets import QApplication
+"""Dark theme (green accent) for the RazorFX GUI."""
+from PySide6.QtGui import QPalette, QColor
+from PySide6.QtWidgets import QApplication
 
 ACCENT = "#44d62c"
 BG = "#111113"

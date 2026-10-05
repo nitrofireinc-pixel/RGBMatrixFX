@@ -1,11 +1,11 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
 # Copyright (C) 2026 Trevor Olsen
 """Painter for the keyboard + mouse scene (used by the live preview, the
 effect thumbnails and the offscreen preview-video renderer)."""
-from PyQt6.QtCore import Qt, QRectF, QPointF, pyqtSignal
-from PyQt6.QtGui import (QPainter, QColor, QPainterPath, QPen, QBrush, QRadialGradient,
+from PySide6.QtCore import Qt, QRectF, QPointF, Signal
+from PySide6.QtGui import (QPainter, QColor, QPainterPath, QPen, QBrush, QRadialGradient,
                          QFont, QLinearGradient, QPixmap, QImage)
-from PyQt6.QtWidgets import QWidget, QSizePolicy
+from PySide6.QtWidgets import QWidget, QSizePolicy
 
 from .. import layout as L
 
@@ -356,8 +356,8 @@ class ScenePainter:
 
 
 class PreviewWidget(QWidget):
-    keyClicked = pyqtSignal(object)        # Key
-    mouseClicked = pyqtSignal(int)         # button code
+    keyClicked = Signal(object)        # Key
+    mouseClicked = Signal(int)         # button code
 
     def __init__(self, scene, parent=None):
         super().__init__(parent)
