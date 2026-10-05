@@ -9,7 +9,8 @@ All notable changes to RazorFX (called Razer FX up to 1.0.0) are documented here
 Test builds for Trevor's PC are numbered 1.1.0-dev.N. Nothing is published until the batch ships as 1.1.0.
 - 1.1.0-dev.1 (2026-10-04): the groundwork below, plus the Gamer Controls crash fix and the
   always-visible menu bar.
-- 1.1.0-dev.2: follows the desktop theme, expanded About dialog, native packages and AppImage.
+- 1.1.0-dev.2 (2026-10-05): follows the desktop theme (light/dark + accent), expanded About dialog
+  with Copy system info, .deb/.rpm/AUR/AppImage packages and the release workflow.
 
 ### Fixed
 - **Crash (segfault) when removing a key from Gamer Controls** (for example Space or Left Ctrl),
