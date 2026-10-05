@@ -4,11 +4,12 @@
 """GUI tests (offscreen Qt, engine not running): python3 -m unittest tests/test_gui.py"""
 import json, os, sys, tempfile, time, unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("RAZORFX_NO_PORTAL", "1")    # don't follow the box's desktop in tests
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from PySide6.QtWidgets import (QApplication, QGroupBox, QSlider, QAbstractSpinBox, QComboBox, QScrollBar,
                              QAbstractSlider)
 from PySide6.QtCore import QPointF, QPoint, Qt
-from PySide6.QtGui import QWheelEvent
+from PySide6.QtGui import QWheelEvent, QColor
 from razorfx import layout as L
 from razorfx.effects import EFFECTS
 from razorfx.gui import theme
@@ -114,6 +115,60 @@ class TestGui(unittest.TestCase):
             app.sendPostedEvents(None, QEvent.Type.DeferredDelete)   # what app.exec() does
             self.assertFalse(shiboken6.isValid(old))           # gone once the event loop ran
         self.assertEqual(self.w.g["gamer_keys"], ["W", "A", "S", "D"])
+
+    def test_theme_light_dark_keeps_led_colours(self):
+        from PySide6.QtCore import QRectF, QSettings
+        w, pv = self.w, self.w.preview
+        for t in (w.frame_timer, w.status_timer, w.thumb_timer):
+            t.stop()
+        rgb = [((i * 37) % 256, (i * 91) % 256, (i * 53) % 256) for i in range(w.scene.n)]
+
+        def grab():
+            pv.rgb = list(rgb)
+            pv.repaint()
+            return pv.grab().toImage()
+        try:
+            dark = grab()
+            self.assertEqual(theme.SCHEME, "dark")
+            i = w.theme_combo.findData("light")
+            w.theme_combo.setCurrentIndex(i)              # Settings > Appearance > Theme: Light
+            spin(30)
+            self.assertEqual(theme.SCHEME, "light")
+            self.assertGreater(QColor(theme.BG).lightness(), 200)
+            light = grab()
+            r = QRectF(pv.rect()).adjusted(6, 6, -6, -6)
+            s, ox, oy = pv.painter_.geometry(r)
+            same = 0
+            for k in L.KEYS[::5]:
+                x, y = int(ox + (k.x + k.w / 2) * s), int(oy + (k.y + k.h * 0.3) * s)
+                self.assertEqual(dark.pixel(x, y), light.pixel(x, y), "LED colour of %s changed with the theme" % k.name)
+                same += 1
+            self.assertGreater(same, 10)
+            self.assertNotEqual(dark.pixel(2, 2), light.pixel(2, 2))   # the window around it did change
+            # accent: custom colour, then RazorFX green
+            w.accent_combo.setCurrentIndex(w.accent_combo.findData("custom"))
+            self.assertFalse(w.accent_btn.isHidden())
+            w.theme_ctl.set_accent("#aa00ff")
+            self.assertEqual(theme.ACCENT, "#aa00ff")
+            self.assertIn("#aa00ff", app.styleSheet())
+            st = QSettings(os.path.join(self.d.name, "gui.ini"), QSettings.Format.IniFormat)
+            self.assertEqual((st.value("appearance/theme"), st.value("appearance/accent")), ("light", "#aa00ff"))
+            self.assertIn("In use: light theme, accent #aa00ff", w.appearance_info.text())
+        finally:
+            w.theme_ctl.set_theme("system")
+            w.theme_ctl.set_accent("system")
+        self.assertEqual((theme.SCHEME, theme.ACCENT), ("dark", theme.DEFAULT_ACCENT))
+
+    def test_theme_follows_portal_live(self):
+        import shutil, subprocess
+        if not shutil.which("dbus-run-session"):
+            self.skipTest("dbus-run-session not available")
+        here = os.path.dirname(os.path.abspath(__file__))
+        for extra in ([], ["--v1"], ["--poll"]):
+            r = subprocess.run(["dbus-run-session", "--", sys.executable, os.path.join(here, "theme_portal_test.py")] + extra,
+                               capture_output=True, text=True, timeout=120)
+            self.assertEqual(r.returncode, 0, (extra, r.stdout[-2500:] + r.stderr[-1500:]))
+            self.assertIn("ALL PASSED", r.stdout)
 
     def test_qt_binding_is_pyside6(self):
         self.assertIn("PySide6", sys.modules)

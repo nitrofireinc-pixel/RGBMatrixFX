@@ -9,6 +9,7 @@ All notable changes to RazorFX (called Razer FX up to 1.0.0) are documented here
 Test builds for Trevor's PC are numbered 1.1.0-dev.N. Nothing is published until the batch ships as 1.1.0.
 - 1.1.0-dev.1 (2026-10-04): the groundwork below, plus the Gamer Controls crash fix and the
   always-visible menu bar.
+- 1.1.0-dev.2: follows the desktop theme, expanded About dialog, native packages and AppImage.
 
 ### Fixed
 - **Crash (segfault) when removing a key from Gamer Controls** (for example Space or Left Ctrl),
@@ -47,6 +48,15 @@ Test builds for Trevor's PC are numbered 1.1.0-dev.N. Nothing is published until
   your *Start engine at login* choice on upgrade. `uninstall.sh` keeps your plugins unless `--purge`.
 
 ### Added
+- **The window follows the desktop's theme**: light or dark, plus the accent colour, read from the XDG
+  desktop portal (`org.freedesktop.appearance` `color-scheme` / `accent-color`). It updates live
+  when you switch on the desktop, without a restart. Fallbacks, in order: KDE's `kdeglobals`
+  (watched for changes), GNOME `gsettings`, then Qt's own colour-scheme hint. If the desktop
+  states no preference, the classic dark look is used.
+  **Settings ▸ Appearance** has Theme (System / Dark / Light) and Accent colour (System /
+  RazorFX green / Custom), saved in `gui.ini`. The run-only options `--theme` and `--accent` override them.
+  Accents too pale or too dark to read are adjusted for contrast. The live preview and the
+  effect thumbnails keep the devices' real LED colours in every theme.
 - **Plugin API 1.0 (provisional)**: `razorfx/plugin_api.py` + `docs/PLUGIN_API.md`. Plugins are
   discovered in `~/.local/share/razorfx/plugins/` (and `$RAZORFX_PLUGIN_PATH`), with a `plugin.json`
   manifest, a `register(ctx)` hook, and a small capability surface: log, settings, private storage,

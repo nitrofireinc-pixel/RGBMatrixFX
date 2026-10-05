@@ -6,6 +6,7 @@ from PySide6.QtGui import QColor, QPainter, QLinearGradient, QBrush, QPen
 from PySide6.QtWidgets import (QWidget, QPushButton, QColorDialog, QHBoxLayout, QVBoxLayout, QSlider,
                              QDoubleSpinBox, QSpinBox, QComboBox, QCheckBox, QFormLayout, QLabel,
                              QToolButton, QMenu, QSizePolicy)
+from . import theme
 
 GRADIENT_PRESETS = {
     "Rainbow": ["#ff0000", "#ffff00", "#00ff00", "#00ffff", "#0000ff", "#ff00ff"],
@@ -29,6 +30,7 @@ class ColorButton(QPushButton):
         self._c = color
         self.setFixedSize(*((28, 24) if small else (64, 26)))
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setObjectName("ColorSwatch")          # border + hover come from the theme
         self.clicked.connect(self._pick)
         self._style()
 
@@ -41,8 +43,7 @@ class ColorButton(QPushButton):
 
     def _style(self):
         self.setToolTip(self._c)
-        self.setStyleSheet("QPushButton { background: %s; border: 2px solid #3a3a42; border-radius: 6px; }"
-                           "QPushButton:hover { border-color: #44d62c; }" % self._c)
+        self.setStyleSheet("QPushButton#ColorSwatch { background: %s; }" % self._c)
 
     def _pick(self):
         c = QColorDialog.getColor(QColor(self._c), self, "Pick a colour")
@@ -66,7 +67,7 @@ class GradientBar(QWidget):
         n = len(self.colors)
         for i, c in enumerate(self.colors):
             g.setColorAt(i / max(1, n - 1), QColor(c))
-        p.setPen(QPen(QColor("#3a3a42"), 1))
+        p.setPen(QPen(QColor(theme.SWITCH_OFF), 1))
         p.setBrush(QBrush(g))
         p.drawRoundedRect(r, 6, 6)
         p.end()

@@ -804,3 +804,43 @@ class TestPluginApi(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAppearanceKde(unittest.TestCase):
+    """KDE fallback (no portal): kdeglobals colours, and a live change of the file."""
+
+    def test_kdeglobals(self):
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance() or QApplication([])
+        from razorfx.gui.appearance import SystemAppearance
+        with tempfile.TemporaryDirectory() as d, _Env(XDG_CONFIG_HOME=d, XDG_CURRENT_DESKTOP="KDE"):
+            f = os.path.join(d, "kdeglobals")
+            with open(f, "w") as fh:
+                fh.write("[General]\nColorScheme=BreezeDark\nAccentColor=61,174,233\n\n"
+                         "[Colors:Window]\nBackgroundNormal=32,35,38\n")
+            sa = SystemAppearance(portal=False)
+            self.assertEqual((sa.scheme, sa.accent, sa.scheme_source), ("dark", "#3daee9", "KDE"))
+            seen = []
+            sa.changed.connect(lambda: seen.append((sa.scheme, sa.accent)))
+            tmp = f + ".new"                       # KDE rewrites the file atomically
+            with open(tmp, "w") as fh:
+                fh.write("[General]\nColorScheme=BreezeLight\nAccentColor=233,100,61\n\n"
+                         "[Colors:Window]\nBackgroundNormal=239,240,241\n")
+            os.replace(tmp, f)
+            import time
+            end = time.time() + 5
+            while time.time() < end and not seen:
+                app.processEvents()
+                time.sleep(0.02)
+            self.assertEqual(seen[-1:], [("light", "#e9643d")])
+
+    def test_theme_colours(self):
+        from razorfx.gui import theme
+        for scheme in theme.SCHEMES:
+            for acc in ("#44d62c", "#ffff00", "#000000", "#3584e4"):
+                d = theme.colors(scheme, acc)
+                self.assertGreaterEqual(theme.contrast(d["ACCENT"], d["PANEL"]), 2.5, (scheme, acc))
+                self.assertGreaterEqual(theme.contrast(d["TEXT"], d["BG"]), 7, scheme)
+                self.assertGreaterEqual(theme.contrast(d["ON_ACCENT"], d["ACCENT"]), 2.4, (scheme, acc))
+                self.assertNotIn("%(", theme.QSS % d)

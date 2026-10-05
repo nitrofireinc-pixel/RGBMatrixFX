@@ -32,6 +32,7 @@ from .preview import PreviewWidget, ScenePainter
 from .layoututil import FlowLayout, install_wheel_guard
 from .widgets import ColorButton, SliderRow, ParamForm, Collapsible, make_control
 from .plugin_host import GuiPluginHost
+from .appearance import SystemAppearance, ThemeController
 from ..effects import A as ADV
 
 # Advanced reactive-layer settings (everything not on the main reactive panel)
@@ -104,7 +105,7 @@ class EffectTile(QFrame):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         r = QRectF(self.rect()).adjusted(2, 2, -2, -2)
         p.setPen(QColor(theme.ACCENT) if self.selected else QColor(theme.BORDER))
-        p.setBrush(QColor("#1d2a1a") if self.selected else QColor(theme.PANEL))
+        p.setBrush(QColor(theme.TILE_SELECTED) if self.selected else QColor(theme.PANEL))
         p.drawRoundedRect(r, 10, 10)
         thumb = QRectF(r.x() + 6, r.y() + 6, max(80.0, min(150.0, r.width() * 0.45)), r.height() - 12)
         self.painter_.paint_fast(p, thumb, self.rgb)
@@ -134,7 +135,7 @@ class Gallery(QScrollArea):
         v.setContentsMargins(4, 4, 8, 4)
         v.setSpacing(6)
         head = QLabel("EFFECTS")
-        head.setStyleSheet("color:%s; font-weight:700; letter-spacing:2px; padding:4px;" % theme.MUTED)
+        head.setObjectName("GalleryHead")
         v.addWidget(head)
         self.painter_ = ScenePainter(scene)
         self.tiles = {}
@@ -181,7 +182,8 @@ class Gallery(QScrollArea):
 
 # ------------------------------------------------------------------ main window
 class MainWindow(QMainWindow):
-    def __init__(self, sock_path=None, cfg_path=config.CONFIG_FILE, plugins=False, plugin_dirs=None):
+    def __init__(self, sock_path=None, cfg_path=config.CONFIG_FILE, plugins=False, plugin_dirs=None,
+                 follow_system=True, theme_override=None, accent_override=None):
         super().__init__()
         self.cfg_path = cfg_path
         self.link = EngineLink(sock_path)
@@ -208,6 +210,12 @@ class MainWindow(QMainWindow):
                 self.setWindowIcon(QIcon(ic))
                 break
         self._load_initial()
+        # appearance: the user's choice (gui.ini) + the desktop's light/dark and accent, live
+        self.appearance = SystemAppearance(self, portal=follow_system) if follow_system else None
+        self.theme_ctl = ThemeController(QApplication.instance(), self._settings(), self.appearance,
+                                         theme_override, accent_override, self)
+        self.theme_ctl.applied.connect(self._theme_applied)
+        self.theme_ctl.apply()
         install_wheel_guard(QApplication.instance())
         self._build()
         self.refresh_all()
@@ -462,7 +470,6 @@ class MainWindow(QMainWindow):
         split.setStretchFactor(1, 1)
         split.setSizes([340, 1100])
         v.addWidget(split, 1)
-        self.statusBar().setStyleSheet("color:%s;" % theme.MUTED)
 
     def _build_menu(self):
         mb = self.menuBar()
@@ -568,7 +575,7 @@ class MainWindow(QMainWindow):
             lambda i: (lambda name: QTimer.singleShot(0, lambda: self.load_preset(name)))(self.preset_combo.itemData(i)))
         lay.addWidget(self.preset_combo)
         self.modified_lbl = QLabel("")
-        self.modified_lbl.setStyleSheet("color:#ffd88a;")
+        self.modified_lbl.setObjectName("Modified")
         lay.addWidget(self.modified_lbl)
         self.save_btn = QPushButton("Save")
         self.save_btn.setToolTip("Save the current settings into the selected preset")
@@ -693,7 +700,7 @@ class MainWindow(QMainWindow):
         v.addWidget(m)
         if cls.reactive_hint:
             n = QLabel("This effect reacts to key presses / mouse clicks by itself.")
-            n.setStyleSheet("color:%s;" % theme.ACCENT)
+            n.setProperty("accent", True)
             v.addWidget(n)
         params = self.profile.get("effects", {}).get(eid, {})
         form = ParamForm(cls.schema(), params)
@@ -1143,6 +1150,41 @@ class MainWindow(QMainWindow):
         cl = QVBoxLayout(c)
         cl.addWidget(self.dev_info)
         v.addWidget(c)
+        ag = self.appearance_box = QGroupBox("Appearance")
+        af2 = QFormLayout(ag)
+        af2.setVerticalSpacing(8)
+        self.theme_combo = QComboBox()
+        for k, lab in (("system", "System (follow the desktop)"), ("dark", "Dark"), ("light", "Light")):
+            self.theme_combo.addItem(lab, k)
+        self.theme_combo.setCurrentIndex(max(0, self.theme_combo.findData(self.theme_ctl.theme_pref)))
+        self.theme_combo.currentIndexChanged.connect(
+            lambda i: self.theme_ctl.set_theme(self.theme_combo.itemData(i)))
+        af2.addRow("Theme", self.theme_combo)
+        arow = QHBoxLayout()
+        self.accent_combo = QComboBox()
+        for k, lab in (("system", "System"), ("razorfx", "RazorFX green"), ("custom", "Custom")):
+            self.accent_combo.addItem(lab, k)
+        ap = self.theme_ctl.accent_pref
+        self.accent_combo.setCurrentIndex(self.accent_combo.findData(ap if ap in ("system", "razorfx") else "custom"))
+        self.accent_btn = ColorButton(ap if ap.startswith("#") else theme.ACCENT, small=True)
+        self.accent_btn.setToolTip("Pick your own accent colour")
+        self.accent_btn.setVisible(not ap in ("system", "razorfx"))
+        self.accent_combo.currentIndexChanged.connect(self._accent_mode)
+        self.accent_btn.colorChanged.connect(lambda c: self.theme_ctl.set_accent(c))
+        arow.addWidget(self.accent_combo)
+        arow.addWidget(self.accent_btn)
+        arow.addStretch(1)
+        af2.addRow("Accent colour", self._wrap(arow))
+        self.appearance_info = QLabel()
+        self.appearance_info.setWordWrap(True)
+        self.appearance_info.setProperty("muted", True)
+        af2.addRow(self.appearance_info)
+        note = QLabel("Only the window changes; the lighting preview always shows your devices' real colours.")
+        note.setWordWrap(True)
+        note.setProperty("muted", True)
+        af2.addRow(note)
+        v.addWidget(ag)
+        self._update_appearance_info()
         pg = QGroupBox("Plugins")
         pl = QVBoxLayout(pg)
         self.plugin_info = QLabel()
@@ -1164,6 +1206,29 @@ class MainWindow(QMainWindow):
         v.addStretch(1)
         self._set_page(self.tab_settings, w)
         self._update_engine_ui()
+
+    def _accent_mode(self, i):
+        mode = self.accent_combo.itemData(i)
+        self.accent_btn.setVisible(mode == "custom")
+        if mode == "custom":
+            self.theme_ctl.set_accent(self.accent_btn.color())
+        else:
+            self.theme_ctl.set_accent(mode)
+
+    def _theme_applied(self, scheme, accent):
+        if hasattr(self, "appearance_info"):
+            self._update_appearance_info()
+        if hasattr(self, "preview"):
+            self.preview.update()
+
+    def _update_appearance_info(self):
+        ctl = self.theme_ctl
+        sys_line = self.appearance.describe() if self.appearance is not None else "Desktop detection is off"
+        used = "In use: %s theme, accent %s" % (ctl.scheme, ctl.accent)
+        ov = [o for o, v in (("--theme", ctl.theme_override), ("--accent", ctl.accent_override)) if v]
+        if ov:
+            used += "  (%s on the command line, for this run only)" % " and ".join(ov)
+        self.appearance_info.setText("%s\n%s" % (sys_line, used))
 
     def _update_plugin_info(self):
         pm = self.plugins
@@ -1527,7 +1592,11 @@ def main(argv=None):
     ap.add_argument("--effect", default=None)
     ap.add_argument("--delay", type=int, default=2500)
     ap.add_argument("--advanced", action="store_true", help="(testing) open the Advanced sections")
+    ap.add_argument("--scroll-to", default=None, choices=("appearance",), help="(testing) scroll a settings group into view")
     ap.add_argument("--no-plugins", action="store_true", help="start without loading any plugins (also: RAZORFX_NO_PLUGINS=1)")
+    ap.add_argument("--theme", choices=("system", "dark", "light"), default=None,
+                    help="override Settings > Appearance for this run")
+    ap.add_argument("--accent", default=None, help="override the accent for this run: system, razorfx or #rrggbb")
     args, rest = ap.parse_known_args(argv)
     safety.install()
     if args.config == config.CONFIG_FILE:          # default location: pick up 1.0.x settings once
@@ -1542,7 +1611,8 @@ def main(argv=None):
         from .widgets import Collapsible
         Collapsible._state.update({"effect": True, "reactive": True})
     use_plugins = not args.no_plugins and os.environ.get("RAZORFX_NO_PLUGINS", "") not in ("1", "true", "yes")
-    w = MainWindow(sock_path=args.socket, cfg_path=args.config, plugins=use_plugins)
+    w = MainWindow(sock_path=args.socket, cfg_path=args.config, plugins=use_plugins,
+                   theme_override=args.theme, accent_override=args.accent)
     w.show_initial()
     if args.effect:
         w.select_effect(args.effect)
@@ -1553,6 +1623,9 @@ def main(argv=None):
                 sb = area.verticalScrollBar()
                 sb.setValue(sb.maximum())
         QTimer.singleShot(max(200, args.delay - 600), scroll)
+    if args.scroll_to:
+        QTimer.singleShot(max(200, args.delay - 600),
+                          lambda: w.tab_settings.ensureWidgetVisible(getattr(w, args.scroll_to + "_box"), 0, 0))
     if args.screenshot:
         def shot():
             w.grab().save(args.screenshot)

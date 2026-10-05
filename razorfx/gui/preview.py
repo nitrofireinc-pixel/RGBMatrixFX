@@ -8,6 +8,7 @@ from PySide6.QtGui import (QPainter, QColor, QPainterPath, QPen, QBrush, QRadial
 from PySide6.QtWidgets import QWidget, QSizePolicy
 
 from .. import layout as L
+from . import theme
 
 MARGIN = 0.6
 
@@ -265,7 +266,7 @@ class ScenePainter:
             self._mouse(p, s, ox, oy, rgb, glow, zone_hl, mpath)
 
     def _ring(self, p, cx, cy, r):
-        p.setPen(QPen(QColor("#44d62c"), 2, Qt.PenStyle.DashLine))
+        p.setPen(QPen(QColor(theme.ACCENT), 2, Qt.PenStyle.DashLine))
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawEllipse(QPointF(cx, cy), r, r)
 
@@ -372,7 +373,7 @@ class PreviewWidget(QWidget):
         self.setMouseTracking(False)
         # we paint every pixel ourselves -> Qt needn't repaint the (stylesheet) parents
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
-        self.bg = QColor("#18181c")
+        self.bg = None                          # None: the theme's panel colour (the card around it)
 
     def set_scene(self, scene):
         self.painter_ = ScenePainter(scene)
@@ -387,12 +388,12 @@ class PreviewWidget(QWidget):
 
     def paintEvent(self, ev):
         p = QPainter(self)
-        p.fillRect(self.rect(), self.bg)
+        p.fillRect(self.rect(), self.bg if self.bg is not None else QColor(theme.PANEL))
         r = QRectF(self.rect()).adjusted(6, 6, -6, -6)
         self.painter_.paint_live(p, r, self.rgb, selected=self.selected, zone_hl=self.zone_hl,
                                  dpr=self.devicePixelRatioF())
         if self.overlay:
-            p.setPen(QColor("#8c8c96"))
+            p.setPen(QColor(theme.MUTED))
             f = QFont(); f.setPixelSize(11); p.setFont(f)
             p.drawText(r.adjusted(8, 0, -8, -2), int(Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignLeft), self.overlay)
         p.end()

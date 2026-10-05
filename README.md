@@ -2,8 +2,8 @@
 
 **Chroma-style lighting effects for Razer keyboards and mice on Linux, built on [OpenRazer](https://openrazer.github.io/).**
 
-RazorFX is a small background **engine** (a systemd user service) plus a dark-themed **GUI** built with
-Qt for Python (**PySide6**).
+RazorFX is a small background **engine** (a systemd user service) plus a **GUI** built with
+Qt for Python (**PySide6**) that follows your desktop's light or dark theme and accent colour.
 The engine renders animated effects at up to 30 fps onto your keyboard and mouse through the
 OpenRazer driver, and reacts to key presses, mouse clicks and scrolling. The GUI lets you pick
 and tune effects live, build presets, and manage per-zone lighting. Closing the GUI leaves the
@@ -57,6 +57,10 @@ engine (and your lighting) running.
 * **Robust**: the GUI survives engine restarts and crashes and reconnects by itself. The engine
   survives `openrazer-daemon` restarts and device re-plugs. When the engine stops, it hands the
   lighting back to OpenRazer / Polychromatic.
+* **Follows your desktop's look**: light or dark and the accent colour come from the desktop
+  (the XDG portal on GNOME, KDE and others, with fallbacks for KDE and GNOME) and change live when you switch.
+  You can also pick Dark, Light or your own accent in Settings. The live preview always
+  shows the devices' real colours.
 * **Resizable UI** that fits 1366×768 screens: wrapping header, scrollable tabs, draggable splitters, and a saved
   window state.
 
@@ -228,8 +232,9 @@ Open **RazorFX** from the app menu, or run `razorfx`.
 * **Zones**: keyboard keys, keyboard logo, mouse logo and mouse scroll wheel. Each one follows the
   effect or gets its own static, breathing or spectrum colour, or is turned off. **Identify** blinks the zone on the device.
 * **Settings**: FPS, whether to drive the mouse, mouse output method, what happens when the engine stops,
-  start at login, mouse position (how far effects travel to reach it), engine I/O options, and
-  device and input-node status.
+  start at login, mouse position (how far effects travel to reach it), engine I/O options,
+  device and input-node status, and **Appearance**: theme (System, Dark, Light) and accent colour
+  (System, RazorFX green, or your own colour).
 * **Header**: preset picker, **Save**, the **Presets ▾** menu (save as, duplicate, rename, revert,
   delete, export this preset or all of them, import, restore built-ins), master brightness, **Pause**,
   **Gamer Controls** and **Hand back to Polychromatic** (stops the engine).
