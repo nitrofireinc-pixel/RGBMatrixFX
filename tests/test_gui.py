@@ -37,7 +37,7 @@ class TestGui(unittest.TestCase):
 
     def test_help_about(self):
         import razorfx
-        self.assertEqual(razorfx.__version__, "1.1.0-dev")
+        self.assertRegex(razorfx.__version__, r"^1\.1\.0-dev(\.\d+)?$")   # test builds: 1.1.0-dev.N
         with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION")) as f:
             self.assertEqual(f.read().strip(), razorfx.__version__)
         mb = self.w.menuBar()
@@ -83,6 +83,37 @@ class TestGui(unittest.TestCase):
             sys.excepthook = old
         self.assertEqual(seen, [ZeroDivisionError])
         self.assertEqual(after, [True])
+
+    def test_stress_rebuilding_uis_do_not_crash(self):
+        # 1.0 segfaulted when a Gamer Controls key (Space, Left Ctrl) was removed: the handler
+        # rebuilt the tab and deleted the widget Qt was still delivering the click to. The
+        # stress run drives every self-rebuilding UI with real input in a subprocess.
+        import subprocess
+        here = os.path.dirname(os.path.abspath(__file__))
+        r = subprocess.run([sys.executable, os.path.join(here, "gui_stress.py"), "--rounds", "3"],
+                           capture_output=True, text=True, timeout=300,
+                           env=dict(os.environ, QT_QPA_PLATFORM="offscreen"))
+        out = r.stdout + r.stderr
+        self.assertEqual(r.returncode, 0, out[-3000:])
+        self.assertIn("STRESS OK", out)
+
+    def test_rebuild_from_own_signal_retires_instead_of_deleting(self):
+        # Remove Space and LeftCtrl again and again through the handlers the buttons use;
+        # the replaced pages must still exist (hidden, signals blocked) until deleteLater runs.
+        import shiboken6
+        self.w.tabs.setCurrentIndex(2)
+        for _ in range(10):
+            self.w._gamer_set("gamer_keys", ["W", "A", "S", "D", "SPACE", "LEFTCTRL"], rebuild=True)
+            old = self.w.tab_hl.widget()
+            self.w._gamer_set("gamer_keys", ["W", "A", "S", "D", "LEFTCTRL"], rebuild=True)
+            self.assertTrue(shiboken6.isValid(old))            # not deleted synchronously
+            self.assertFalse(old.isVisible())
+            self.assertTrue(old.signalsBlocked())
+            self.w._gamer_set("gamer_keys", ["W", "A", "S", "D"], rebuild=True)
+            from PySide6.QtCore import QEvent
+            app.sendPostedEvents(None, QEvent.Type.DeferredDelete)   # what app.exec() does
+            self.assertFalse(shiboken6.isValid(old))           # gone once the event loop ran
+        self.assertEqual(self.w.g["gamer_keys"], ["W", "A", "S", "D"])
 
     def test_qt_binding_is_pyside6(self):
         self.assertIn("PySide6", sys.modules)

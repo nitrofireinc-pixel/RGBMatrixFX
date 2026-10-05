@@ -6,6 +6,24 @@ All notable changes to RazorFX (called Razer FX up to 1.0.0) are documented here
 
 ## [Unreleased] - 1.1.0-dev
 
+Test builds for Trevor's PC are numbered 1.1.0-dev.N. Nothing is published until the batch ships as 1.1.0.
+- 1.1.0-dev.1 (2026-10-04): the groundwork below, plus the Gamer Controls crash fix and the
+  always-visible menu bar.
+
+### Fixed
+- **Crash (segfault) when removing a key from Gamer Controls** (for example Space or Left Ctrl),
+  and the same latent crash in highlight groups, Reset to defaults, the Zones and Settings tabs
+  and preset switching. A handler rebuilt the tab and deleted the widget Qt was still delivering the
+  click or key press to. Replaced widgets are now hidden, silenced and released with
+  `deleteLater()`, and the preset combo no longer rebuilds itself inside its own signal.
+  `tests/gui_stress.py` drives all of these with real input; it crashes 1.0-style code and passes now.
+- Orderly GUI shutdown: timers stop, a pending save is flushed, the app-wide event filter is removed
+  and the window is destroyed before the interpreter exits (1.0 could crash at exit in PyQt6/sip
+  teardown; PySide6 has no sip).
+- The menu bar (File, Help) is always drawn inside the window (`setNativeMenuBar(False)`), so
+  Help ▸ About can't disappear into a global menu. F1 opens About, and an About button sits in
+  the header as a backup.
+
 ### Changed
 - **Renamed to RazorFX** (was "Razer FX") everywhere it shows: app name, window title, About,
   desktop entry (`razorfx.desktop`), icon (`razorfx`), commands (`razorfx`, `razorfx-engine`),

@@ -13,7 +13,8 @@ import time
 import traceback
 
 import numpy as np
-from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QSettings, QUrl, Signal
+import shiboken6
+from PySide6.QtCore import Qt, QTimer, QRect, QRectF, QSettings, QUrl, Signal, QObject
 from PySide6.QtGui import QPainter, QColor, QIcon, QFont, QPixmap, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (QFileDialog, QToolButton, QMenu,
                              QApplication, QMainWindow, QWidget, QFrame, QHBoxLayout, QVBoxLayout,
@@ -197,6 +198,7 @@ class MainWindow(QMainWindow):
         self.t0 = time.monotonic()
         self._was_connected = False
         self._last_effect = None
+        self._graveyard = []          # replaced widgets waiting for deleteLater (see _retire)
         self.plugin_host = GuiPluginHost(self)
         self.plugins = plugin_api.PluginManager(self.plugin_host, plugin_dirs)
 
@@ -257,6 +259,33 @@ class MainWindow(QMainWindow):
         if self.profile["effect"] != self._last_effect:
             self._last_effect = self.profile["effect"]
             self.plugins.emit("effect_changed", self._last_effect)
+
+    # ---------------------------------------------------------------- safe widget replacement
+    # Tabs and editors are rebuilt from signal handlers of widgets that live inside them
+    # (Remove, Reset, quick-key buttons, a line edit's editingFinished when a click moves the
+    # focus). Deleting such a widget synchronously - QScrollArea.setWidget() deletes the old
+    # page, QWidget().setLayout(old) destroys the old children at once - frees the very object
+    # Qt is still delivering the mouse/key event to: a segfault in QApplication::notify.
+    # So old widgets are only ever retired: silenced, hidden, kept referenced, deleteLater().
+    def _retire(self, w):
+        self._bury()
+        if w is None:
+            return
+        for o in [w] + w.findChildren(QObject):
+            o.blockSignals(True)       # e.g. no editingFinished from the focus-out on hide
+        w.hide()
+        self._graveyard.append(w)      # a Python-owned widget (takeWidget) must not be GC'd now
+        w.deleteLater()                # runs at the right event-loop level, even with nested loops
+
+    def _bury(self):
+        """forget retired widgets that deleteLater has destroyed by now"""
+        self._graveyard = [w for w in self._graveyard if shiboken6.isValid(w)]
+
+    def _set_page(self, area, w):
+        """put w into a QScrollArea, retiring (not deleting) the previous page"""
+        old = area.takeWidget()
+        area.setWidget(w)
+        self._retire(old)
 
     # ---------------------------------------------------------------- plugins
     def load_plugins(self):
@@ -339,6 +368,21 @@ class MainWindow(QMainWindow):
         else:
             self.show()
 
+    def shutdown(self):
+        """stop everything that could call back into the window during teardown"""
+        pending_push, pending_save = self.push_timer.isActive(), self.save_timer.isActive()
+        for t in (self.frame_timer, self.status_timer, self.thumb_timer, self.push_timer, self.save_timer):
+            t.stop()
+        try:                           # don't lose the last change made just before quitting
+            if pending_push:
+                self._push_now()
+            if pending_save or self.save_timer.isActive():
+                self.save_timer.stop()
+                self._save_local()
+        except Exception:
+            safety.log("final save failed:\n" + traceback.format_exc())
+        self._graveyard.clear()
+
     def closeEvent(self, ev):
         try:
             self._save_window()
@@ -398,8 +442,6 @@ class MainWindow(QMainWindow):
         self.tab_effect = QScrollArea(widgetResizable=True)
         self.tab_react = QScrollArea(widgetResizable=True)
         self.tab_hl = QScrollArea(widgetResizable=True)
-        self.tab_hl_page = QWidget()
-        self.tab_hl.setWidget(self.tab_hl_page)
         self.tab_zones = QScrollArea(widgetResizable=True)
         self.tab_settings = QScrollArea(widgetResizable=True)
         self.tabs.addTab(self.tab_effect, "Effect")
@@ -522,7 +564,8 @@ class MainWindow(QMainWindow):
         self.preset_combo.setMinimumWidth(150)
         self.preset_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.preset_combo.setMinimumContentsLength(16)
-        self.preset_combo.activated.connect(lambda i: self.load_preset(self.preset_combo.itemData(i)))
+        self.preset_combo.activated.connect(   # deferred: load_preset rebuilds (and clears) this combo
+            lambda i: (lambda name: QTimer.singleShot(0, lambda: self.load_preset(name)))(self.preset_combo.itemData(i)))
         lay.addWidget(self.preset_combo)
         self.modified_lbl = QLabel("")
         self.modified_lbl.setStyleSheet("color:#ffd88a;")
@@ -660,7 +703,7 @@ class MainWindow(QMainWindow):
         bl.addWidget(form)
         v.addWidget(box)
         v.addStretch(1)
-        self.tab_effect.setWidget(w)
+        self._set_page(self.tab_effect, w)
 
     def _effect_params(self, values):
         eid = self.profile["effect"]
@@ -741,7 +784,7 @@ class MainWindow(QMainWindow):
             af.addRow(lab, make_control(sch, rx[sch["id"]], lambda x, k=sch["id"]: self._rx(k, x)))
         v.addWidget(Collapsible("Advanced  (%d)" % len(REACTIVE_ADV), box, key="reactive"))
         v.addStretch(1)
-        self.tab_react.setWidget(w)
+        self._set_page(self.tab_react, w)
         self._update_delay()
 
     def _update_delay(self):
@@ -766,10 +809,8 @@ class MainWindow(QMainWindow):
 
     # ---------------------------------------------------------------- highlights tab
     def _build_hl_tab(self):
-        old = self.tab_hl_page.layout()
-        if old is not None:
-            QWidget().setLayout(old)       # discard old layout
-        outer = QVBoxLayout(self.tab_hl_page)
+        page = QWidget()
+        outer = QVBoxLayout(page)
         outer.setContentsMargins(16, 14, 16, 14)
         outer.addWidget(self._build_gamer_box())
         h = QHBoxLayout()
@@ -794,7 +835,10 @@ class MainWindow(QMainWindow):
         left.addLayout(row)
         h.addLayout(left)
         self.hl_editor = QGroupBox("Group")
+        QVBoxLayout(self.hl_editor).setContentsMargins(0, 0, 0, 0)
+        self._hl_form = None
         h.addWidget(self.hl_editor, 1)
+        self._set_page(self.tab_hl, page)
         n = len(self.profile["highlights"])
         if n:
             self.hl_list.setCurrentRow(min(self._hl_index, n - 1))
@@ -840,10 +884,13 @@ class MainWindow(QMainWindow):
 
     def _hl_select(self, row):
         self._hl_index = max(0, row)
-        old = self.hl_editor.layout()
-        if old is not None:
-            QWidget().setLayout(old)
-        f = QFormLayout(self.hl_editor)
+        box = self.hl_editor.layout()
+        if self._hl_form is not None:
+            box.removeWidget(self._hl_form)
+            self._retire(self._hl_form)
+        self._hl_form = QWidget(objectName="Plain")
+        box.addWidget(self._hl_form)
+        f = QFormLayout(self._hl_form)
         f.setVerticalSpacing(10)
         if row < 0 or row >= len(self.profile["highlights"]):
             f.addRow(QLabel("No highlight groups. Add one to keep keys (e.g. WASD) a fixed colour."))
@@ -960,7 +1007,7 @@ class MainWindow(QMainWindow):
         note.setProperty("muted", True)
         v.addWidget(note)
         v.addStretch(1)
-        self.tab_zones.setWidget(w)
+        self._set_page(self.tab_zones, w)
 
     def _zone_card(self, zone):
         z = self.profile["zones"][zone]
@@ -1115,7 +1162,7 @@ class MainWindow(QMainWindow):
         ver.setProperty("muted", True)
         v.addWidget(ver)
         v.addStretch(1)
-        self.tab_settings.setWidget(w)
+        self._set_page(self.tab_settings, w)
         self._update_engine_ui()
 
     def _update_plugin_info(self):
@@ -1389,6 +1436,7 @@ class MainWindow(QMainWindow):
         self.preview.set_frame((rgb * 255).astype(np.uint8).tolist())
 
     def _tick_status(self):
+        self._bury()
         try:
             self._tick_status_inner()
         except Exception:                      # never let a status hiccup take the window down
@@ -1511,9 +1559,16 @@ def main(argv=None):
             app.quit()
         QTimer.singleShot(args.delay, shot)
     rc = app.exec()
+    safety.log("event loop finished (%d); shutting down" % rc)
     w.unload_plugins()
-    # Destroy the window (and its menu/actions) while the QApplication still exists;
-    # leaving it to interpreter teardown can segfault in Qt's destructors.
+    # Explicit, ordered shutdown: stop the timers, drop the app-wide event filter, then destroy
+    # the window (menus, actions, retired pages) while the QApplication still exists. Leaving
+    # this to interpreter teardown is what crashed 1.0 (PyQt6/sip) at exit.
+    w.shutdown()
+    guard = getattr(app, "_rfx_wheel_guard", None)
+    if guard is not None:
+        app.removeEventFilter(guard)
+        app._rfx_wheel_guard = None
     w.hide()
     w.deleteLater()
     del w
