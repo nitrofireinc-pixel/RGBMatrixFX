@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """GUI tests (offscreen Qt, engine not running): python3 -m unittest tests/test_gui.py"""
 import json, os, sys, tempfile, time, unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -47,7 +47,7 @@ class TestGui(unittest.TestCase):
         t = self.w.about_text()
         for want in ("<h3>RazorFX 1.1.0-dev", "GNU General Public License", "version 3",
                      "GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception", "plugin exception",
-                     "LICENSE-EXCEPTION", "https://github.com/nitrofireinc-pixel/razorFX", "Trevor Olsen",
+                     "LICENSE-EXCEPTION", "https://github.com/nitrofireinc-pixel/razorFX", "\u00a9 2026 Nitrofire Computing",
                      "Not affiliated with or endorsed by Razer Inc. Razer is a trademark of Razer Inc."):
             self.assertIn(want, t)
         self.assertNotIn("Razer FX", t)

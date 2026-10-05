@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """RazorFX plugin API, version 1.0 (provisional while RazorFX is 1.1.0-dev).
 
 This module, together with docs/PLUGIN_API.md, *is* "the Plugin API" referred to in

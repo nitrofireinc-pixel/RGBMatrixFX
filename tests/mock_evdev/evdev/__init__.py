@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """Minimal stand-in for python3-evdev used by the tests. An 'input node' is a
 FIFO; the test writes lines "type code value" into it. Opened O_RDWR so the
 FIFO never reports EOF (like a real evdev node that stays open)."""

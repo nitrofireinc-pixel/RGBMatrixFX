@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """Render data/razorfx.png (same design as data/razorfx.svg) with QPainter (no QtSvg needed)."""
 import os, sys
 from PySide6.QtCore import Qt, QRectF, QPointF

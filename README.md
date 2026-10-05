@@ -382,7 +382,7 @@ scripts and daemon are used directly and are not part of this repository. See
 
 ## License
 
-Copyright (C) 2026 Trevor Olsen
+© 2026 Nitrofire Computing. RazorFX is made by **Nitrofire Computing**.
 
 RazorFX is free software: you can redistribute it and/or modify it under the terms of the
 **GNU General Public License** as published by the Free Software Foundation, either **version 3** of

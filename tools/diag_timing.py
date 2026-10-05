@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """RazorFX timing diagnostics (safe, no root): pauses the engine over its socket,
 times D-Bus setKeyRow/setCustom per device, direct sysfs writes (if writable),
 parallel kb+mouse throughput, EVIOCSMASK variants; then resumes the engine."""

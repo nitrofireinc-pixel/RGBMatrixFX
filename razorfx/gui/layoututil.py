@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """Layout helpers: a wrapping FlowLayout, and an app-wide wheel guard so the mouse
 wheel scrolls the page instead of changing the slider/spinbox/combo under the cursor."""
 from PySide6.QtCore import Qt, QEvent, QObject, QPoint, QRect, QSize

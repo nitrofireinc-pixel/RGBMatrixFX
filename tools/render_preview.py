@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """Render preview.mp4: several effects on the keyboard + Mamba layout, using the
 same Compositor and painter as the engine/GUI, with simulated typing and clicks."""
 import os, subprocess, sys

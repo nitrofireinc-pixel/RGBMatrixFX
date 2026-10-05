@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """Engine <-> GUI IPC: newline-delimited JSON over a Unix socket in $XDG_RUNTIME_DIR."""
 import json
 import os

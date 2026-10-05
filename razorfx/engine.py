@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """
 RazorFX engine: renders the active profile at FPS onto the keyboard and
 mouse through openrazer-daemon, reads key/mouse events for reactive effects,

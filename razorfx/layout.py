@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """
 Physical layout of the lighting "scene": Razer Cynosa Chroma keyboard (6x22
 OpenRazer matrix) + Razer Mamba Wireless mouse placed to the right of it.

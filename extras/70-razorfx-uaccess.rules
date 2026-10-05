@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 #
 # OPTIONAL: only needed if RazorFX's Settings tab says it cannot open the input
 # nodes (reactive effects need to read key/button events). Lets the user logged

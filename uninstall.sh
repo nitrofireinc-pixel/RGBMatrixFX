@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 # Remove RazorFX for the current user (OpenRazer/Polychromatic take over the lights again).
 #   ./uninstall.sh           keep ~/.config/razorfx (presets) and your plugins
 #   ./uninstall.sh --purge   also delete ~/.config/razorfx, plugins and plugin data

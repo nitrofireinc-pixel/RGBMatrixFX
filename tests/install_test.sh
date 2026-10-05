@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 # Dry-run install.sh / uninstall.sh in throwaway HOMEs with stub systemctl/sudo (calls are
 # recorded): A) fresh install + uninstall, B) upgrade from a Razer FX 1.0.x install whose
 # unit was enabled (with backups in its prefix), C) the same with the unit disabled.

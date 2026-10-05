@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """GUI side of the plugin API: gives plugins a Plugins menu, a dialog parent, a read-only
 engine status and events. Plugins never see MainWindow itself (see razorfx/plugin_api.py)."""
 from .. import plugin_api as api

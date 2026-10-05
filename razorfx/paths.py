@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """Where RazorFX keeps things (XDG base directories), plus the 1.0.x ("razer-fx") locations
 that are only read for migration. Every function re-reads the environment, so tests can
 point XDG_* somewhere else."""

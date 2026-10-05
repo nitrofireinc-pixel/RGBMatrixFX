@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """Start fake devices + real daemon + engine, then run the GUI under Xvfb and
 grab screenshots of each tab / a few effects.
 Run: dbus-run-session -- xvfb-run -a -s "-screen 0 1600x1000x24" python3 tests/gui_screenshots.py"""

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """Keep the GUI alive and leave a trace when something goes wrong.
 
 * An exception escaping a Qt slot or virtual method must never take the window down.

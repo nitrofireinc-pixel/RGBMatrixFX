@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """Dark theme (green accent) for the RazorFX GUI."""
 from PySide6.QtGui import QPalette, QColor
 from PySide6.QtWidgets import QApplication

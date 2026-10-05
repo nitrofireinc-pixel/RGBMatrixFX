@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception -->
-<!-- Copyright (C) 2026 Trevor Olsen -->
+<!-- SPDX-FileCopyrightText: © 2026 Nitrofire Computing -->
 <!-- The code snippets in this file are also available under 0BSD, like examples/plugins/. -->
 # RazorFX plugin API 1.0
 

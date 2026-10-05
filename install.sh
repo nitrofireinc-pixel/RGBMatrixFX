@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 # Install RazorFX (GUI + background lighting engine) for the current user.
 # Only the system-package step uses sudo. Re-running it upgrades in place (config is kept).
 # An existing Razer FX 1.0.x install (razer-fx) is migrated: settings are copied to

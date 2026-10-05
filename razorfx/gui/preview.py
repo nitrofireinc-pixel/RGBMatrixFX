@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """Painter for the keyboard + mouse scene (used by the live preview, the
 effect thumbnails and the offscreen preview-video renderer)."""
 from PySide6.QtCore import Qt, QRectF, QPointF, Signal

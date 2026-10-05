@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """End-to-end test: real openrazer-daemon 3.12.4 with fake-driver Cynosa Chroma +
 Mamba Wireless (wired, 1532:0073), the real RazorFX engine, mock evdev nodes
 (FIFOs) for keyboard + mouse, and IPC from a test client.

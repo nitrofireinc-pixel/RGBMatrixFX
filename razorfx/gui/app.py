@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """RazorFX GUI: pick effects, tune them live, manage presets and zones.
 Talks to razorfx-engine over its Unix socket; closing the window leaves the
 engine running. If the engine isn't running, the preview renders locally and

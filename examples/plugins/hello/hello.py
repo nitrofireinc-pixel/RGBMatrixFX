@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: 0BSD
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 #
 # Permission to use, copy, modify, and/or distribute this software for any purpose with or
 # without fee is hereby granted. THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS

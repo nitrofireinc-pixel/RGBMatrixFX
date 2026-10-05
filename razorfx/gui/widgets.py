@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """Reusable controls: colour button, gradient editor, slider row, schema-driven param form."""
 from PySide6.QtCore import Qt, Signal, QRectF
 from PySide6.QtGui import QColor, QPainter, QLinearGradient, QBrush, QPen

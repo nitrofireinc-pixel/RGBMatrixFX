@@ -21,6 +21,9 @@ All notable changes to RazorFX (called Razer FX up to 1.0.0) are documented here
 - **License: GPL-3.0-or-later WITH the RazorFX plugin exception** (`LICENSE-EXCEPTION`, SPDX
   `AdditionRef-RazorFX-plugin-exception`). Independent plugins that use only the documented plugin
   API may carry any license. RazorFX itself stays GPL. SPDX headers updated in all files.
+- **Creator and copyright holder: Nitrofire Computing.** © 2026 Nitrofire Computing in About,
+  README and `LICENSE-EXCEPTION`, and REUSE-style `SPDX-FileCopyrightText: © 2026 Nitrofire Computing`
+  lines in every source file.
 - Preset exports use `"format": "razorfx-presets"` and `*.razorfx.json`. 1.0 files still import.
 - `install.sh`: `--no-apt` is now `--no-deps` (the old flag still works); new `--pip-pyside`; it keeps
   your *Start engine at login* choice on upgrade. `uninstall.sh` keeps your plugins unless `--purge`.

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
-# Copyright (C) 2026 Trevor Olsen
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """
 Effect library. Every effect renders an (N, 3) float RGB array (0..1) for the
 scene's points (keyboard cells + mouse LEDs, in physical world coordinates),
