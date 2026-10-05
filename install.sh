@@ -126,9 +126,9 @@ if [[ -f "$UNIT_DIR/$LEGACY_UNIT" || -f "$LEGACY_PREFIX/razerfx/__init__.py" ]];
           "$HOME/.local/share/icons/hicolor/64x64/apps/razer-fx.png" \
           "$HOME/.local/share/icons/hicolor/scalable/apps/razer-fx.svg"
     if [[ -f "$LEGACY_PREFIX/razerfx/__init__.py" ]]; then   # program files only: backups etc. stay
-        rm -rf "$LEGACY_PREFIX/razerfx" "$LEGACY_PREFIX/bin" "$LEGACY_PREFIX/data" "$LEGACY_PREFIX/README.md"
+        rm -rf "${LEGACY_PREFIX:?}/razerfx" "${LEGACY_PREFIX:?}/bin" "${LEGACY_PREFIX:?}/data" "${LEGACY_PREFIX:?}/README.md"
         if rmdir "$LEGACY_PREFIX" 2>/dev/null; then echo "   removed the old program files ($LEGACY_PREFIX)"
-        else echo "   removed the old program files; kept other files in $LEGACY_PREFIX: $(ls -A "$LEGACY_PREFIX" | head -5 | tr '\n' ' ')"; fi
+        else echo "   removed the old program files; kept other files in $LEGACY_PREFIX: $(find "$LEGACY_PREFIX" -mindepth 1 -maxdepth 1 -printf '%f ' | head -c 200)"; fi
     fi
     rm -rf "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/razer-fx"
 fi
@@ -136,7 +136,7 @@ fi
 # ---------------------------------------------------------------- files
 echo ">> Installing files to $PREFIX"
 systemctl --user stop "$UNIT" 2>/dev/null || true
-rm -rf "$PREFIX/razorfx" "$PREFIX/bin" "$PREFIX/data"       # keeps plugins/, plugin-data/ and venv/
+rm -rf "${PREFIX:?}/razorfx" "${PREFIX:?}/bin" "${PREFIX:?}/data"       # keeps plugins/, plugin-data/ and venv/
 mkdir -p "$PREFIX"
 cp -r "$HERE/razorfx" "$HERE/bin" "$HERE/data" "$PREFIX/"
 cp "$HERE/README.md" "$HERE/LICENSE" "$HERE/LICENSE-EXCEPTION" "$PREFIX/"
@@ -164,7 +164,7 @@ sed -e "s|@PREFIX@|$PREFIX|g" -e "s|^Exec=/usr/bin/python3 |Exec=$GUI_PY |" "$HE
 install -D -m 0644 "$HERE/data/razorfx.png" "$HOME/.local/share/icons/hicolor/256x256/apps/razorfx.png"
 install -D -m 0644 "$HERE/data/razorfx-64.png" "$HOME/.local/share/icons/hicolor/64x64/apps/razorfx.png"
 install -D -m 0644 "$HERE/data/razorfx.svg" "$HOME/.local/share/icons/hicolor/scalable/apps/razorfx.svg"
-command -v update-desktop-database >/dev/null && update-desktop-database -q "$HOME/.local/share/applications" || true
+if command -v update-desktop-database >/dev/null; then update-desktop-database -q "$HOME/.local/share/applications" || true; fi
 
 # Start at login? Keep the user's choice: an upgrade keeps the current state, a migration
 # copies the old unit's state, a fresh install enables it.

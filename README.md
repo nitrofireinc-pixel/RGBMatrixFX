@@ -24,7 +24,8 @@ engine (and your lighting) running.
 - [Effects](#effects)
 - [Supported hardware](#supported-hardware)
 - [Requirements](#requirements)
-- [Install / uninstall](#install--uninstall)
+- [Download](#download)
+- [Install from source / uninstall](#install-from-source--uninstall)
 - [Upgrading from Razer FX 1.0](#upgrading-from-razer-fx-10)
 - [Usage](#usage)
 - [Gamer Controls](#gamer-controls)
@@ -154,7 +155,36 @@ that `openrazer-daemon` reports. Nothing is tied to a serial number. Caveats:
 * Optional: PipeWire's `pw-record` (installed by default on Ubuntu), or `parec`, for the Audio Meter.
 * [Polychromatic](https://polychromatic.app/) is **not** required, but works alongside RazorFX.
 
-## Install / uninstall
+## Download
+
+Ready-made packages of the free version are attached to every
+[GitHub Release](https://github.com/nitrofireinc-pixel/razorFX/releases/latest).
+All of them need the OpenRazer driver and daemon from your distribution
+([openrazer.github.io](https://openrazer.github.io/#download)); RazorFX never installs a kernel driver itself.
+
+| Distribution | File | Install |
+|---|---|---|
+| Debian 13+, Ubuntu 25.10+ and derivatives | `razorfx_<version>_all.deb` | `sudo apt install ./razorfx_<version>_all.deb` |
+| Fedora (with the [OpenRazer repository](https://openrazer.github.io/#fedora)) | `razorfx-<version>-1.noarch.rpm` | `sudo dnf install ./razorfx-<version>-1.noarch.rpm` |
+| Arch Linux, Manjaro, EndeavourOS | `razorfx-<version>-aur.tar.gz` (PKGBUILD) | unpack, then `makepkg -si` (or use the AUR package once published) |
+| Any x86_64 distribution, including Ubuntu 24.04 and Debian 12 | `RazorFX-<version>-x86_64.AppImage` | `chmod +x RazorFX-*.AppImage`, run it; `--integrate` adds it to the app menu |
+| Anything else / from source | `git clone` | `./install.sh` (below) |
+
+Notes:
+* **Native packages** install RazorFX for all users under `/usr`. On first start, the window
+  enables and starts the engine (`razorfx-engine.service`, a systemd *user* service) for you, as
+  `install.sh` does. *Settings ▸ Start engine at login* changes that per user.
+* **The AppImage** bundles Python, Qt (PySide6) and the OpenRazer client library. It runs the
+  engine as a user service that points at the AppImage file, and keeps that service up to date
+  when you move or replace the file. `RazorFX-*.AppImage --unintegrate` removes the menu entry
+  and the service. It needs glibc 2.35 or newer, and on X11 `libxcb-cursor0`.
+* Use only **one** kind of install at a time. Run `./uninstall.sh` before switching from
+  `install.sh` to a package. Your settings in `~/.config/razorfx` work with all of them.
+* Each release has a `SHA256SUMS` file: `sha256sum -c SHA256SUMS --ignore-missing`.
+* Packaging sources: `debian/`, `packaging/` (see `packaging/README.md`); releases are built by
+  `.github/workflows/release.yml` when a `v*` tag is pushed.
+
+## Install from source / uninstall
 
 ```
 git clone https://github.com/nitrofireinc-pixel/razorFX.git

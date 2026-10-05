@@ -48,6 +48,18 @@ Test builds for Trevor's PC are numbered 1.1.0-dev.N. Nothing is published until
   your *Start engine at login* choice on upgrade. `uninstall.sh` keeps your plugins unless `--purge`.
 
 ### Added
+- **Packages for the free version**: `.deb` (Debian 13+, Ubuntu 25.10+), `.rpm` (Fedora, with
+  the OpenRazer repository), an AUR `PKGBUILD`, and an x86_64 **AppImage**. The AppImage bundles
+  Python 3.12, PySide6, numpy, dbus-python, evdev and the OpenRazer client library, and runs
+  on distributions without PySide6 such as Ubuntu 24.04 and Debian 12. All packages share one layout
+  (`packaging/install-tree.sh`) and add AppStream metainfo and man pages. Packages install the
+  engine's user service without enabling it for anyone; the window enables it on first start.
+  The AppImage keeps its own user service pointing at the AppImage file (`--integrate` /
+  `--unintegrate` for the app menu). `.github/workflows/release.yml` builds and lints all of them
+  on a `v*` tag and attaches them, with `SHA256SUMS`, to a GitHub Release (pre-release for `-` tags).
+  There is no Flatpak, by design (see `packaging/README.md`).
+- The engine reports readiness to systemd (`sd_notify`) when its unit asks for it (`Type=notify`,
+  used by the AppImage's unit), so stop and reload signals reach the engine itself.
 - **Expanded About dialog** (Help ▸ About, F1, header button), with About, Credits, License
   and System info tabs. It shows the version, the **edition** ("Free", or "Pro — licensed to …"
   set through the new plugin API hook `ctx.set_edition()`, capability `app.edition`), the creator

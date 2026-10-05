@@ -20,7 +20,7 @@ done
 systemctl --user daemon-reload || true
 
 echo ">> Removing files"
-rm -rf "$PREFIX/razorfx" "$PREFIX/bin" "$PREFIX/data" "$PREFIX/venv" \
+rm -rf "${PREFIX:?}/razorfx" "${PREFIX:?}/bin" "${PREFIX:?}/data" "$PREFIX/venv" \
        "$PREFIX/README.md" "$PREFIX/LICENSE" "$PREFIX/LICENSE-EXCEPTION"
 for b in razorfx razorfx-engine razer-fx razer-fx-engine; do
     f="$HOME/.local/bin/$b"
@@ -35,7 +35,7 @@ for id in razorfx razer-fx; do
           "$HOME/.local/share/icons/hicolor/scalable/apps/$id.svg"
     rm -rf "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/$id"
 done
-command -v update-desktop-database >/dev/null && update-desktop-database -q "$HOME/.local/share/applications" || true
+if command -v update-desktop-database >/dev/null; then update-desktop-database -q "$HOME/.local/share/applications" || true; fi
 if (( PURGE )); then
     rm -rf "$PREFIX" "${XDG_CONFIG_HOME:-$HOME/.config}/razorfx" "${XDG_CONFIG_HOME:-$HOME/.config}/razer-fx"
     rm -rf "${XDG_CACHE_HOME:-$HOME/.cache}/razorfx"
