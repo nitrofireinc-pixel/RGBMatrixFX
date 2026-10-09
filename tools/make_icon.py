@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 # SPDX-FileCopyrightText: © 2026 Nitrofire Computing
-"""Render data/razorfx.png (same design as data/razorfx.svg) with QPainter (no QtSvg needed)."""
+"""Render data/rgbmatrixfx.png (same design as data/rgbmatrixfx.svg) with QPainter (no QtSvg needed)."""
 import os, sys
 from PySide6.QtCore import Qt, QRectF, QPointF
 from PySide6.QtGui import QGuiApplication, QImage, QPainter, QLinearGradient, QColor, QPen, QBrush, QPainterPath
@@ -46,6 +46,6 @@ def render(size, out):
 if __name__ == "__main__":
     app = QGuiApplication(sys.argv[:1])
     here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
-    render(256, os.path.join(here, "razorfx.png"))
-    render(64, os.path.join(here, "razorfx-64.png"))
+    render(256, os.path.join(here, "rgbmatrixfx.png"))
+    render(64, os.path.join(here, "rgbmatrixfx-64.png"))
     print("ok")

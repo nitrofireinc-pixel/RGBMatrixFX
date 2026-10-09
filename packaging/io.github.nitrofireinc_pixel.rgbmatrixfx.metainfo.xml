@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception -->
+<!-- SPDX-FileCopyrightText: © 2026 Nitrofire Computing -->
+<component type="desktop-application">
+  <id>io.github.nitrofireinc_pixel.rgbmatrixfx</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>RGBMatrixFX</name>
+  <summary>Chroma-style lighting effects for RGB keyboards and mice</summary>
+  <developer id="io.github.nitrofireinc_pixel">
+    <name>Nitrofire Computing</name>
+  </developer>
+  <description>
+    <p>
+      RGBMatrixFX renders animated lighting effects onto Razer keyboards and mice through the
+      OpenRazer driver. A small background engine keeps your lighting running; the window
+      lets you pick and tune effects live, build presets and manage per-zone lighting.
+    </p>
+    <ul>
+      <li>14 effects modelled on Razer Chroma effects, each fully tunable</li>
+      <li>One scene across keyboard and mouse, plus reactive ripples on key presses</li>
+      <li>Highlight key groups, Gamer Controls and per-zone colours</li>
+      <li>Follows your desktop's light or dark theme and accent colour</li>
+      <li>Lists your motherboard, RAM and fan lighting found by OpenRGB</li>
+    </ul>
+    <p>
+      RGBMatrixFX needs the OpenRazer driver and daemon. Not affiliated with or endorsed by
+      Razer Inc. Razer is a trademark of Razer Inc.
+    </p>
+  </description>
+  <launchable type="desktop-id">rgbmatrixfx.desktop</launchable>
+  <url type="homepage">https://github.com/nitrofireinc-pixel/razorFX</url>
+  <url type="bugtracker">https://github.com/nitrofireinc-pixel/razorFX/issues</url>
+  <url type="vcs-browser">https://github.com/nitrofireinc-pixel/razorFX</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Effects gallery with the live preview</caption>
+      <image>https://raw.githubusercontent.com/nitrofireinc-pixel/razorFX/main/docs/screenshots/01-main-flame.png</image>
+    </screenshot>
+  </screenshots>
+  <categories>
+    <category>Settings</category>
+    <category>HardwareSettings</category>
+  </categories>
+  <keywords>
+    <keyword>razer</keyword>
+    <keyword>chroma</keyword>
+    <keyword>rgb</keyword>
+    <keyword>openrazer</keyword>
+  </keywords>
+  <provides>
+    <binary>rgbmatrixfx</binary>
+    <binary>rgbmatrixfx-engine</binary>
+  </provides>
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="1.2.0~dev.1" date="2026-10-09" type="development">
+      <description>
+        <p>
+          Renamed from RazorFX to RGBMatrixFX (settings are copied over). The Devices box lists
+          motherboard, RAM and fan lighting found by OpenRGB; the installer sets OpenRGB up.
+          Help has an optional Support link.
+        </p>
+      </description>
+    </release>
+    <release version="1.1.0" date="2026-10-05">
+      <description>
+        <p>
+          Renamed to RazorFX (Nitrofire Computing). The window uses PySide6, follows the
+          desktop theme, and has a menu bar plus an expanded About dialog. Gamer Controls
+          and Highlight keys use key chips; adding arbitrary keys is a Pro preview
+          (coming soon, not for sale). Packages for Debian, Fedora, Arch and AppImage.
+          Per-device key maps, layout packs and an example preset.
+        </p>
+      </description>
+    </release>
+    <release version="1.0.0" date="2026-10-04">
+      <description><p>First release (as Razer FX).</p></description>
+    </release>
+  </releases>
+</component>

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 # SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """Follow-the-desktop test against tests/fake_portal.py on a private session bus:
   dbus-run-session -- python3 tests/theme_portal_test.py [--v1] [--poll]
-starts light + GNOME-blue accent, then the "desktop" switches to dark + orange and RazorFX must
+starts light + GNOME-blue accent, then the "desktop" switches to dark + orange and RGBMatrixFX must
 follow live (portal SettingChanged; with --poll the GLib dispatcher is disabled and the portal
 is polled). Also checks that an explicit Light/Dark choice wins over the desktop."""
 import os, subprocess, sys, tempfile, time
@@ -12,9 +12,9 @@ sys.path.insert(0, os.path.dirname(HERE))
 args = sys.argv[1:]
 if "--poll" in args:
     os.environ["QT_NO_GLIB"] = "1"
-    os.environ["RAZORFX_PORTAL_POLL_MS"] = "300"
+    os.environ["RGBMATRIXFX_PORTAL_POLL_MS"] = "300"
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.pop("RAZORFX_NO_PORTAL", None)
+os.environ.pop("RGBMATRIXFX_NO_PORTAL", None)
 portal = subprocess.Popen([sys.executable, os.path.join(HERE, "fake_portal.py")] + (["--v1"] if "--v1" in args else []),
                           stdout=subprocess.PIPE, text=True)
 assert "ready" in portal.stdout.readline()
@@ -31,8 +31,8 @@ try:
     from PySide6.QtCore import QSettings, QAbstractEventDispatcher
     from PySide6.QtWidgets import QApplication
     app = QApplication([])
-    from razorfx.gui import theme
-    from razorfx.gui.appearance import SystemAppearance, ThemeController
+    from rgbmatrixfx.gui import theme
+    from rgbmatrixfx.gui.appearance import SystemAppearance, ThemeController
     print("  dispatcher:", QAbstractEventDispatcher.instance().metaObject().className())
     d = tempfile.mkdtemp()
     st = QSettings(os.path.join(d, "gui.ini"), QSettings.Format.IniFormat)
@@ -44,8 +44,8 @@ try:
     check(theme.SCHEME == "light" and ctl.accent == "#3584e4", "System theme applied: light, accent #3584e4")
     bus = sysapp._bus
     test = bus.get_object("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop")
-    test.Set("color-scheme", 1, dbus_interface="org.razorfx.Test")
-    test.Set("accent-color", [0.929, 0.357, 0.0], dbus_interface="org.razorfx.Test")
+    test.Set("color-scheme", 1, dbus_interface="org.rgbmatrixfx.Test")
+    test.Set("accent-color", [0.929, 0.357, 0.0], dbus_interface="org.rgbmatrixfx.Test")
     seen = []
     ctl.applied.connect(lambda s, a: seen.append((s, a)))
     end = time.time() + 5
@@ -55,8 +55,8 @@ try:
     check(theme.SCHEME == "dark" and ctl.accent == "#ed5b00", "follows the desktop live -> dark, accent #ed5b00 (%s, %s)" % (theme.SCHEME, ctl.accent))
     ctl.set_theme("light")
     check(theme.SCHEME == "light", "explicit Light wins over the dark desktop")
-    ctl.set_accent("razorfx")
-    check(ctl.accent == theme.usable_accent(theme.DEFAULT_ACCENT, "light"), "accent RazorFX green (darkened for light): %s" % ctl.accent)
+    ctl.set_accent("rgbmatrixfx")
+    check(ctl.accent == theme.usable_accent(theme.DEFAULT_ACCENT, "light"), "accent RGBMatrixFX green (darkened for light): %s" % ctl.accent)
     ctl.set_accent("#aa00ff")
     check(ctl.accent == "#aa00ff", "custom accent")
     st.sync()

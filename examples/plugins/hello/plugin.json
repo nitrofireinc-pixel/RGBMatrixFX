@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "api": "1.0",
   "module": "hello",
-  "description": "Example RazorFX plugin: adds Plugins ▸ Say hello and logs effect changes.",
-  "author": "RazorFX project",
+  "description": "Example RGBMatrixFX plugin: adds Plugins ▸ Say hello and logs effect changes.",
+  "author": "RGBMatrixFX project",
   "license": "0BSD"
 }

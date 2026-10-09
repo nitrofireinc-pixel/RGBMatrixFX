@@ -1,6 +1,6 @@
-# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 # SPDX-FileCopyrightText: © 2026 Nitrofire Computing
-# rpmlint filters (rpmlintrc, addFilter regexes) for the upstream-built RazorFX RPM.
+# rpmlint filters (rpmlintrc, addFilter regexes) for the upstream-built RGBMatrixFX RPM.
 # Only filters that Fedora's rpmlint (fedora.toml) does not already apply. An unused
 # addFilter is an error on rpmlint 2.8 (unused-rpmlintrc-filter) and fails the release build.
 # Fedora already ignores no-signature, no-packager-tag, no-group-tag and no-buildroot-tag,
@@ -8,6 +8,6 @@
 # "Chroma" is Razer's product name, not a typo
 addFilter("spelling-error .*Chroma")
 # the SPDX exception is project-specific (LicenseRef-style AdditionRef); generic lists don't know it
-addFilter("invalid-license-exception AdditionRef-RazorFX-plugin-exception")
+addFilter("invalid-license-exception AdditionRef-RGBMatrixFX-plugin-exception")
 # LICENSE-EXCEPTION is also kept next to the program for Help > About, and the 256 px icon for the window
-addFilter("files-duplicate .*(LICENSE-EXCEPTION|razorfx.png)")
+addFilter("files-duplicate .*(LICENSE-EXCEPTION|rgbmatrixfx.png)")

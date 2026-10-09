@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 # SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """Minimal stand-in for python3-evdev used by the tests. An 'input node' is a
 FIFO; the test writes lines "type code value" into it. Opened O_RDWR so the

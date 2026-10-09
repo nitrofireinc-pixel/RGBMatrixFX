@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 # SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """Launch the real openrazer-daemon (from an openrazer checkout on PYTHONPATH)
 for tests on the box, skipping only its 'is user in plugdev' check."""

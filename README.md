@@ -1,8 +1,14 @@
-# RazorFX
+# RGBMatrixFX
 
-**Chroma-style lighting effects for Razer keyboards and mice on Linux, built on [OpenRazer](https://openrazer.github.io/).**
+**Chroma-style lighting effects for RGB keyboards and mice on Linux.** Today it drives Razer
+keyboards and mice through [OpenRazer](https://openrazer.github.io/).
 
-RazorFX is a small background **engine** (a systemd user service) plus a **GUI** built with
+> **RGBMatrixFX is the new name of RazorFX.** The project is expanding towards the keyboards and
+> mice supported by [OpenRGB](https://openrgb.org/). That work has started (your motherboard,
+> RAM and fans found by OpenRGB already show up in the Devices box) but effects still run on
+> OpenRazer devices only for now; see [Compatibility](#compatibility).
+
+RGBMatrixFX is a small background **engine** (a systemd user service) plus a **GUI** built with
 Qt for Python (**PySide6**) that follows your desktop's light or dark theme and accent colour.
 The engine renders animated effects at up to 30 fps onto your keyboard and mouse through the
 OpenRazer driver, and reacts to key presses, mouse clicks and scrolling. The GUI lets you pick
@@ -14,11 +20,11 @@ engine (and your lighting) running.
 ![Demo: Flame preset with WASD highlight and ripples on typing and clicks](docs/screenshots/demo.gif)
 
 > **Not affiliated with or endorsed by Razer Inc. Razer is a trademark of Razer Inc.**
-> RazorFX is an independent community project. "Chroma", "Synapse" and the device names are also
+> RGBMatrixFX is an independent community project. "Chroma", "Synapse" and the device names are also
 > trademarks of Razer Inc. They are used here only to describe compatibility.
 >
-> *RazorFX was called "Razer FX" up to version 1.0.0. See
-> [Upgrading from Razer FX 1.0](#upgrading-from-razer-fx-10).*
+> *RGBMatrixFX was called "RazorFX" in 1.1 and "Razer FX" up to 1.0.0. See
+> [Upgrading from RazorFX or Razer FX](#upgrading-from-razorfx-or-razer-fx).*
 
 - [Features](#features)
 - [Effects](#effects)
@@ -26,7 +32,7 @@ engine (and your lighting) running.
 - [Requirements](#requirements)
 - [Download](#download)
 - [Install from source / uninstall](#install-from-source--uninstall)
-- [Upgrading from Razer FX 1.0](#upgrading-from-razer-fx-10)
+- [Upgrading from RazorFX or Razer FX](#upgrading-from-razorfx-or-razer-fx)
 - [Usage](#usage)
 - [Gamer Controls](#gamer-controls)
 - [Configuration](#configuration)
@@ -51,10 +57,14 @@ engine (and your lighting) running.
 * **Zones**: keyboard keys, keyboard logo, mouse logo and mouse scroll wheel can each follow the
   effect or run their own static, breathing or spectrum colour, with separate brightness.
 * **Presets**: 14 built-ins; save, duplicate, rename, revert, import and export
-  (`*.razorfx.json`).
+  (`*.rgbmatrixfx.json`).
 * **Live preview** of exactly what is sent to the devices. Click keys or mouse buttons in the preview to fire reactions.
 * **Fast output**: one writer thread per device writing straight to the driver's sysfs files
   (D-Bus fallback), sending only changed rows. Reaches the driver's ceiling, about 28 updates/s, at about 3% CPU.
+* **PC RGB at a glance**: motherboard, RAM and fan / ARGB-header lighting found by
+  [OpenRGB](https://openrgb.org/) is listed (name, type, zones) next to your keyboard and mouse
+  in *Settings ▸ Devices*. The list is read-only and refreshes by itself, so devices OpenRGB
+  detects a little later still appear. Syncing them with your effects is planned for RGBMatrixFX Pro.
 * **Robust**: the GUI survives engine restarts and crashes and reconnects by itself. The engine
   survives `openrazer-daemon` restarts and device re-plugs. When the engine stops, it hands the
   lighting back to OpenRazer / Polychromatic.
@@ -110,7 +120,7 @@ public descriptions. No Razer code or assets are used.
 `openrazer-daemon` drives with a custom-frame matrix (`matrix_custom_frame`) is detected
 automatically, and nothing is tied to a serial number. At start-up the engine builds an LED map for
 each one from its matrix size (`device.fx.advanced.rows/cols`), its type and OpenRazer's key tables,
-then logs which map it chose (`layout: keyboard …` in `journalctl --user -u razorfx-engine`;
+then logs which map it chose (`layout: keyboard …` in `journalctl --user -u rgbmatrixfx-engine`;
 also `"layout"` in the engine status). Maps are chosen in this order:
 
 1. **Your layout packs** (see below), if one matches the device.
@@ -119,7 +129,7 @@ also `"layout"` in the engine status). Maps are chosen in this order:
    BlackWidow, Huntsman, Ornata and Cynosa models) use the daemon's own `KEY_MAPPING` /
    `EVENT_MAPPING`, the same tables OpenRazer's built-in ripple uses. Tartarus and Orbweaver keypads use
    their own tables. The tables are read at run time from the installed `openrazer_daemon`
-   (GPL-2.0-or-later, © the OpenRazer contributors); RazorFX doesn't copy them.
+   (GPL-2.0-or-later, © the OpenRazer contributors); RGBMatrixFX doesn't copy them.
 4. **A generic grid** sized to the matrix (TKL, 60 %, laptops such as the Blade, unknown models).
    Every key goes to the cell nearest its physical position, so effects, ripples, highlights and
    Gamer Controls still render, roughly in the right place.
@@ -134,16 +144,23 @@ zone, *Other devices*, on the Zones tab. Caveats:
 * Matrix cells with no LED simply stay dark. On ISO boards and in the generic grid, a few keys
   may land one cell off.
 * Reactive input (key and click events) is read from `/dev/input/by-id/usb-Razer_*`. You can
-  override the nodes with `RAZORFX_KB_GLOBS` / `RAZORFX_MOUSE_GLOBS` (colon-separated globs).
+  override the nodes with `RGBMATRIXFX_KB_GLOBS` / `RGBMATRIXFX_MOUSE_GLOBS` (colon-separated globs).
 * Devices without a custom-frame matrix are ignored. Bluetooth connections are untested.
+
+**OpenRGB devices (motherboard, RAM, fans): listed only.** If OpenRGB's SDK server is running
+(`openrgb --server`, port 6742; `install.sh` sets it up), the devices it finds are listed in
+*Settings ▸ Devices* with their type and zones. RGBMatrixFX does not change their lighting.
+Keyboards and mice that only OpenRGB supports (not OpenRazer) are not driven by the effects yet;
+that is where the project is heading, but it isn't there today. Tested with an MSI B550 board and
+ENE DRAM.
 
 **Layout packs: add your own device, no code needed.** If your device uses the generic grid or a
 key lights the wrong LED, write a small JSON *layout pack* (device name/USB id, matrix size,
 key → `[row, col]`, and mouse zones), starting from
 [`examples/layouts/example-layout.json`](examples/layouts/example-layout.json). Drop it into
-`~/.local/share/razorfx/layouts/`, then run `systemctl --user restart razorfx-engine`. Packs are
-data only: RazorFX validates them and never executes anything in them. Plugins can register packs
-too (`ctx.register_layout`). The full order RazorFX uses is: **your layout packs**, then the
+`~/.local/share/rgbmatrixfx/layouts/`, then run `systemctl --user restart rgbmatrixfx-engine`. Packs are
+data only: RGBMatrixFX validates them and never executes anything in them. Plugins can register packs
+too (`ctx.register_layout`). The full order RGBMatrixFX uses is: **your layout packs**, then the
 built-in hand-tuned maps, then OpenRazer's tables, then the generic grid. The format is documented in
 [docs/LAYOUTS.md](docs/LAYOUTS.md). Please share working packs with a pull request
 ([CONTRIBUTING.md](CONTRIBUTING.md#new-devices)).
@@ -163,7 +180,7 @@ built-in hand-tuned maps, then OpenRazer's tables, then the generic grid. The fo
   | Distro | Packages |
   |---|---|
   | Ubuntu 25.10+ (incl. 26.04 LTS), Debian 13+ | `python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtwidgets python3-evdev python3-numpy python3-dbus` |
-  | Ubuntu 24.04 / 22.04, Debian 12 | `python3-evdev python3-numpy python3-dbus python3-venv`. No PySide6 package exists, so `install.sh` puts `PySide6-Essentials` from PyPI into a private venv (`~/.local/share/razorfx/venv`) |
+  | Ubuntu 24.04 / 22.04, Debian 12 | `python3-evdev python3-numpy python3-dbus python3-venv`. No PySide6 package exists, so `install.sh` puts `PySide6-Essentials` from PyPI into a private venv (`~/.local/share/rgbmatrixfx/venv`) |
   | Fedora | `python3-pyside6 python3-evdev python3-numpy python3-dbus` |
   | Arch | `pyside6 python-evdev python-numpy python-dbus` |
   | openSUSE | `python3-pyside6` (Tumbleweed: `python313-pyside6`) `python3-evdev python3-numpy python3-dbus-python` |
@@ -175,34 +192,37 @@ built-in hand-tuned maps, then OpenRazer's tables, then the generic grid. The fo
   `./install.sh --pip-pyside` always takes PySide6 from PyPI (into the venv), whatever the
   distro ships. Only the GUI needs PySide6; the engine uses just numpy, dbus and evdev.
   `python3-openrazer` (the `openrazer.client` library) comes with OpenRazer.
+* Optional: [OpenRGB](https://openrgb.org/) 0.9+ to list motherboard, RAM and fan lighting
+  (`install.sh` and the packages set it up where the distribution packages it; otherwise get it
+  from openrgb.org).
 * Optional: PipeWire's `pw-record` (installed by default on Ubuntu), or `parec`, for the Audio Meter.
-* [Polychromatic](https://polychromatic.app/) is **not** required, but works alongside RazorFX.
+* [Polychromatic](https://polychromatic.app/) is **not** required, but works alongside RGBMatrixFX.
 
 ## Download
 
 Ready-made packages of the free version are attached to every
 [GitHub Release](https://github.com/nitrofireinc-pixel/razorFX/releases/latest).
 All of them need the OpenRazer driver and daemon from your distribution
-([openrazer.github.io](https://openrazer.github.io/#download)); RazorFX never installs a kernel driver itself.
+([openrazer.github.io](https://openrazer.github.io/#download)); RGBMatrixFX never installs a kernel driver itself.
 
 | Distribution | File | Install |
 |---|---|---|
-| Debian 13+, Ubuntu 25.10+ and derivatives | `razorfx_<version>_all.deb` | `sudo apt install ./razorfx_<version>_all.deb` |
-| Fedora (with the [OpenRazer repository](https://openrazer.github.io/#fedora)) | `razorfx-<version>-1.noarch.rpm` | `sudo dnf install ./razorfx-<version>-1.noarch.rpm` |
-| Arch Linux, Manjaro, EndeavourOS | `razorfx-<version>-aur.tar.gz` (PKGBUILD) | unpack, then `makepkg -si` (or use the AUR package once published) |
-| Any x86_64 distribution, including Ubuntu 24.04 and Debian 12 | `RazorFX-<version>-x86_64.AppImage` | `chmod +x RazorFX-*.AppImage`, run it; `--integrate` adds it to the app menu |
+| Debian 13+, Ubuntu 25.10+ and derivatives | `rgbmatrixfx_<version>_all.deb` | `sudo apt install ./rgbmatrixfx_<version>_all.deb` |
+| Fedora (with the [OpenRazer repository](https://openrazer.github.io/#fedora)) | `rgbmatrixfx-<version>-1.noarch.rpm` | `sudo dnf install ./rgbmatrixfx-<version>-1.noarch.rpm` |
+| Arch Linux, Manjaro, EndeavourOS | `rgbmatrixfx-<version>-aur.tar.gz` (PKGBUILD) | unpack, then `makepkg -si` (or use the AUR package once published) |
+| Any x86_64 distribution, including Ubuntu 24.04 and Debian 12 | `RGBMatrixFX-<version>-x86_64.AppImage` | `chmod +x RGBMatrixFX-*.AppImage`, run it; `--integrate` adds it to the app menu |
 | Anything else / from source | `git clone` | `./install.sh` (below) |
 
 Notes:
-* **Native packages** install RazorFX for all users under `/usr`. On first start, the window
-  enables and starts the engine (`razorfx-engine.service`, a systemd *user* service) for you, as
+* **Native packages** install RGBMatrixFX for all users under `/usr`. On first start, the window
+  enables and starts the engine (`rgbmatrixfx-engine.service`, a systemd *user* service) for you, as
   `install.sh` does. *Settings ▸ Start engine at login* changes that per user.
 * **The AppImage** bundles Python, Qt (PySide6) and the OpenRazer client library. It runs the
   engine as a user service that points at the AppImage file, and keeps that service up to date
-  when you move or replace the file. `RazorFX-*.AppImage --unintegrate` removes the menu entry
+  when you move or replace the file. `RGBMatrixFX-*.AppImage --unintegrate` removes the menu entry
   and the service. It needs glibc 2.35 or newer, and on X11 `libxcb-cursor0`.
 * Use only **one** kind of install at a time. Run `./uninstall.sh` before switching from
-  `install.sh` to a package. Your settings in `~/.config/razorfx` work with all of them.
+  `install.sh` to a package. Your settings in `~/.config/rgbmatrixfx` work with all of them.
 * Each release has a `SHA256SUMS` file: `sha256sum -c SHA256SUMS --ignore-missing`.
 * Packaging sources: `debian/`, `packaging/` (see `packaging/README.md`); releases are built by
   `.github/workflows/release.yml` when a `v*` tag is pushed.
@@ -212,65 +232,73 @@ Notes:
 ```
 git clone https://github.com/nitrofireinc-pixel/razorFX.git
 cd razorFX
-./install.sh               # per-user install; sudo is used only for missing system packages
-./install.sh --no-deps     # skip the system-package step
+./install.sh               # per-user install; sudo is used only for system packages and the OpenRGB setup
+./install.sh --no-deps     # no sudo: prints the system commands for you to run instead
+./install.sh --no-openrgb  # skip the OpenRGB setup
 ./install.sh --pip-pyside  # take PySide6 from PyPI instead of the distro
 ```
 
 `install.sh` runs as your normal user. It does the following:
-* copies the app to `~/.local/share/razorfx`
-* creates the launchers `~/.local/bin/razorfx` and `~/.local/bin/razorfx-engine`
-* adds a desktop entry ("RazorFX" in your app menu) and icons
-* installs, enables and starts the user service `razorfx-engine.service`
-* migrates a Razer FX 1.0 install, if there is one (see below)
+* copies the app to `~/.local/share/rgbmatrixfx`
+* creates the launchers `~/.local/bin/rgbmatrixfx` and `~/.local/bin/rgbmatrixfx-engine`
+* adds a desktop entry ("RGBMatrixFX" in your app menu) and icons
+* installs, enables and starts the user service `rgbmatrixfx-engine.service`
+* sets up OpenRGB so your motherboard, RAM and fans can be listed: installs the `openrgb`
+  package where your distribution has one, loads the `i2c-dev` kernel module now and at boot
+  (`/etc/modules-load.d/rgbmatrixfx-i2c.conf`), adds a small i2c udev rule if OpenRGB's own
+  rules aren't installed, and enables the user service `openrgb-server.service`
+  (`openrgb --server`, port 6742). The steps that need `sudo` are printed first, so you can see
+  exactly what runs
+* migrates a RazorFX 1.1 or Razer FX 1.0 install, if there is one (see below)
 
 On first start the engine uses the **Flame** preset. Run `./install.sh` again to upgrade in
 place. Your config, your plugins and your *Start engine at login* choice are kept.
 
 ```
-./uninstall.sh           # remove the app and the service; keep ~/.config/razorfx (presets) and plugins
-./uninstall.sh --purge   # ... and delete ~/.config/razorfx, plugins and plugin data too
+./uninstall.sh           # remove the app and the service; keep ~/.config/rgbmatrixfx (presets) and plugins
+./uninstall.sh --purge   # ... and delete ~/.config/rgbmatrixfx, plugins and plugin data too
 ```
 
 When the engine stops, the lighting goes back to whatever OpenRazer / Polychromatic had set.
 You can change that in Settings to turn the lights off or leave the last frame.
 
-## Upgrading from Razer FX 1.0
+## Upgrading from RazorFX or Razer FX
 
-Version 1.1 renamed the project from *Razer FX* to *RazorFX*, together with its files and
-commands:
+Version 1.2 renamed the project from *RazorFX* to *RGBMatrixFX* (1.1 had renamed *Razer FX* to
+*RazorFX*), together with its files and commands:
 
-| | Razer FX 1.0 | RazorFX 1.1 |
-|---|---|---|
-| Settings + presets | `~/.config/razer-fx/` | `~/.config/razorfx/` |
-| Program files | `~/.local/share/razer-fx/` | `~/.local/share/razorfx/` (plus `plugins/`) |
-| Service | `razer-fx-engine.service` | `razorfx-engine.service` |
-| Commands | `razer-fx`, `razer-fx-engine` | `razorfx`, `razorfx-engine` |
-| Desktop entry / icon | `razer-fx` | `razorfx` |
-| GUI log, socket | `~/.cache/razer-fx/`, `$XDG_RUNTIME_DIR/razer-fx/` | `~/.cache/razorfx/`, `$XDG_RUNTIME_DIR/razorfx/` |
-| Preset files | `*.razerfx.json` | `*.razorfx.json` (old files still import) |
+| | Razer FX 1.0 | RazorFX 1.1 | RGBMatrixFX 1.2 |
+|---|---|---|---|
+| Settings + presets | `~/.config/razer-fx/` | `~/.config/razorfx/` | `~/.config/rgbmatrixfx/` |
+| Program files | `~/.local/share/razer-fx/` | `~/.local/share/razorfx/` | `~/.local/share/rgbmatrixfx/` (plus `plugins/`) |
+| Service | `razer-fx-engine.service` | `razorfx-engine.service` | `rgbmatrixfx-engine.service` |
+| Commands | `razer-fx`, `razer-fx-engine` | `razorfx`, `razorfx-engine` | `rgbmatrixfx`, `rgbmatrixfx-engine` |
+| Desktop entry / icon | `razer-fx` | `razorfx` | `rgbmatrixfx` |
+| Preset files | `*.razerfx.json` | `*.razorfx.json` | `*.rgbmatrixfx.json` (old files still import) |
 
 Just run the new `./install.sh` (close the old window first). It:
-1. stops, disables and removes `razer-fx-engine.service`, and enables `razorfx-engine.service`
-   only if the old one was enabled;
-2. **copies** `~/.config/razer-fx/` (all presets, settings and the window layout) to
-   `~/.config/razorfx/` and writes a `MIGRATED.txt` note there. The old directory is **not
+1. stops, disables and removes the old service (`razorfx-engine.service` or
+   `razer-fx-engine.service`), and enables `rgbmatrixfx-engine.service` only if the old one was enabled;
+2. **copies** `~/.config/razorfx/` (or, for 1.0, `~/.config/razer-fx/`: all presets, settings,
+   plugin settings and the window layout) to
+   `~/.config/rgbmatrixfx/` and writes a `MIGRATED.txt` note there. The old directory is **not
    changed or deleted**, so the 1.0 tarball still works if you go back. Delete it yourself once
-   you're happy. The copy only happens while `~/.config/razorfx/config.json` doesn't exist, so it
+   you're happy. The copy only happens while `~/.config/rgbmatrixfx/config.json` doesn't exist, so it
    never overwrites anything;
-3. removes the old launchers, desktop entry and icons, and the old program files from
-   `~/.local/share/razer-fx/`. Anything else in there (for example backup folders) is left alone;
-4. keeps `razer-fx` and `razer-fx-engine` as aliases for the new commands (deprecated, to be
-   removed in a later release).
+3. removes the old launchers, desktop entry and icons (so the app menu has no duplicate), and the
+   old program files. Your plugins are copied over; anything else in the old folder (for example
+   backup folders) is left alone;
+4. keeps the old command names as aliases for the new commands (deprecated, to be removed in a
+   later release).
 
-If you run RazorFX from a checkout without installing, the engine and the GUI do the same
+If you run RGBMatrixFX from a checkout without installing, the engine and the GUI do the same
 settings copy on their first start. If you installed `70-razer-fx-uaccess.rules` in
 `/etc/udev/rules.d/`, it keeps working. Only its file name differs from the new
-`70-razorfx-uaccess.rules`.
+`70-rgbmatrixfx-uaccess.rules`.
 
 ## Usage
 
-Open **RazorFX** from the app menu, or run `razorfx`.
+Open **RGBMatrixFX** from the app menu, or run `rgbmatrixfx`.
 
 * **Effects gallery** (left): animated thumbnails; click one to switch.
 * **Live preview**: mirrors what the engine sends to the devices. Click keys or mouse buttons in
@@ -283,14 +311,14 @@ Open **RazorFX** from the app menu, or run `razorfx`.
 * **Highlight keys**: groups of keys held at a fixed colour. Keys show as keycap chips. Remove one
   with Backspace, Delete or its ×, change a group's name, colour, layer or enabled state, remove
   groups, or **Restore defaults** (one WASD group in white). Adding keys and groups (+ Add key,
-  Add group, picking keys on the preview) will be part of RazorFX Pro (coming soon).
+  Add group, picking keys on the preview) will be part of RGBMatrixFX Pro (coming soon).
   Each group can sit above or below the ripples. This tab also has the Gamer Controls box.
 * **Zones**: keyboard keys, keyboard logo, mouse logo and mouse scroll wheel. Each one follows the
   effect or gets its own static, breathing or spectrum colour, or is turned off. **Identify** blinks the zone on the device.
 * **Settings**: FPS, whether to drive the mouse, mouse output method, what happens when the engine stops,
   start at login, mouse position (how far effects travel to reach it), engine I/O options,
-  device and input-node status, and **Appearance**: theme (System, Dark, Light) and accent colour
-  (System, RazorFX green, or your own colour).
+  device and input-node status, the OpenRGB devices (motherboard, RAM, fans), and **Appearance**: theme (System, Dark, Light) and accent colour
+  (System, RGBMatrixFX green, or your own colour).
 * **Header**: preset picker, **Save**, the **Presets ▾** menu (save as, duplicate, rename, revert,
   delete, export this preset or all of them, import, restore built-ins), master brightness, **Pause**,
   **Gamer Controls** and **Hand back to Polychromatic** (stops the engine).
@@ -299,22 +327,24 @@ Open **RazorFX** from the app menu, or run `razorfx`.
   credits (OpenRazer first) and the Razer trademark notice. **Copy system info** copies the
   app, Python, PySide6/Qt, OpenRazer, driver and kernel versions plus the detected devices
   (never serial numbers) for bug reports ([screenshot](docs/screenshots/12-about.png)).
+* **Help ▸ Support** opens a page where you can support development if you like the app.
+  It's optional and never pops up on its own.
 
 Command line:
 ```
-razorfx-engine --status                  # what the running engine is doing
-systemctl --user restart razorfx-engine  # restart the engine
-systemctl --user reload  razorfx-engine  # reload ~/.config/razorfx/config.json
-journalctl --user -u razorfx-engine      # engine log
+rgbmatrixfx-engine --status                  # what the running engine is doing
+systemctl --user restart rgbmatrixfx-engine  # restart the engine
+systemctl --user reload  rgbmatrixfx-engine  # reload ~/.config/rgbmatrixfx/config.json
+journalctl --user -u rgbmatrixfx-engine      # engine log
 ```
 
-Preset files (`*.razorfx.json`) hold one preset or all of them:
-`{"format": "razorfx-presets", "version": 1, "presets": {name: profile}}`. Importing never
+Preset files (`*.rgbmatrixfx.json`) hold one preset or all of them:
+`{"format": "rgbmatrixfx-presets", "version": 1, "presets": {name: profile}}`. Importing never
 overwrites existing presets: clashing names get " (2)", and out-of-range values are clamped. Use
 *File ▸ Import presets…* and *File ▸ Export all presets…*. A commented template is in
 [`examples/presets/example-preset.json`](examples/presets/example-preset.json), with every field
 documented in [`examples/presets/README.md`](examples/presets/README.md). Packages install both
-under `/usr/share/doc/razorfx/examples/`.
+under `/usr/share/doc/rgbmatrixfx/examples/`.
 
 ## Gamer Controls
 
@@ -326,15 +356,15 @@ On the Highlight keys tab the keys appear as keycap chips: **[W] [A] [S] [D]**. 
 click its chip (or Tab to it) and press Backspace or Delete, or hover over it and click its **×**.
 **Restore defaults** brings back W A S D in white, and you can change the colour there too
 ([screenshot](docs/screenshots/13-gamer-chips.png)). Adding your own keys (**+ Add key**, then press
-any key) will be a RazorFX Pro feature. Pro isn't for sale yet, so the free version shows a locked
-"Add key · Pro: coming soon" chip, which you can hide with *Settings ▸ Plugins ▸ Show RazorFX Pro
+any key) will be a RGBMatrixFX Pro feature. Pro isn't for sale yet, so the free version shows a locked
+"Add key · Pro: coming soon" chip, which you can hide with *Settings ▸ Plugins ▸ Show RGBMatrixFX Pro
 previews*. The setting is global (`gamer_controls`, `gamer_keys`,
 `gamer_color` in `config.json`) and separate from each preset's own highlight groups. It is off by default.
 
 ## Configuration
 
-Everything is stored in `~/.config/razorfx/config.json`, which the GUI writes for you. The window
-size and splitter positions are kept in `~/.config/razorfx/gui.ini`. Global settings:
+Everything is stored in `~/.config/rgbmatrixfx/config.json`, which the GUI writes for you. The window
+size and splitter positions are kept in `~/.config/rgbmatrixfx/gui.ini`. Global settings:
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -368,32 +398,32 @@ loaded (`lsmod | grep razer`). After a kernel update, DKMS may need to rebuild t
    says these nodes are *not readable*, install the optional **uaccess** udev rule. It gives the user
    logged in at the seat read access to those nodes only:
    ```
-   sudo install -m644 extras/70-razorfx-uaccess.rules /etc/udev/rules.d/
+   sudo install -m644 extras/70-rgbmatrixfx-uaccess.rules /etc/udev/rules.d/
    sudo udevadm control --reload-rules      # then re-plug the devices
    ```
    The rule lists the tested USB IDs. For other devices, add their product ID (from `lsusb`) or
    use the generic line commented in the file.
 
 **Low frame rate or laggy mouse.** The OpenRazer driver waits after each USB report: about 6 ms per
-keyboard row, and about 31 ms per report on the Mamba Wireless. RazorFX already uses parallel writer
+keyboard row, and about 31 ms per report on the Mamba Wireless. RGBMatrixFX already uses parallel writer
 threads and sysfs; check that Settings shows *sysfs* rather than *D-Bus* for each device. `python3
 tools/diag_timing.py` measures your devices. It pauses the engine while it runs.
 
 **A device only updates every few seconds.** Enable *Settings ▸ Engine ▸ Advanced ▸ Re-send “custom effect”
 after every frame* (`custom_every_frame`).
 
-**Polychromatic and RazorFX fight over the lights.** While the engine runs, it owns the lighting.
+**Polychromatic and RGBMatrixFX fight over the lights.** While the engine runs, it owns the lighting.
 Use **Hand back to Polychromatic**, or untick *Settings ▸ Start engine at login*.
 
-**The GUI closes unexpectedly.** Look in `~/.cache/razorfx/gui.log`. The GUI ignores SIGHUP and logs
+**The GUI closes unexpectedly.** Look in `~/.cache/rgbmatrixfx/gui.log`. The GUI ignores SIGHUP and logs
 exceptions instead of aborting, so the log should say why. Please include it in bug reports.
 
-**The engine isn't running.** `journalctl --user -u razorfx-engine -n 50`.
+**The engine isn't running.** `journalctl --user -u rgbmatrixfx-engine -n 50`.
 
 ## How it works
 
 ```
- razorfx (PySide6 GUI) ──JSON over $XDG_RUNTIME_DIR/razorfx/engine.sock──▶ razorfx-engine
+ rgbmatrixfx (PySide6 GUI) ──JSON over $XDG_RUNTIME_DIR/rgbmatrixfx/engine.sock──▶ rgbmatrixfx-engine
                                                                            │  evdev: key / click / wheel events
                                                                            ▼
                                   OpenRazer driver sysfs (plugdev) / openrazer-daemon (D-Bus)
@@ -410,11 +440,11 @@ mouse about 27 updates/s, which is the driver's limit, with the engine at about 
 ## Plugins
 
 RazorFX 1.1.0 adds a small, documented **plugin API** (version 1.0). A plugin is a
-folder in `~/.local/share/razorfx/plugins/` with a `plugin.json` and a Python module whose
+folder in `~/.local/share/rgbmatrixfx/plugins/` with a `plugin.json` and a Python module whose
 `register(ctx)` function gets a context object. Through it the plugin can add *Plugins* menu entries,
 keep settings, read the engine status and react to events. Plugins are loaded only by the GUI, never by the
 engine, and a failing plugin is shown in *Settings ▸ Plugins* instead of crashing anything.
-`razorfx --no-plugins` starts without them. See [docs/PLUGIN_API.md](docs/PLUGIN_API.md) and the
+`rgbmatrixfx --no-plugins` starts without them. See [docs/PLUGIN_API.md](docs/PLUGIN_API.md) and the
 example in [examples/plugins/hello/](examples/plugins/hello/).
 
 Plugins run with your user's rights, so only install plugins you trust.
@@ -443,7 +473,7 @@ scripts and daemon are used directly and are not part of this repository. See
 ## Credits
 
 * **[OpenRazer](https://github.com/openrazer/openrazer)** (GPL-2.0-or-later): driver and daemon that
-  RazorFX drives. The keyboard key-to-matrix mapping follows the daemon's `KEY_MAPPING` /
+  RGBMatrixFX drives. The keyboard key-to-matrix mapping follows the daemon's `KEY_MAPPING` /
   `EVENT_MAPPING` tables, and the test suite runs OpenRazer's fake-device test harness.
 * **[OpenRGB](https://gitlab.com/CalcProgrammer1/OpenRGB)** (GPL-2.0-only): its
   `RazerDevices.cpp` was used as a *reference* for the Cynosa Chroma logo cell and the
@@ -457,21 +487,21 @@ scripts and daemon are used directly and are not part of this repository. See
 
 ## License
 
-© 2026 Nitrofire Computing. RazorFX is made by **Nitrofire Computing**.
+© 2026 Nitrofire Computing. RGBMatrixFX is made by **Nitrofire Computing**.
 
-RazorFX is free software: you can redistribute it and/or modify it under the terms of the
+RGBMatrixFX is free software: you can redistribute it and/or modify it under the terms of the
 **GNU General Public License** as published by the Free Software Foundation, either **version 3** of
-the License, or (at your option) any later version, **with the RazorFX plugin exception**:
+the License, or (at your option) any later version, **with the RGBMatrixFX plugin exception**:
 
 ```
-SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 ```
 
 The [plugin exception](LICENSE-EXCEPTION) is an additional permission under GPLv3 section 7. It lets
-separately distributed, independently written plugins that interact with RazorFX *only* through the
+separately distributed, independently written plugins that interact with RGBMatrixFX *only* through the
 documented [plugin API](docs/PLUGIN_API.md) use any license, including a proprietary one.
-RazorFX itself, and any modified version of it, stays under the GPL. The exception doesn't cover
-code that reaches into RazorFX's internals, and it doesn't change the licenses of the libraries RazorFX
+RGBMatrixFX itself, and any modified version of it, stays under the GPL. The exception doesn't cover
+code that reaches into RGBMatrixFX's internals, and it doesn't change the licenses of the libraries RGBMatrixFX
 uses (PySide6: LGPL-3.0, OpenRazer: GPL-2.0-or-later). `AdditionRef-` is the SPDX 3.0 way to name a
 custom exception. The example plugin and the API doc's snippets are 0BSD, so you can copy them freely.
 

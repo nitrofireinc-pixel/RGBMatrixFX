@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
+# OpenRGB SDK server (user unit). RGBMatrixFX lists the motherboard, RAM and fans that
+# OpenRGB finds through this server (localhost port 6742). Starts only if OpenRGB is installed.
+#   systemctl --user enable --now openrgb-server.service
+[Unit]
+Description=OpenRGB SDK server (for RGBMatrixFX)
+Documentation=https://openrgb.org
+ConditionPathExists=|/usr/bin/openrgb
+ConditionPathExists=|/usr/local/bin/openrgb
+After=graphical-session.target
+
+[Service]
+ExecStart=openrgb --server --server-port 6742 --noautoconnect
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

@@ -1,6 +1,6 @@
 {
-  "_comment": "RazorFX preset file (example). Import it with File > Import presets... Export your own with File > Export all presets... (or Presets > Export this preset...). Field reference: examples/presets/README.md",
-  "format": "razorfx-presets",
+  "_comment": "RGBMatrixFX preset file (example). Import it with File > Import presets... Export your own with File > Export all presets... (or Presets > Export this preset...). Field reference: examples/presets/README.md",
+  "format": "rgbmatrixfx-presets",
   "version": 1,
   "presets": {
     "_comment": "Preset name -> profile. Names that clash with existing presets get ' (2)'.",

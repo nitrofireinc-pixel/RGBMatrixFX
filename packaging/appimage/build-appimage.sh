@@ -1,7 +1,7 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 # SPDX-FileCopyrightText: © 2026 Nitrofire Computing
-# Build dist/RazorFX-<version>-x86_64.AppImage from the working tree.
+# Build dist/RGBMatrixFX-<version>-x86_64.AppImage from the working tree.
 # Bundles: Python 3.12 (python-appimage), PySide6-Essentials, numpy, dbus-python, evdev and
 # the OpenRazer client library. Uses from the host: the OpenRazer driver + daemon, systemd,
 # glibc >= 2.28, X11/Wayland and OpenGL libraries, libdbus-1, and libxcb-cursor0 on X11.
@@ -18,7 +18,7 @@ PY_APPIMAGE_URL="${PY_APPIMAGE_URL:-https://github.com/niess/python-appimage/rel
 APPIMAGETOOL_URL="${APPIMAGETOOL_URL:-https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage}"
 OPENRAZER_VERSION="${OPENRAZER_VERSION:-3.10.2}"
 OPENRAZER_SHA256="${OPENRAZER_SHA256:-51b97aeaf930607c348710647fb81b7a25f80979bcfb0be22485f982b6babe58}"
-OUT="$ROOT/dist/RazorFX-$V-$ARCH.AppImage"
+OUT="$ROOT/dist/RGBMatrixFX-$V-$ARCH.AppImage"
 
 fetch() {   # url file
     [ -s "$CACHE/$2" ] || { echo ">> downloading $1"; curl -fL --retry 3 -o "$CACHE/$2.part" "$1"; mv "$CACHE/$2.part" "$CACHE/$2"; }
@@ -43,15 +43,15 @@ echo ">> Python packages"
 "$PY" -m pip install --quiet --no-cache-dir --no-compile --disable-pip-version-check \
     -r "$ROOT/packaging/appimage/requirements.txt"
 SP="$("$PY" -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
-# trim what RazorFX never uses
+# trim what RGBMatrixFX never uses
 rm -rf "$SP"/PySide6/Qt/qml "$SP"/PySide6/Qt/translations/qtwebengine* "$SP"/PySide6/include \
        "$SP"/PySide6/examples "$SP"/PySide6/scripts "$SP"/PySide6/typesystems "$SP"/PySide6/glue \
        "$SP"/numpy/*/tests "$SP"/numpy/tests
 for t in assistant designer linguist lrelease lupdate qmllint qmlformat qmlls; do rm -f "$SP/PySide6/$t"; done
 
-echo ">> RazorFX $V"
+echo ">> RGBMatrixFX $V"
 DESTDIR="$A" PREFIX=/usr PYTHON=/usr/bin/python3 UNITDIR=/usr/lib/systemd/user sh "$ROOT/packaging/install-tree.sh"
-VEN="$A/usr/share/razorfx/vendor"
+VEN="$A/usr/share/rgbmatrixfx/vendor"
 mkdir -p "$VEN/openrazer_daemon/misc" "$A/usr/share/doc/openrazer-client"
 tar -xzf "$CACHE/openrazer-$OPENRAZER_VERSION.tar.gz" -C "$B"
 ORS="$B/openrazer-$OPENRAZER_VERSION"
@@ -63,20 +63,20 @@ cp "$ORS/LICENSES/GPL-2.0-or-later.txt" "$ORS/README.md" "$A/usr/share/doc/openr
 echo "OpenRazer $OPENRAZER_VERSION client library (pylib/openrazer), unmodified, from $ORS.tar.gz (sha256 $OPENRAZER_SHA256)" \
     > "$A/usr/share/doc/openrazer-client/SOURCE.txt"
 rm -rf "$ORS"
-find "$A/usr/share/razorfx" -name __pycache__ -type d -prune -exec rm -rf {} +
-"$PY" -m compileall -q "$A/usr/share/razorfx" "$SP" >/dev/null || true
+find "$A/usr/share/rgbmatrixfx" -name __pycache__ -type d -prune -exec rm -rf {} +
+"$PY" -m compileall -q "$A/usr/share/rgbmatrixfx" "$SP" >/dev/null || true
 
 install -m 0755 "$ROOT/packaging/appimage/AppRun" "$A/AppRun"
-cp "$A/usr/share/applications/razorfx.desktop" "$A/razorfx.desktop"
-cp "$ROOT/data/razorfx.png" "$A/razorfx.png"
-ln -sf razorfx.png "$A/.DirIcon"
+cp "$A/usr/share/applications/rgbmatrixfx.desktop" "$A/rgbmatrixfx.desktop"
+cp "$ROOT/data/rgbmatrixfx.png" "$A/rgbmatrixfx.png"
+ln -sf rgbmatrixfx.png "$A/.DirIcon"
 
 echo ">> smoke test (imports, inside the AppDir)"
-PYTHONNOUSERSITE=1 PYTHONPATH="$A/usr/share/razorfx:$VEN" QT_QPA_PLATFORM=offscreen "$PY" -c '
-import razorfx, numpy, dbus, evdev, openrazer.client, openrazer.client.macro
+PYTHONNOUSERSITE=1 PYTHONPATH="$A/usr/share/rgbmatrixfx:$VEN" QT_QPA_PLATFORM=offscreen "$PY" -c '
+import rgbmatrixfx, numpy, dbus, evdev, openrazer.client, openrazer.client.macro
 from PySide6.QtWidgets import QApplication
-from razorfx.gui import app
-print("   ok: RazorFX", razorfx.__version__, "numpy", numpy.__version__, "dbus-python", dbus.__version__)'
+from rgbmatrixfx.gui import app
+print("   ok: RGBMatrixFX", rgbmatrixfx.__version__, "numpy", numpy.__version__, "dbus-python", dbus.__version__)'
 
 echo ">> appimagetool"
 rm -f "$OUT"

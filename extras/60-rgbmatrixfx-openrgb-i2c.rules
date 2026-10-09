@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
+# FALLBACK ONLY: install.sh puts this in /etc/udev/rules.d/ when OpenRGB's own udev rules
+# (60-openrgb.rules, shipped by the openrgb package) are not installed. Like OpenRGB's rules,
+# it lets the user logged in at the local seat open the SMBus/i2c devices, so OpenRGB can
+# read and set motherboard and RAM lighting without running as root.
+#   sudo install -m644 extras/60-rgbmatrixfx-openrgb-i2c.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+SUBSYSTEM=="i2c-dev", KERNEL=="i2c-[0-9]*", TAG+="uaccess"

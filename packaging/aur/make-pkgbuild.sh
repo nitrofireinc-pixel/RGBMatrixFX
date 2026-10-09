@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 # SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 # Write PKGBUILD + .SRCINFO for the AUR into OUT (default build/aur).
 #   make-pkgbuild.sh                       for the release tag v<version> (downloads the tag tarball
@@ -15,7 +15,7 @@ URL="https://github.com/nitrofireinc-pixel/razorFX/archive/refs/tags/v$UPVER.tar
 mkdir -p "$OUT"
 if [ "${1:-}" = "--local" ]; then
     TB="$(cd "$(dirname "$2")" && pwd)/$(basename "$2")"
-    cp "$TB" "$OUT/razorfx-$PKGVER.tar.gz"
+    cp "$TB" "$OUT/rgbmatrixfx-$PKGVER.tar.gz"
     URL="file://$TB"
     SHA256="$(sha256sum "$TB" | cut -d' ' -f1)"
 elif [ -z "${SHA256:-}" ]; then

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 # SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """A minimal org.freedesktop.portal.Settings for tests (run inside dbus-run-session):
 answers ReadOne/Read for org.freedesktop.appearance and changes its values on request
-(org.razorfx.Test.Set(key, value)), emitting SettingChanged like the real portal.
+(org.rgbmatrixfx.Test.Set(key, value)), emitting SettingChanged like the real portal.
   python3 tests/fake_portal.py [--scheme N] [--accent r,g,b] [--v1]"""
 import argparse
 import dbus
@@ -43,7 +43,7 @@ class Portal(dbus.service.Object):
     def SettingChanged(self, ns, key, value):
         pass
 
-    @dbus.service.method("org.razorfx.Test", in_signature="sv", out_signature="")
+    @dbus.service.method("org.rgbmatrixfx.Test", in_signature="sv", out_signature="")
     def Set(self, key, value):
         if key == "color-scheme":
             value = dbus.UInt32(int(value))

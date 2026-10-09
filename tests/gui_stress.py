@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 # SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """GUI stress / crash regression test (offscreen, no engine). Drives the window with real
 QTest mouse and key events, the way a user does, through every UI that rebuilds itself from
@@ -26,9 +26,9 @@ from PySide6.QtCore import Qt, QPoint, QPointF, QTimer, QEvent
 from PySide6.QtGui import QMouseEvent, QKeyEvent
 from PySide6.QtWidgets import (QApplication, QAbstractButton, QComboBox, QDialog, QLineEdit, QListWidget,
                                QCheckBox)
-from razorfx.gui import theme
-from razorfx.gui.app import MainWindow
-from razorfx.gui.keychips import KeyCaptureDialog
+from rgbmatrixfx.gui import theme
+from rgbmatrixfx.gui.app import MainWindow
+from rgbmatrixfx.gui.keychips import KeyCaptureDialog
 
 app = QApplication.instance() or QApplication([])
 theme.apply(app)
@@ -148,7 +148,7 @@ def capture(w, k, row=None):
 
 
 def gamer(w, rounds):
-    from razorfx import plugin_api
+    from rgbmatrixfx import plugin_api
     show_tab(w, 2)
     for r in range(rounds):
         w.features.clear()
@@ -214,7 +214,7 @@ def hl_page_has_free_form_add(w):
 
 
 def highlight(w, rounds):
-    from razorfx import plugin_api, layout as L
+    from rgbmatrixfx import plugin_api, layout as L
     show_tab(w, 2)
     for r in range(rounds):
         # free build, a config from before dev.3 with extra keys and groups

@@ -1,9 +1,9 @@
-# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 # SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 # Build the free-version packages for a version tag and attach them to a GitHub Release.
-#   git tag v1.1.0 && git push origin v1.1.0       -> release "RazorFX 1.1.0"
+#   git tag v1.1.0 && git push origin v1.1.0       -> release "RGBMatrixFX 1.1.0"
 #   v1.1.0-rc.1 (any tag with "-")                   -> marked as a pre-release
-# The tag must match razorfx/__init__.py (__version__) exactly, without the "v".
+# The tag must match rgbmatrixfx/__init__.py (__version__) exactly, without the "v".
 name: Release
 
 on:
@@ -40,7 +40,7 @@ jobs:
         run: |
           v="$(packaging/version.sh upstream)"
           if [ "v$v" != "$TAG" ]; then
-            echo "::error::tag $TAG does not match __version__ $v in razorfx/__init__.py"; exit 1
+            echo "::error::tag $TAG does not match __version__ $v in rgbmatrixfx/__init__.py"; exit 1
           fi
           [ "$(cat VERSION)" = "$v" ] || { echo "::error::VERSION file says $(cat VERSION), __version__ says $v"; exit 1; }
           echo "version=$v" >> "$GITHUB_OUTPUT"
@@ -50,7 +50,7 @@ jobs:
           shellcheck -s sh packaging/*.sh packaging/appimage/*.sh packaging/appimage/AppRun packaging/aur/*.sh
           shellcheck install.sh uninstall.sh
           appstreamcli validate --no-net packaging/*.metainfo.xml
-          sed 's|^Exec=.*|Exec=razorfx|' data/razorfx.desktop.in > /tmp/razorfx.desktop && desktop-file-validate /tmp/razorfx.desktop
+          sed 's|^Exec=.*|Exec=rgbmatrixfx|' data/rgbmatrixfx.desktop.in > /tmp/rgbmatrixfx.desktop && desktop-file-validate /tmp/rgbmatrixfx.desktop
 
   deb:
     name: .deb (Debian 13 / Ubuntu 25.10+)
@@ -66,9 +66,9 @@ jobs:
       - run: packaging/build-deb.sh
       - name: Install test
         run: |
-          apt-get install -y -q --no-install-recommends ./dist/razorfx_*_all.deb
-          test -x /usr/bin/razorfx && test -f /usr/lib/systemd/user/razorfx-engine.service
-          python3 -c "import sys; sys.path.insert(0, '/usr/share/razorfx'); import razorfx.engine, razorfx.gui.app; print(razorfx.__version__)"
+          apt-get install -y -q --no-install-recommends ./dist/rgbmatrixfx_*_all.deb
+          test -x /usr/bin/rgbmatrixfx && test -f /usr/lib/systemd/user/rgbmatrixfx-engine.service
+          python3 -c "import sys; sys.path.insert(0, '/usr/share/rgbmatrixfx'); import rgbmatrixfx.engine, rgbmatrixfx.gui.app; print(rgbmatrixfx.__version__)"
       - uses: actions/upload-artifact@v4
         with:
           name: deb
@@ -135,8 +135,8 @@ jobs:
           su builder -c "cd '$GITHUB_WORKSPACE/build/aur' && makepkg -f --nodeps --noconfirm"
           namcap build/aur/PKGBUILD build/aur/*.pkg.tar.* || true
           v="$(packaging/version.sh upstream)"
-          tar -C build/aur -czf "dist-razorfx-$v-aur.tar.gz" PKGBUILD .SRCINFO
-          mkdir -p dist && mv "dist-razorfx-$v-aur.tar.gz" "dist/razorfx-$v-aur.tar.gz"
+          tar -C build/aur -czf "dist-rgbmatrixfx-$v-aur.tar.gz" PKGBUILD .SRCINFO
+          mkdir -p dist && mv "dist-rgbmatrixfx-$v-aur.tar.gz" "dist/rgbmatrixfx-$v-aur.tar.gz"
       - uses: actions/upload-artifact@v4
         with:
           name: aur
@@ -161,7 +161,7 @@ jobs:
       - name: Examples download (preset template, layout pack template, docs)
         run: |
           v="${{ needs.check.outputs.version }}"
-          zip -q -r "dist/razorfx-$v-examples.zip" examples/presets examples/layouts docs/LAYOUTS.md
+          zip -q -r "dist/rgbmatrixfx-$v-examples.zip" examples/presets examples/layouts docs/LAYOUTS.md
       - name: Checksums and notes
         run: |
           cd dist && sha256sum -- * > SHA256SUMS && cat SHA256SUMS && cd ..
@@ -177,4 +177,4 @@ jobs:
           pre=""
           case "$TAG" in *-*) pre="--prerelease" ;; esac
           # shellcheck disable=SC2086
-          gh release create "$TAG" dist/* --title "RazorFX $v" --notes-file notes.md --generate-notes $pre --verify-tag
+          gh release create "$TAG" dist/* --title "RGBMatrixFX $v" --notes-file notes.md --generate-notes $pre --verify-tag

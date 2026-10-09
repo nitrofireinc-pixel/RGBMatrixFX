@@ -1,12 +1,12 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 # SPDX-FileCopyrightText: © 2026 Nitrofire Computing
-# RazorFX AppImage entry point.
-#   RazorFX-*.AppImage [GUI options]   open the window (also keeps the engine's user unit current)
-#   RazorFX-*.AppImage engine [...]    run the lighting engine (what the user unit starts)
-#   RazorFX-*.AppImage --integrate     add RazorFX to the app menu (desktop entry + icon)
-#   RazorFX-*.AppImage --unintegrate   remove that, and stop/remove the AppImage's engine unit
-# The engine runs as the systemd user unit razorfx-engine.service, written to
+# RGBMatrixFX AppImage entry point.
+#   RGBMatrixFX-*.AppImage [GUI options]   open the window (also keeps the engine's user unit current)
+#   RGBMatrixFX-*.AppImage engine [...]    run the lighting engine (what the user unit starts)
+#   RGBMatrixFX-*.AppImage --integrate     add RGBMatrixFX to the app menu (desktop entry + icon)
+#   RGBMatrixFX-*.AppImage --unintegrate   remove that, and stop/remove the AppImage's engine unit
+# The engine runs as the systemd user unit rgbmatrixfx-engine.service, written to
 # ~/.config/systemd/user/ with ExecStart pointing at this AppImage. A unit from a native
 # package or from install.sh is never touched.
 set -u
@@ -14,12 +14,12 @@ HERE="$(dirname "$(readlink -f "$0")")"
 APPDIR="${APPDIR:-$HERE}"
 PY="$APPDIR/opt/python3.12/bin/python3.12"
 export PYTHONNOUSERSITE=1
-export PYTHONPATH="$APPDIR/usr/share/razorfx:$APPDIR/usr/share/razorfx/vendor"
+export PYTHONPATH="$APPDIR/usr/share/rgbmatrixfx:$APPDIR/usr/share/rgbmatrixfx/vendor"
 export SSL_CERT_FILE="${SSL_CERT_FILE:-$APPDIR/opt/_internal/certs.pem}"
-UNIT=razorfx-engine.service
+UNIT=rgbmatrixfx-engine.service
 UDIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
-MARK="# Written by the RazorFX AppImage; it is rewritten when the AppImage moves."
+MARK="# Written by the RGBMatrixFX AppImage; it is rewritten when the AppImage moves."
 
 sd_quote() {   # one ExecStart argument: quote, and escape \ " % $ for systemd
     printf '"%s"' "$(printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/%/%%/g' -e 's/\$/$$/g')"
@@ -31,7 +31,7 @@ unit_text() {
     cat <<UNIT
 $MARK
 [Unit]
-Description=RazorFX lighting engine (AppImage)
+Description=RGBMatrixFX lighting engine (AppImage)
 Documentation=https://github.com/nitrofireinc-pixel/razorFX
 Wants=openrazer-daemon.service
 After=openrazer-daemon.service
@@ -78,25 +78,25 @@ refresh_menu() {    # stale icon caches show a generic icon instead of the logo 
 
 integrate() {
     [ -n "${APPIMAGE:-}" ] || { echo "--integrate only works when run as an AppImage" >&2; exit 1; }
-    f="$DATA/applications/razorfx.desktop"
+    f="$DATA/applications/rgbmatrixfx.desktop"
     if [ -f "$f" ] && ! ours "$f"; then
-        echo "RazorFX is already in the app menu ($f, not from this AppImage); left alone."
+        echo "RGBMatrixFX is already in the app menu ($f, not from this AppImage); left alone."
     else
         mkdir -p "$DATA/applications"
         { echo "$MARK"; sed -e "s|^Exec=.*|Exec=$(sd_quote "$APPIMAGE")|" -e "s|^TryExec=.*||" \
-              "$APPDIR/usr/share/applications/razorfx.desktop" | grep -v '^#'; } > "$f"
-        install -D -m 0644 "$APPDIR/usr/share/icons/hicolor/256x256/apps/razorfx.png" \
-            "$DATA/icons/hicolor/256x256/apps/razorfx.png"
+              "$APPDIR/usr/share/applications/rgbmatrixfx.desktop" | grep -v '^#'; } > "$f"
+        install -D -m 0644 "$APPDIR/usr/share/icons/hicolor/256x256/apps/rgbmatrixfx.png" \
+            "$DATA/icons/hicolor/256x256/apps/rgbmatrixfx.png"
         refresh_menu
-        echo "Added RazorFX to the app menu ($f)."
+        echo "Added RGBMatrixFX to the app menu ($f)."
     fi
     write_unit
 }
 
 unintegrate() {
-    f="$DATA/applications/razorfx.desktop"
+    f="$DATA/applications/rgbmatrixfx.desktop"
     if ours "$f"; then
-        rm -f "$f" "$DATA/icons/hicolor/256x256/apps/razorfx.png"
+        rm -f "$f" "$DATA/icons/hicolor/256x256/apps/rgbmatrixfx.png"
         refresh_menu
         echo "Removed $f"
     fi
@@ -109,8 +109,8 @@ unintegrate() {
 }
 
 case "${1:-}" in
-    engine) shift; exec "$PY" "$APPDIR/usr/share/razorfx/bin/razorfx-engine" "$@" ;;
+    engine) shift; exec "$PY" "$APPDIR/usr/share/rgbmatrixfx/bin/rgbmatrixfx-engine" "$@" ;;
     --integrate) integrate; exit 0 ;;
     --unintegrate) unintegrate; exit 0 ;;
-    *) write_unit; exec "$PY" "$APPDIR/usr/share/razorfx/bin/razorfx" "$@" ;;
+    *) write_unit; exec "$PY" "$APPDIR/usr/share/rgbmatrixfx/bin/rgbmatrixfx" "$@" ;;
 esac

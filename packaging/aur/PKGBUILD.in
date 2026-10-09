@@ -1,19 +1,22 @@
 # Maintainer: Nitrofire Computing <nitrofireinc-pixel at users dot noreply dot github dot com>
-# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 # Generated from packaging/aur/PKGBUILD.in by packaging/aur/make-pkgbuild.sh; edit the template.
-pkgname=razorfx
+pkgname=rgbmatrixfx
 pkgver=@PKGVER@
 _upver=@UPVER@
 pkgrel=1
-pkgdesc="Chroma-style lighting effects for Razer keyboards and mice (OpenRazer)"
+pkgdesc="Chroma-style lighting effects for RGB keyboards and mice (OpenRazer; lists OpenRGB devices)"
 arch=('any')
 url="https://github.com/nitrofireinc-pixel/razorFX"
-license=('GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception')
-depends=('python' 'pyside6' 'python-numpy' 'python-dbus' 'python-openrazer' 'openrazer-daemon')
+license=('GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception')
+depends=('python' 'pyside6' 'python-numpy' 'python-dbus' 'python-openrazer' 'openrazer-daemon' 'openrgb')
+replaces=('razorfx')
+conflicts=('razorfx')
+provides=('razorfx')
 optdepends=('openrazer-driver-dkms: the OpenRazer kernel driver (or another openrazer driver package)'
             'python-evdev: reactive effects (key presses, clicks, scrolling)'
             'pipewire: audio meter effect (pw-record)'
-            'polychromatic: lighting control when RazorFX is stopped')
+            'polychromatic: lighting control when RGBMatrixFX is stopped')
 source=("$pkgname-$pkgver.tar.gz::@SOURCE_URL@")
 sha256sums=('@SHA256@')
 
@@ -21,6 +24,6 @@ package() {
   cd "razorFX-$_upver"
   DESTDIR="$pkgdir" PREFIX=/usr PYTHON=/usr/bin/python3 \
     LICENSEDIR="/usr/share/licenses/$pkgname" sh packaging/install-tree.sh
-  python -m compileall -q -d /usr/share/razorfx "$pkgdir/usr/share/razorfx"
-  python -O -m compileall -q -d /usr/share/razorfx "$pkgdir/usr/share/razorfx"
+  python -m compileall -q -d /usr/share/rgbmatrixfx "$pkgdir/usr/share/rgbmatrixfx"
+  python -O -m compileall -q -d /usr/share/rgbmatrixfx "$pkgdir/usr/share/rgbmatrixfx"
 }

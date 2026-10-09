@@ -2,7 +2,7 @@
 # Preset files
 
 `example-preset.json` is a complete preset you can import with *File ▸ Import presets…* and use as a
-template. JSON has no comments, so it carries `_comment` keys, which RazorFX ignores. This page
+template. JSON has no comments, so it carries `_comment` keys, which RGBMatrixFX ignores. This page
 documents every field. Values out of range are clamped on import, unknown keys and effects are
 ignored, missing keys get their defaults, and importing never overwrites an existing preset.
 To make your own file, set up a preset in the app and use *File ▸ Export all presets…* or
@@ -12,7 +12,7 @@ To make your own file, set up a preset in the app and use *File ▸ Export all p
 
 | Key | Meaning |
 |---|---|
-| `format` | Always `"razorfx-presets"` |
+| `format` | Always `"rgbmatrixfx-presets"` |
 | `version` | `1` |
 | `presets` | Object: preset name → profile. A bare profile (an object with `effect`) is accepted too; the file name becomes the preset name |
 

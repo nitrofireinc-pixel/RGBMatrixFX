@@ -1,13 +1,13 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 # SPDX-FileCopyrightText: © 2026 Nitrofire Computing
-# Print RazorFX's version (from razorfx/__init__.py) in a packaging format:
+# Print RGBMatrixFX's version (from rgbmatrixfx/__init__.py) in a packaging format:
 #   version.sh [upstream|deb|rpm|arch|tag]
 #   1.1.0 -> 1.1.0 everywhere; 1.1.0-rc.1 -> deb/rpm 1.1.0~rc.1 (sorts before 1.1.0), arch 1.1.0rc.1
 set -eu
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-V="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' "$ROOT/razorfx/__init__.py")"
-[ -n "$V" ] || { echo "version.sh: no __version__ in razorfx/__init__.py" >&2; exit 1; }
+V="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' "$ROOT/rgbmatrixfx/__init__.py")"
+[ -n "$V" ] || { echo "version.sh: no __version__ in rgbmatrixfx/__init__.py" >&2; exit 1; }
 case "${1:-upstream}" in
     upstream) echo "$V" ;;
     tag) echo "v$V" ;;

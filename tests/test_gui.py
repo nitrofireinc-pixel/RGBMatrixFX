@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 # SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """GUI tests (offscreen Qt, engine not running): python3 -m unittest tests/test_gui.py"""
 import json, os, sys, tempfile, time, unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("RAZORFX_NO_PORTAL", "1")    # don't follow the box's desktop in tests
+os.environ.setdefault("RGBMATRIXFX_NO_PORTAL", "1")    # don't follow the box's desktop in tests
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from PySide6.QtWidgets import (QApplication, QGroupBox, QSlider, QAbstractSpinBox, QComboBox, QScrollBar,
                              QAbstractSlider)
 from PySide6.QtCore import QPointF, QPoint, Qt
 from PySide6.QtGui import QWheelEvent, QColor
 from PySide6.QtWidgets import QToolButton
-import razorfx
-from razorfx import layout as L
-from razorfx.effects import EFFECTS
-from razorfx.gui import theme
-from razorfx.gui.app import MainWindow
+import rgbmatrixfx
+from rgbmatrixfx import layout as L
+from rgbmatrixfx.effects import EFFECTS
+from rgbmatrixfx.gui import theme
+from rgbmatrixfx.gui.app import MainWindow
 
 app = QApplication.instance() or QApplication([])
 theme.apply(app)
@@ -39,10 +39,10 @@ class TestGui(unittest.TestCase):
         spin(200)
 
     def test_help_about(self):
-        import razorfx
-        self.assertEqual(razorfx.__version__, "1.1.0")
+        import rgbmatrixfx
+        self.assertEqual(rgbmatrixfx.__version__, "1.2.0-dev.1")
         with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION")) as f:
-            self.assertEqual(f.read().strip(), razorfx.__version__)
+            self.assertEqual(f.read().strip(), rgbmatrixfx.__version__)
         mb = self.w.menuBar()
         titles = [a.text().replace("&", "") for a in mb.actions()]
         self.assertEqual(titles[0], "File")
@@ -52,18 +52,18 @@ class TestGui(unittest.TestCase):
         self.assertGreater(mb.height(), 10)
         self.assertEqual(self.w.about_action.shortcut().toString(), "F1")
         self.assertIsNone(self.w.findChild(QToolButton, "AboutBtn"))   # header button removed (dev.2)
-        self.assertEqual(self.w.windowTitle(), "RazorFX")
-        self.assertEqual(self.w.about_action.text().replace("&", ""), "About RazorFX")
+        self.assertEqual(self.w.windowTitle(), "RGBMatrixFX")
+        self.assertEqual(self.w.about_action.text().replace("&", ""), "About RGBMatrixFX")
         t = self.w.about_text()
-        for want in ("<h3>RazorFX 1.1.0</h3>", "GNU General Public License", "version 3",
-                     "GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception", "plugin exception",
+        for want in ("<h3>RGBMatrixFX 1.2.0-dev.1</h3>", "GNU General Public License", "version 3",
+                     "GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception", "plugin exception",
                      "LICENSE-EXCEPTION", "https://github.com/nitrofireinc-pixel/razorFX", "\u00a9 2026 Nitrofire Computing",
                      "Not affiliated with or endorsed by Razer Inc. Razer is a trademark of Razer Inc."):
             self.assertIn(want, t)
         self.assertNotIn("Razer FX", t)
         box = self.w.show_about()
         self.assertTrue(box.isVisible())
-        self.assertEqual(box.windowTitle(), "About RazorFX")
+        self.assertEqual(box.windowTitle(), "About RGBMatrixFX")
         self.assertEqual([box.tabs.tabText(i) for i in range(box.tabs.count())],
                          ["About", "Credits", "License", "System info"])
         self.assertEqual(box.edition_lbl.text(), "Free edition")
@@ -76,11 +76,11 @@ class TestGui(unittest.TestCase):
             self.assertIn(want, cred)
         lic = box.pages["license"].toPlainText()
         for want in ("version 3 of the License", "WITHOUT ANY WARRANTY", "Plugin exception",
-                     "RazorFX Plugin Exception, version 1.0", "Razer is a trademark of Razer Inc."):
+                     "RGBMatrixFX Plugin Exception, version 1.0", "Razer is a trademark of Razer Inc."):
             self.assertIn(want, lic)
         text = box.copy_system_info()
         self.assertEqual(app.clipboard().text(), text)
-        self.assertTrue(text.startswith("RazorFX 1.1.0 ("))
+        self.assertTrue(text.startswith("RGBMatrixFX 1.2.0-dev.1 ("))
         self.assertIn("(Free edition)", text)
         self.assertIn("Engine: not running", text)
         box.close()
@@ -90,9 +90,55 @@ class TestGui(unittest.TestCase):
         self.assertTrue(self.w._about_box.isVisible())
         self.w._about_box.close()
 
+    def test_openrgb_devices_listed_read_only(self):
+        from tests.test_openrgb import FakeOpenRGB
+        srv = FakeOpenRGB()
+        os.environ["RGBMATRIXFX_OPENRGB_PORT"] = str(srv.port)
+        try:
+            w = MainWindow(sock_path=os.path.join(self.d.name, "none2.sock"), cfg_path=self.cfg)
+            w.show()
+            end = time.time() + 5
+            while "MSI MPG B550" not in w.orgb_info.text() and time.time() < end:
+                spin(50)
+            txt = w.orgb_info.text()
+            self.assertIn("Motherboard: MSI MPG B550 GAMING PLUS (MS-7C56)  (zones: JRGB1 \u00b7 1 LED, Onboard \u00b7 6 LEDs)", txt)
+            self.assertIn("RAM: ENE DRAM", txt)
+            self.assertEqual(w.openrgb_devices()[0], "ok")
+            self.assertFalse(w.orgb_start_btn.isVisible())
+            self.assertIn("Sync with effects", w.orgb_pro_hint.text())
+            w._set_pro_teasers(False)
+            self.assertTrue(w.orgb_pro_hint.isHidden())
+            w._set_pro_teasers(True)
+            self.assertFalse(w.orgb_pro_hint.isHidden())
+            self.assertTrue(all(p in (1, 0, 50) for _d, p, _b in srv.log))     # never a write request
+            w.shutdown()
+            w.close()
+            w.deleteLater()
+        finally:
+            os.environ.pop("RGBMATRIXFX_OPENRGB_PORT", None)
+            srv.close()
+        # the default window (nothing on the port) explains instead of failing
+        self.assertNotIn("Traceback", self.w.orgb_info.text())
+
+    def test_help_support_item(self):
+        hm = self.w.help_menu
+        labels = [a.text().replace("&", "") for a in hm.actions()]
+        self.assertIn("Support", labels)
+        self.assertFalse(any("donat" in l.lower() for l in labels))
+        self.assertTrue(rgbmatrixfx.SUPPORT_URL.startswith("https://"))
+        opened = []
+        import rgbmatrixfx.gui.app as appmod
+        orig = appmod.QDesktopServices.openUrl
+        appmod.QDesktopServices.openUrl = lambda u: opened.append(u.toString())
+        try:
+            self.w.support_action.trigger()
+        finally:
+            appmod.QDesktopServices.openUrl = orig
+        self.assertEqual(opened, [rgbmatrixfx.SUPPORT_URL])
+
     def test_system_info_has_no_serials(self):
-        from razorfx.gui import about
-        from razorfx import plugin_api
+        from rgbmatrixfx.gui import about
+        from rgbmatrixfx import plugin_api
         st = {"fps": 30.0, "effect": "flame", "paused": False,
               "keyboard": {"name": "Razer Cynosa Chroma", "serial": "PM1234567890KB", "pid": 0x022A,
                            "matrix": [6, 22], "io": "sysfs", "hw_fps": 28.0},
@@ -192,7 +238,7 @@ class TestGui(unittest.TestCase):
                 same += 1
             self.assertGreater(same, 10)
             self.assertNotEqual(dark.pixel(2, 2), light.pixel(2, 2))   # the window around it did change
-            # accent: custom colour, then RazorFX green
+            # accent: custom colour, then RGBMatrixFX green
             w.accent_combo.setCurrentIndex(w.accent_combo.findData("custom"))
             self.assertFalse(w.accent_btn.isHidden())
             w.theme_ctl.set_accent("#aa00ff")
@@ -221,8 +267,8 @@ class TestGui(unittest.TestCase):
         from PySide6.QtTest import QTest
         from PySide6.QtCore import QEvent
         from PySide6.QtWidgets import QPushButton
-        from razorfx import plugin_api
-        from razorfx.gui.keychips import KeyCaptureDialog
+        from rgbmatrixfx import plugin_api
+        from rgbmatrixfx.gui.keychips import KeyCaptureDialog
         w = self.w
         w.tabs.setCurrentIndex(2)
         w.g["gamer_keys"] = ["SPACE", "W", "A", "S", "D"]
@@ -251,8 +297,8 @@ class TestGui(unittest.TestCase):
         self.assertEqual([c.name for c in w.gamer_chips.chips], ["W", "A", "S", "D"])
         # the locked chip explains itself, and the setting hides it
         w.gamer_chips.add_chip.click()
-        self.assertIn("RazorFX Pro", w.statusBar().currentMessage())
-        from razorfx import pro_status
+        self.assertIn("RGBMatrixFX Pro", w.statusBar().currentMessage())
+        from rgbmatrixfx import pro_status
         if not pro_status.PRO_FOR_SALE:                                  # Trevor: "Coming soon" until launch
             self.assertIn("coming soon", w.gamer_chips.add_chip.text())
             self.assertIn("coming soon", w.statusBar().currentMessage())
@@ -291,7 +337,7 @@ class TestGui(unittest.TestCase):
 
     def test_first_run_enables_engine_for_packages(self):
         import types
-        from razorfx.gui import app as A
+        from rgbmatrixfx.gui import app as A
         calls = []
 
         def fake(state):
@@ -322,7 +368,7 @@ class TestGui(unittest.TestCase):
         self.assertFalse([m for m in sys.modules if m == "PyQt6" or m.startswith(("PyQt6.", "PyQt5"))])
 
     def test_plugins(self):
-        from razorfx import plugin_api as api
+        from rgbmatrixfx import plugin_api as api
         here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         pdir = os.path.join(self.d.name, "plugins")
         os.makedirs(os.path.join(pdir, "broken"))
@@ -361,7 +407,7 @@ class TestGui(unittest.TestCase):
             box = w.show_about()
             self.assertEqual(box.edition_lbl.text(), "Pro \u2014 licensed to Trevor Olsen")
             self.assertIn("Edition: Pro \u2014 licensed to Trevor Olsen", box.pages["about"].toPlainText())
-            self.assertIn("RazorFX %s (Pro edition)" % razorfx.__version__, box.system_info())
+            self.assertIn("RGBMatrixFX %s (Pro edition)" % rgbmatrixfx.__version__, box.system_info())
             box.close()
             info = w.plugin_info.text()
             self.assertIn("Hello plugin 0.1.0", info)
@@ -381,7 +427,7 @@ class TestGui(unittest.TestCase):
             st = ctx.engine_status()
             self.assertEqual((st["running"], st["effect"]), (False, "wave"))
             w.unload_plugins()
-            with open(os.path.join(self.d.name, "cfg", "razorfx", "plugins", "hello.json")) as f:
+            with open(os.path.join(self.d.name, "cfg", "rgbmatrixfx", "plugins", "hello.json")) as f:
                 self.assertEqual(json.load(f)["greetings"], 2)
             w.close()
         finally:
@@ -439,13 +485,13 @@ class TestGui(unittest.TestCase):
         self.assertNotIn("Aurora copy", self.w.cfg["presets"])
         self.w._effect_params({"style": "Plasma"})
         self.w.save_preset()
-        one = os.path.join(self.d.name, "one.razorfx.json")
-        allp = os.path.join(self.d.name, "all.razorfx.json")
+        one = os.path.join(self.d.name, "one.rgbmatrixfx.json")
+        allp = os.path.join(self.d.name, "all.rgbmatrixfx.json")
         self.w.export_preset(one)
         self.w.export_all(allp)
         with open(one) as f:
             data = json.load(f)
-        self.assertEqual(data["format"], "razorfx-presets")
+        self.assertEqual(data["format"], "rgbmatrixfx-presets")
         self.assertEqual(list(data["presets"]), ["My Aurora"])
         added = self.w.import_presets([one])
         self.assertEqual(added, ["My Aurora (2)"])
@@ -459,7 +505,7 @@ class TestGui(unittest.TestCase):
         self.assertTrue(self.warnings)
 
     def test_advanced_sections(self):
-        from razorfx.gui.widgets import Collapsible, ParamForm
+        from rgbmatrixfx.gui.widgets import Collapsible, ParamForm
         for cls in EFFECTS:
             self.w.select_effect(cls.id)
             n_adv = len([s for s in cls.schema() if s.get("adv")])
@@ -605,7 +651,7 @@ class TestGui(unittest.TestCase):
         self.assertFalse(vis & {"Add group", "Pick keys on the preview", "+ Add key", "WASD", "Arrows",
                                 "F-keys", "Numbers", "Numpad", "Logo", "Clear"}, vis)
         self.assertTrue(w.hl_add_locked.isVisible())
-        from razorfx import pro_status
+        from rgbmatrixfx import pro_status
         if not pro_status.PRO_FOR_SALE:
             self.assertIn("coming soon", w.hl_add_locked.text())
         w._hl_add()                                                       # no backdoor
@@ -621,10 +667,10 @@ class TestGui(unittest.TestCase):
     def test_register_layout(self):
         import json
         from unittest import mock
-        from razorfx import plugin_api as api, devmaps
+        from rgbmatrixfx import plugin_api as api, devmaps
         with mock.patch.dict(os.environ, {"XDG_DATA_HOME": os.path.join(self.d.name, "data")}):
             ctx = api.PluginContext(api.PluginInfo("/x", {"id": "kb-pack", "version": "1", "api": "1.0"}), self.w.plugin_host)
-            pack = {"format": "razorfx-layout", "version": 1, "name": "My Keypad", "match": {"usb": ["1532:0208"]},
+            pack = {"format": "rgbmatrixfx-layout", "version": 1, "name": "My Keypad", "match": {"usb": ["1532:0208"]},
                     "matrix": [4, 6], "keys": {"Q": [0, 1], "W": [0, 2]}}
             path = ctx.register_layout(pack)
             self.assertEqual(os.path.basename(path), "plugin-kb-pack-my-keypad.json")
@@ -636,7 +682,7 @@ class TestGui(unittest.TestCase):
             self.assertEqual(len(os.listdir(os.path.dirname(path))), 1)
 
     def test_highlight_pick(self):                                        # Pro
-        from razorfx import plugin_api
+        from rgbmatrixfx import plugin_api
         self.w.enable_feature(plugin_api.FEATURE_HIGHLIGHT_ADD)
         self.addCleanup(self.w.features.clear)
         self.w.tabs.setCurrentWidget(self.w.tab_hl)

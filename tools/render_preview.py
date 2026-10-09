@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 # SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """Render preview.mp4: several effects on the keyboard + Mamba layout, using the
 same Compositor and painter as the engine/GUI, with simulated typing and clicks."""
@@ -9,9 +9,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 from PySide6.QtCore import Qt, QRectF
 from PySide6.QtGui import QGuiApplication, QImage, QPainter, QColor, QFont
-from razorfx import config, layout as L
-from razorfx.scene import Scene, Compositor
-from razorfx.gui.preview import ScenePainter
+from rgbmatrixfx import config, layout as L
+from rgbmatrixfx.scene import Scene, Compositor
+from rgbmatrixfx.gui.preview import ScenePainter
 
 W, H, FPS = 1280, 480, 30
 OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "preview.mp4")
@@ -80,7 +80,7 @@ def main():
                       {272: "left click", 273: "right click", "wheel": "scroll"}[ev[1]]
                 p.drawText(QRectF(30, 50, W - 60, 24), int(Qt.AlignmentFlag.AlignRight), lab)
             p.setPen(QColor("#44d62c")); p.setFont(sf)
-            p.drawText(QRectF(30, 14, W - 60, 36), int(Qt.AlignmentFlag.AlignRight), "RazorFX")
+            p.drawText(QRectF(30, 14, W - 60, 36), int(Qt.AlignmentFlag.AlignRight), "RGBMatrixFX")
             p.end()
             ff.stdin.write(bytes(img.constBits())[:img.sizeInBytes()])
         gt += secs

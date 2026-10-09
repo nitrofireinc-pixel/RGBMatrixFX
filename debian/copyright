@@ -1,17 +1,17 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: RazorFX
+Upstream-Name: RGBMatrixFX
 Upstream-Contact: https://github.com/nitrofireinc-pixel/razorFX/issues
 Source: https://github.com/nitrofireinc-pixel/razorFX
 
 Files: *
 Copyright: 2026 Nitrofire Computing
-License: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+License: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version, with the additional permission
- (RazorFX plugin exception) given in
- /usr/share/doc/razorfx/LICENSE-EXCEPTION.
+ (RGBMatrixFX plugin exception) given in
+ /usr/share/doc/rgbmatrixfx/LICENSE-EXCEPTION.
  .
  This program is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of

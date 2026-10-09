@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), ".."))
+from rgbmatrixfx.engine import main
+sys.exit(main())

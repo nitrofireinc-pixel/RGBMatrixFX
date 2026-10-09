@@ -1,6 +1,6 @@
 {
-  "_comment": "RazorFX layout pack (example/template). Copy to ~/.local/share/razorfx/layouts/<something>.json, edit, then run: systemctl --user restart razorfx-engine (or replug the device). Data only: nothing here is executed. Format: docs/LAYOUTS.md",
-  "format": "razorfx-layout",
+  "_comment": "RGBMatrixFX layout pack (example/template). Copy to ~/.local/share/rgbmatrixfx/layouts/<something>.json, edit, then run: systemctl --user restart rgbmatrixfx-engine (or replug the device). Data only: nothing here is executed. Format: docs/LAYOUTS.md",
+  "format": "rgbmatrixfx-layout",
   "version": 1,
   "name": "Example 60% keyboard (ANSI)",
   "kind": "keyboard",
@@ -10,7 +10,7 @@
     "name": ["Example 60% Keyboard"]
   },
   "matrix": [5, 15],
-  "_comment_keys": "Key -> [row, col] in the device's OpenRazer matrix. Keys: RazorFX/evdev names (W, SPACE, LEFTSHIFT, KP5, F1...), KEY_ names (KEY_W) or evdev codes (\"17\"). Keys you leave out stay dark for ripples; effects still light every cell.",
+  "_comment_keys": "Key -> [row, col] in the device's OpenRazer matrix. Keys: RGBMatrixFX/evdev names (W, SPACE, LEFTSHIFT, KP5, F1...), KEY_ names (KEY_W) or evdev codes (\"17\"). Keys you leave out stay dark for ripples; effects still light every cell.",
   "keys": {
     "ESC": [0, 0], "1": [0, 1], "2": [0, 2], "3": [0, 3], "4": [0, 4], "5": [0, 5], "6": [0, 6],
     "7": [0, 7], "8": [0, 8], "9": [0, 9], "0": [0, 10], "MINUS": [0, 11], "EQUAL": [0, 12], "BACKSPACE": [0, 14],

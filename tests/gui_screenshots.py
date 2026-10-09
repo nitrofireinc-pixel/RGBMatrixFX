@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 # SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """Start fake devices + real daemon + engine, then run the GUI under Xvfb and
 grab screenshots of each tab / a few effects.
@@ -27,7 +27,7 @@ procs.append(subprocess.Popen([sys.executable, HERE + "/tests/run_daemon_testmod
                                "--run-dir", W + "/data", "--log-dir", W + "/logs", "--test-dir", W + "/dev",
                                "--config=" + OR + "/daemon/resources/razer.conf"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
 time.sleep(3)
-procs.append(subprocess.Popen([sys.executable, HERE + "/bin/razorfx-engine"], env=eenv, stdout=open(W + "/engine.log", "w"), stderr=subprocess.STDOUT))
+procs.append(subprocess.Popen([sys.executable, HERE + "/bin/rgbmatrixfx-engine"], env=eenv, stdout=open(W + "/engine.log", "w"), stderr=subprocess.STDOUT))
 time.sleep(3)
 # FAKE_PORTAL="--scheme 1" serves a desktop appearance (tests/fake_portal.py) on this session bus
 if os.environ.get("FAKE_PORTAL") is not None:
@@ -53,14 +53,14 @@ try:
     for name, args in shots:
         if ONLY and name[:2] not in ONLY:
             continue
-        r = subprocess.run([sys.executable, HERE + "/bin/razorfx", "--screenshot", os.path.join(OUT, name), "--delay", "3000"] + args + GUI_ARGS,
+        r = subprocess.run([sys.executable, HERE + "/bin/rgbmatrixfx", "--screenshot", os.path.join(OUT, name), "--delay", "3000"] + args + GUI_ARGS,
                            env=eenv, capture_output=True, text=True, timeout=60)
         print(name, "rc", r.returncode, r.stderr.strip()[-500:])
     # engine offline screenshot
     if ONLY and "09" not in ONLY:
         sys.exit(0)
     procs[-1].terminate(); procs[-1].wait(10)
-    r = subprocess.run([sys.executable, HERE + "/bin/razorfx", "--screenshot", os.path.join(OUT, "09-engine-stopped.png"), "--delay", "2500"],
+    r = subprocess.run([sys.executable, HERE + "/bin/rgbmatrixfx", "--screenshot", os.path.join(OUT, "09-engine-stopped.png"), "--delay", "2500"],
                        env=eenv, capture_output=True, text=True, timeout=60)
     print("09-engine-stopped.png rc", r.returncode, r.stderr.strip()[-500:])
 finally:

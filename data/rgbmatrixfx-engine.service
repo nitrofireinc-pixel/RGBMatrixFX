@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
+# SPDX-FileCopyrightText: © 2026 Nitrofire Computing
+[Unit]
+Description=RGBMatrixFX lighting engine (OpenRazer keyboards + mice)
+Documentation=file://%h/.local/share/rgbmatrixfx/README.md
+# Wants (not Requires): the engine reconnects by itself when openrazer-daemon
+# restarts, so it shouldn't be stopped together with the daemon.
+Wants=openrazer-daemon.service
+After=openrazer-daemon.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/.local/share/rgbmatrixfx/bin/rgbmatrixfx-engine
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=3
+Nice=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

@@ -1,10 +1,38 @@
 # Changelog
 
-All notable changes to RazorFX (called Razer FX up to 1.0.0) are documented here. The format follows
+All notable changes to RGBMatrixFX (called RazorFX in 1.1 and Razer FX up to 1.0.0) are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+
+## [1.2.0-dev.1] - 2026-10-09
+
+Development build of the free version.
+
+### Changed
+- Renamed from RazorFX to **RGBMatrixFX**, because the project is expanding towards the keyboards
+  and mice OpenRGB supports (effects still run on OpenRazer devices today). Python package
+  `rgbmatrixfx`, commands `rgbmatrixfx` / `rgbmatrixfx-engine`, service
+  `rgbmatrixfx-engine.service`, settings in `~/.config/rgbmatrixfx`, preset files
+  `*.rgbmatrixfx.json` (older `*.razorfx.json` / `*.razerfx.json` still import).
+- First start (and `install.sh`) copies `~/.config/razorfx` (config, presets, plugin settings,
+  window layout) to the new folder once; the old folder is left untouched. `install.sh` stops and
+  disables `razorfx-engine.service`, removes the old menu entry, icons and program files, and keeps
+  `razorfx` / `razorfx-engine` as aliases. The packages replace the old `razorfx` package.
+
+### Added
+- *Settings ▸ Devices* lists the motherboard, RAM and fan / ARGB-header lighting found by
+  OpenRGB's SDK server (name, type, zones), read-only. It re-scans by itself, so devices that
+  OpenRGB detects late after login still appear; OpenRGB missing or stopped is shown plainly.
+  A locked "Sync with effects · Pro" hint follows the Pro-previews setting.
+- `install.sh` sets up OpenRGB: the `openrgb` package where available, the `i2c-dev` module
+  (now and at boot), a small i2c udev rule when OpenRGB's own rules are missing, and the user
+  service `openrgb-server.service` (`openrgb --server`, port 6742). The `sudo` steps are listed
+  before they run; `--no-deps` only prints them, `--no-openrgb` skips the setup.
+- Packages recommend / depend on `openrgb` (deb, rpm: Recommends; Arch: depends) and ship
+  `openrgb-server.service` (user unit, not enabled) and `modules-load.d/rgbmatrixfx-i2c.conf`.
+- *Help ▸ Support*: an optional link to support development (never shown unasked).
 
 ## [1.1.0] - 2026-10-05
 

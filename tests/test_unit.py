@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 # SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """Unit tests (stdlib unittest): python3 -m unittest discover -s tests -v"""
 import math, os, sys, tempfile, threading, time, unittest
 import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from razorfx import config, ipc, layout as L
-from razorfx.effects import EFFECTS, EFFECT_BY_ID
-from razorfx.scene import Scene, Compositor
+from rgbmatrixfx import config, ipc, layout as L
+from rgbmatrixfx.effects import EFFECTS, EFFECT_BY_ID
+from rgbmatrixfx.scene import Scene, Compositor
 
 MAMBA = L.MOUSE_PROFILES[0x0073]
 
@@ -345,7 +345,7 @@ class FakeHub:
         self.extras = []
 
     def keymap(self):
-        from razorfx import devmaps
+        from rgbmatrixfx import devmaps
         return devmaps.default_keymap()
 
     def extra_dims(self):
@@ -463,15 +463,15 @@ class TestDeviceIO(unittest.TestCase):
         return dd
 
     def test_sysfs_changed_rows_and_single_custom(self):
-        from razorfx import devices
+        from rgbmatrixfx import devices
         with tempfile.TemporaryDirectory() as d:
             dd = self._sysfs(d)
-            os.environ["RAZORFX_SYSFS_ROOT"] = d
+            os.environ["RGBMATRIXFX_SYSFS_ROOT"] = d
             try:
                 dev = _FakeDev(6, 22, 0x022A)
                 out = devices.Out(dev, "keyboard")
             finally:
-                del os.environ["RAZORFX_SYSFS_ROOT"]
+                del os.environ["RGBMATRIXFX_SYSFS_ROOT"]
             self.assertEqual(out.path, "sysfs")
             self.assertEqual(out.sysfs, dd)
             def rd(a):
@@ -504,7 +504,7 @@ class TestDeviceIO(unittest.TestCase):
             self.assertEqual(out.kicks, 2)
 
     def test_dbus_fallback_and_custom_every_frame(self):
-        from razorfx import devices
+        from rgbmatrixfx import devices
         dev = _FakeDev(1, 16, 0x0073)
         out = devices.Out(dev, "mouse", opts={"device_io": "dbus", "custom_every_frame": True})
         self.assertEqual(out.path, "dbus")
@@ -516,7 +516,7 @@ class TestDeviceIO(unittest.TestCase):
         self.assertEqual(len(dev.light.calls[0][1]), 3 + 48)
 
     def test_writer_thread_never_blocks_and_keeps_latest(self):
-        from razorfx import devices
+        from rgbmatrixfx import devices
         dev = _FakeDev(1, 16, 0x0073, delay=0.06)
         out = devices.Out(dev, "mouse", opts={"device_io": "dbus", "mouse_max_fps": 60}).start()
         try:
@@ -539,7 +539,7 @@ class TestDeviceIO(unittest.TestCase):
 
     def test_eviocsmask_codes_size_is_whole_longs(self):
         import struct
-        from razorfx import inputs
+        from rgbmatrixfx import inputs
         seen = {}
         orig = inputs.fcntl.ioctl
         inputs.fcntl.ioctl = lambda fd, req, arg: seen.update(req=req, arg=arg)
@@ -553,7 +553,7 @@ class TestDeviceIO(unittest.TestCase):
 
 class TestEngine(unittest.TestCase):
     def test_engine_loop_fake_hub(self):
-        from razorfx.engine import Engine
+        from rgbmatrixfx.engine import Engine
         with tempfile.TemporaryDirectory() as d:
             hub = FakeHub()
             eng = Engine(cfg_path=os.path.join(d, "c.json"), sock_path=os.path.join(d, "s"), hub=hub, inputs=FakeInputs())
@@ -573,7 +573,7 @@ class TestEngine(unittest.TestCase):
 
 class TestGenericInputDetection(unittest.TestCase):
     def test_classify(self):
-        from razorfx.inputs import classify_generic
+        from rgbmatrixfx.inputs import classify_generic
         b = "/dev/input/by-id/"
         paths = [b + n for n in (
             "usb-Razer_Razer_BlackWidow_V3-event-kbd", "usb-Razer_Razer_BlackWidow_V3-if01-event-kbd",
@@ -592,7 +592,7 @@ class TestGenericInputDetection(unittest.TestCase):
         self.assertNotIn(b + "usb-Logitech_USB_Receiver-event-mouse", got)
 
     def test_fallback_only_without_specific_nodes(self):
-        import razorfx.inputs as I
+        import rgbmatrixfx.inputs as I
         d = tempfile.mkdtemp()
         for n in ("usb-Razer_Razer_Huntsman-event-kbd", "usb-Razer_Razer_Viper-event-mouse"):
             open(os.path.join(d, n), "w").close()
@@ -649,15 +649,16 @@ class _Env:
 
 class TestRenameAndMigration(unittest.TestCase):
     def test_identity(self):
-        import razorfx
-        self.assertEqual((razorfx.APP_ID, razorfx.APP_NAME, razorfx.LEGACY_APP_ID), ("razorfx", "RazorFX", "razer-fx"))
-        self.assertEqual(razorfx.LICENSE, "GPL-3.0-or-later WITH AdditionRef-RazorFX-plugin-exception")
-        self.assertTrue(config.CONFIG_FILE.endswith(os.path.join("razorfx", "config.json")))
+        import rgbmatrixfx
+        self.assertEqual((rgbmatrixfx.APP_ID, rgbmatrixfx.APP_NAME, rgbmatrixfx.LEGACY_APP_ID, rgbmatrixfx.PREVIOUS_APP_ID),
+                         ("rgbmatrixfx", "RGBMatrixFX", "razer-fx", "razorfx"))
+        self.assertEqual(rgbmatrixfx.LICENSE, "GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception")
+        self.assertTrue(config.CONFIG_FILE.endswith(os.path.join("rgbmatrixfx", "config.json")))
         with _Env(XDG_RUNTIME_DIR="/run/user/4242"):
-            self.assertEqual(ipc.socket_path(), "/run/user/4242/razorfx/engine.sock")
+            self.assertEqual(ipc.socket_path(), "/run/user/4242/rgbmatrixfx/engine.sock")
 
     def test_migrates_1_0_config_once_and_leaves_it_alone(self):
-        from razorfx import migrate, paths
+        from rgbmatrixfx import migrate, paths
         d = tempfile.mkdtemp()
         with _Env(XDG_CONFIG_HOME=d):
             old = os.path.join(d, "razer-fx")
@@ -672,7 +673,7 @@ class TestRenameAndMigration(unittest.TestCase):
             before = {n: _read(os.path.join(old, n), "rb") for n in os.listdir(old)}
             self.assertEqual(migrate.migrate_config(), ["config.json", "gui.ini"])
             new = paths.config_dir()
-            self.assertEqual(new, os.path.join(d, "razorfx"))
+            self.assertEqual(new, os.path.join(d, "rgbmatrixfx"))
             got = config.load(os.path.join(new, "config.json"))
             self.assertEqual(got["global"]["active_preset"], "Razer Fire")
             self.assertIn("Trevor's", got["presets"])
@@ -685,25 +686,44 @@ class TestRenameAndMigration(unittest.TestCase):
             self.assertEqual(migrate.migrate_config(), [])
             self.assertEqual(config.load(os.path.join(new, "config.json"))["global"]["active_preset"], "Matrix")
 
+    def test_migrates_razorfx_1_1_before_razer_fx(self):
+        from rgbmatrixfx import migrate
+        d = tempfile.mkdtemp()
+        with _Env(XDG_CONFIG_HOME=d):
+            for sub, preset in (("razer-fx", "Old 1.0"), ("razorfx", "Trevor 1.1")):
+                os.makedirs(os.path.join(d, sub, "plugins"))
+                cfg = config.default_config()
+                cfg["global"]["active_preset"] = preset
+                config.save(cfg, os.path.join(d, sub, "config.json"))
+            open(os.path.join(d, "razorfx", "pro-test"), "w").close()
+            with open(os.path.join(d, "razorfx", "plugins", "hello.json"), "w") as f:
+                f.write("{}")
+            got = migrate.migrate_config()
+            self.assertEqual(sorted(got), ["config.json", os.path.join("plugins", "hello.json"), "pro-test"])
+            new = os.path.join(d, "rgbmatrixfx")
+            self.assertEqual(config.load(os.path.join(new, "config.json"))["global"]["active_preset"], "Trevor 1.1")
+            self.assertTrue(os.path.exists(os.path.join(d, "razorfx", "config.json")))   # old dir untouched
+            self.assertEqual(migrate.migrate_config(), [])
+
     def test_no_legacy_nothing_happens(self):
-        from razorfx import migrate
+        from rgbmatrixfx import migrate
         d = tempfile.mkdtemp()
         with _Env(XDG_CONFIG_HOME=d):
             self.assertEqual(migrate.migrate_config(), [])
             self.assertEqual(os.listdir(d), [])
 
     def test_partial_new_dir_keeps_existing_files(self):
-        from razorfx import migrate
+        from rgbmatrixfx import migrate
         d = tempfile.mkdtemp()
         with _Env(XDG_CONFIG_HOME=d):
             os.makedirs(os.path.join(d, "razer-fx"))
-            os.makedirs(os.path.join(d, "razorfx"))
+            os.makedirs(os.path.join(d, "rgbmatrixfx"))
             config.save(config.default_config(), os.path.join(d, "razer-fx", "config.json"))
-            for sub, txt in (("razer-fx", "old"), ("razorfx", "new")):
+            for sub, txt in (("razer-fx", "old"), ("rgbmatrixfx", "new")):
                 with open(os.path.join(d, sub, "gui.ini"), "w") as f:
                     f.write(txt)
             self.assertEqual(migrate.migrate_config(), ["config.json"])
-            self.assertEqual(_read(os.path.join(d, "razorfx", "gui.ini")), "new")
+            self.assertEqual(_read(os.path.join(d, "rgbmatrixfx", "gui.ini")), "new")
 
 
 class TestNoPyQt(unittest.TestCase):
@@ -749,7 +769,7 @@ class TestPluginApi(unittest.TestCase):
         return d
 
     def test_discover_load_and_isolate_failures(self):
-        from razorfx import plugin_api as api
+        from rgbmatrixfx import plugin_api as api
         base, base2 = tempfile.mkdtemp(), tempfile.mkdtemp()
         self._plugin(base, "good", code="seen = []\ndef register(ctx):\n    ctx.log('hi')\n"
                      "    ctx.on('effect_changed', seen.append)\n    ctx.settings.set('n', 1)\n"
@@ -788,10 +808,10 @@ class TestPluginApi(unittest.TestCase):
             self.assertTrue(any("ZeroDivisionError" in l for l in host.lines))
             pm.unload_all()
             self.assertEqual(mod.seen, ["fire", "wave", "bye"])
-            self.assertTrue(os.path.exists(os.path.join(d, "razorfx", "plugins", "good.json")))
+            self.assertTrue(os.path.exists(os.path.join(d, "rgbmatrixfx", "plugins", "good.json")))
 
     def test_package_plugin_and_search_path(self):
-        from razorfx import plugin_api as api
+        from rgbmatrixfx import plugin_api as api
         base = tempfile.mkdtemp()
         d = self._plugin(base, "pkg", {"module": "pkgmod"}, code=None)
         os.makedirs(os.path.join(d, "pkgmod"))
@@ -799,8 +819,8 @@ class TestPluginApi(unittest.TestCase):
             f.write("from .helper import VALUE\ndef register(ctx):\n    ctx.log('value %d' % VALUE)\n")
         with open(os.path.join(d, "pkgmod", "helper.py"), "w") as f:
             f.write("VALUE = 42\n")
-        with _Env(RAZORFX_PLUGIN_PATH=base, XDG_DATA_HOME="/nonexistent-data"):
-            self.assertEqual(api.plugin_search_path(), [base, "/nonexistent-data/razorfx/plugins"])
+        with _Env(RGBMATRIXFX_PLUGIN_PATH=base, XDG_DATA_HOME="/nonexistent-data"):
+            self.assertEqual(api.plugin_search_path(), [base, "/nonexistent-data/rgbmatrixfx/plugins"])
             host = self.Host()
             pm = api.PluginManager(host)
             pm.load_all()
@@ -808,7 +828,7 @@ class TestPluginApi(unittest.TestCase):
         self.assertIn("plugin pkg: value 42", host.lines)
 
     def test_api_version_rules(self):
-        from razorfx.plugin_api import PluginInfo
+        from rgbmatrixfx.plugin_api import PluginInfo
         ok = lambda v: PluginInfo("/x", {"id": "a", "api": v}).api_compatible((1, 3))
         self.assertEqual([ok(v) for v in ("1", "1.0", "1.3", "1.4", "2.0", "0.9", "", "x")],
                          [True, True, True, False, False, False, False, False])
@@ -824,7 +844,7 @@ class TestAppearanceKde(unittest.TestCase):
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PySide6.QtWidgets import QApplication
         app = QApplication.instance() or QApplication([])
-        from razorfx.gui.appearance import SystemAppearance
+        from rgbmatrixfx.gui.appearance import SystemAppearance
         with tempfile.TemporaryDirectory() as d, _Env(XDG_CONFIG_HOME=d, XDG_CURRENT_DESKTOP="KDE"):
             f = os.path.join(d, "kdeglobals")
             with open(f, "w") as fh:
@@ -847,7 +867,7 @@ class TestAppearanceKde(unittest.TestCase):
             self.assertEqual(seen[-1:], [("light", "#e9643d")])
 
     def test_theme_colours(self):
-        from razorfx.gui import theme
+        from rgbmatrixfx.gui import theme
         for scheme in theme.SCHEMES:
             for acc in ("#44d62c", "#ffff00", "#000000", "#3584e4"):
                 d = theme.colors(scheme, acc)
@@ -860,7 +880,7 @@ class TestAppearanceKde(unittest.TestCase):
 class TestSdNotify(unittest.TestCase):
     def test_notify_socket(self):
         import socket
-        from razorfx import engine
+        from rgbmatrixfx import engine
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "notify")
             srv = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
@@ -886,11 +906,11 @@ class TestDeviceMaps(unittest.TestCase):
     }
 
     def spec(self, name, pid, rows, cols, kind="keyboard"):
-        from razorfx import devmaps
+        from rgbmatrixfx import devmaps
         return devmaps.DeviceSpec(kind, name, pid, rows, cols)
 
     def test_cynosa_uses_the_hand_tuned_map(self):
-        from razorfx import devmaps, layout as L
+        from rgbmatrixfx import devmaps, layout as L
         km = devmaps.keyboard_keymap(self.spec("Razer Cynosa Chroma", 0x022A, 6, 22), self.TABLES)
         self.assertEqual(km.source, "hand-tuned")
         self.assertEqual(km.code_to_cell, L.KEYCODE_TO_CELL)
@@ -898,7 +918,7 @@ class TestDeviceMaps(unittest.TestCase):
         self.assertEqual(km.logo, (0, 20))
 
     def test_standard_matrix_uses_openrazer_tables(self):
-        from razorfx import devmaps
+        from rgbmatrixfx import devmaps
         km = devmaps.keyboard_keymap(self.spec("Razer BlackWidow V3", 0x024E, 6, 22), self.TABLES)
         self.assertEqual(km.source, "OpenRazer keyboard map")
         self.assertEqual(km.code_to_cell[17], (2, 3))           # KEY_W
@@ -908,7 +928,7 @@ class TestDeviceMaps(unittest.TestCase):
         self.assertNotIn(2, km.code_to_cell)                     # KEY_1 isn't in these tables
 
     def test_unknown_size_gets_a_generic_grid(self):
-        from razorfx import devmaps, layout as L
+        from rgbmatrixfx import devmaps, layout as L
         for rows, cols in ((6, 16), (5, 15), (1, 1)):
             km = devmaps.keyboard_keymap(self.spec("Razer Blade", 0x0253, rows, cols), self.TABLES)
             self.assertTrue(km.source.startswith("generic grid"))
@@ -922,13 +942,13 @@ class TestDeviceMaps(unittest.TestCase):
         self.assertTrue(km.source.startswith("generic grid"))
 
     def test_keypad_uses_the_tartarus_table(self):
-        from razorfx import devmaps
+        from rgbmatrixfx import devmaps
         km = devmaps.keyboard_keymap(self.spec("Razer Tartarus V2", 0x022B, 4, 6, "keypad"), self.TABLES)
         self.assertEqual(km.source, "OpenRazer Tartarus map")
         self.assertEqual(km.code_to_cell, {15: (0, 0), 16: (0, 1), 17: (1, 2)})
 
     def test_real_openrazer_tables_if_installed(self):
-        from razorfx import devmaps
+        from rgbmatrixfx import devmaps
         t = devmaps.openrazer_tables()
         if not t:
             self.skipTest("openrazer_daemon not importable here")
@@ -937,9 +957,9 @@ class TestDeviceMaps(unittest.TestCase):
         self.assertEqual(km.cell_for_name("ESC"), (0, 1))
 
     def test_scene_compositor_with_other_devices(self):
-        from razorfx import devmaps, layout as L
-        from razorfx.scene import Scene, Compositor
-        from razorfx import config
+        from rgbmatrixfx import devmaps, layout as L
+        from rgbmatrixfx.scene import Scene, Compositor
+        from rgbmatrixfx import config
         km = devmaps.keyboard_keymap(self.spec("Razer Blade", 0x0253, 6, 16), self.TABLES)
         sc = Scene(L.GENERIC_MOUSE, keymap=km, mouse_matrix=(1, 9), extras=[(1, 15), (1, 4)])
         self.assertEqual((sc.kb_rows, sc.kb_cols, sc.n_kb), (6, 16, 96))
@@ -965,7 +985,7 @@ class TestLayoutPacks(unittest.TestCase):
     HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     def pack(self, **kw):
-        d = {"format": "razorfx-layout", "version": 1, "name": "Test board", "kind": "keyboard",
+        d = {"format": "rgbmatrixfx-layout", "version": 1, "name": "Test board", "kind": "keyboard",
              "match": {"usb": ["1532:022A"]}, "matrix": [6, 22], "keys": {"W": [0, 0], "KEY_A": [0, 1], "32": [0, 2]}}
         d.update(kw)
         return d
@@ -978,13 +998,13 @@ class TestLayoutPacks(unittest.TestCase):
 
     def test_example_layout_is_valid(self):
         import json
-        from razorfx import devmaps
+        from rgbmatrixfx import devmaps
         p = devmaps.validate_pack(json.load(open(os.path.join(self.HERE, "examples/layouts/example-layout.json"))))
         self.assertEqual(p["matrix"], (5, 15))
         self.assertEqual(p["keys"][17], (1, 2))                  # W
 
     def test_validation_errors(self):
-        from razorfx import devmaps
+        from rgbmatrixfx import devmaps
         for bad, why in ((dict(format="x"), "format"), (dict(version=2), "version"), (dict(matrix=[0, 5]), "matrix"),
                          (dict(match={}), "match"), (dict(keys={"NOPE": [0, 0]}), "unknown key"),
                          (dict(keys={"W": [6, 0]}), "outside"), (dict(keys={"W": "0,0"}), "row, col"),
@@ -995,7 +1015,7 @@ class TestLayoutPacks(unittest.TestCase):
 
     def test_precedence_and_loading(self):
         import tempfile
-        from razorfx import devmaps
+        from rgbmatrixfx import devmaps
         cynosa = devmaps.DeviceSpec("keyboard", "Razer Cynosa Chroma", 0x022A, 6, 22)
         with tempfile.TemporaryDirectory() as d:
             self.write(d, {"b-broken.json": "{not json", "c-wrong.json": self.pack(matrix=[99, 1]),
@@ -1016,9 +1036,9 @@ class TestLayoutPacks(unittest.TestCase):
         self.assertTrue(devmaps.keyboard_keymap(bw, TestDeviceMaps.TABLES, [by_name]).source.startswith("layout pack"))
 
     def test_mouse_pack_and_scene(self):
-        from razorfx import devmaps
-        from razorfx.scene import Scene, Compositor
-        from razorfx import config
+        from rgbmatrixfx import devmaps
+        from rgbmatrixfx.scene import Scene, Compositor
+        from rgbmatrixfx import config
         pk = devmaps.LayoutPack(devmaps.validate_pack(self.pack(kind="mouse", match={"usb": ["1532:0084"]}, matrix=[1, 3],
                                                                 keys={}, zones={"logo": [[0, 2]], "scroll": [[0, 0]]})))
         spec = devmaps.DeviceSpec("mouse", "Razer DeathAdder V2", 0x0084, 1, 3)
@@ -1032,9 +1052,9 @@ class TestLayoutPacks(unittest.TestCase):
 
     def test_example_preset_imports_unchanged(self):
         import json
-        from razorfx import config
+        from rgbmatrixfx import config
         d = json.load(open(os.path.join(self.HERE, "examples/presets/example-preset.json")))
-        self.assertEqual(d["format"], "razorfx-presets")
+        self.assertEqual(d["format"], "rgbmatrixfx-presets")
         profs = {k: v for k, v in d["presets"].items() if isinstance(v, dict)}
         self.assertEqual(list(profs), ["Example: Wave + WASD"])
         p = profs["Example: Wave + WASD"]

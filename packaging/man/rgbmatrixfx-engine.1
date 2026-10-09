@@ -1,0 +1,29 @@
+.\" SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
+.\" SPDX-FileCopyrightText: © 2026 Nitrofire Computing
+.TH RGBMATRIXFX-ENGINE 1 "2026" "RGBMatrixFX" "User Commands"
+.SH NAME
+rgbmatrixfx-engine \- RGBMatrixFX background lighting engine
+.SH SYNOPSIS
+.B rgbmatrixfx-engine
+[\fB\-\-status\fR]
+.SH DESCRIPTION
+Renders the selected effect at up to 30 frames per second onto Razer keyboards and mice
+through OpenRazer and reacts to key presses, clicks and scrolling. It normally runs as the
+systemd user service
+.IR rgbmatrixfx\-engine.service :
+.PP
+.nf
+systemctl \-\-user enable \-\-now rgbmatrixfx\-engine   # start now and at login
+systemctl \-\-user reload rgbmatrixfx\-engine          # re-read the configuration
+journalctl \-\-user \-u rgbmatrixfx\-engine             # log
+.fi
+.PP
+When it stops it hands the lighting back to OpenRazer (or Polychromatic).
+.SH OPTIONS
+.TP
+.B \-\-status
+Print what the running engine is doing, then exit.
+.SH FILES
+.I ~/.config/rgbmatrixfx/config.json
+.SH SEE ALSO
+.BR rgbmatrixfx (1)
