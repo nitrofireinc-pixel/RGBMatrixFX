@@ -6,6 +6,11 @@ All notable changes to RGBMatrixFX (called RazorFX in 1.1 and Razer FX up to 1.0
 
 ## [Unreleased]
 
+### Added
+- Plugin API 1.2: `ctx.add_gallery_effect()` shows add-on effects in the effect list with a live
+  thumbnail (clicking one selects it).
+- Help ▸ Get RGBMatrixFX Pro (store link, disabled until Pro is for sale).
+
 ## [1.2.1] - 2026-10-09
 
 RGBMatrixFX 1.2.1, the first release under the new name (free version).

@@ -120,6 +120,52 @@ class TestGui(unittest.TestCase):
         # the default window (nothing on the port) explains instead of failing
         self.assertNotIn("Traceback", self.w.orgb_info.text())
 
+    def test_plugin_api_1_2_gallery_effect(self):
+        pdir = os.path.join(self.d.name, "plugins12")
+        os.makedirs(os.path.join(pdir, "fx"))
+        with open(os.path.join(pdir, "fx", "plugin.json"), "w") as f:
+            json.dump({"id": "fx", "name": "FX", "version": "1", "api": "1.2"}, f)
+        with open(os.path.join(pdir, "fx", "plugin.py"), "w") as f:
+            f.write("""
+import numpy as np
+class Red:
+    def __init__(self, scene):
+        self.n = scene['n']
+    def frame(self, dt):
+        return np.tile([1.0, 0.0, 0.0], (self.n, 1))
+class Broken:
+    def frame(self, dt):
+        raise RuntimeError('boom')
+def register(ctx):
+    ctx.add_gallery_effect('addon:red', 'Red (add-on)', 'All red', preview=Red, fallback='static')
+    ctx.add_gallery_effect('addon:broken', 'Broken', preview=lambda sc: Broken())
+    ctx.add_gallery_effect('addon:plain', 'Plain')
+""")
+        w = MainWindow(sock_path=os.path.join(self.d.name, "none.sock"), cfg_path=self.cfg, plugins=True, plugin_dirs=[pdir])
+        w.show()
+        spin(100)
+        g = w.gallery
+        self.assertEqual([lp.info.id for lp in w.plugins.loaded], ["fx"], w.plugins.failed)
+        for k in ("external:addon:red", "external:addon:broken", "external:addon:plain"):
+            self.assertIn(k, g.tiles)
+        g.ensureWidgetVisible(g.tiles["external:addon:red"])
+        spin(50)
+        for _ in range(3):
+            g.tick()
+        self.assertTrue(all(c == [255, 0, 0] for c in g.tiles["external:addon:red"].rgb))
+        g.tiles["external:addon:red"].mousePressEvent(None)
+        spin(50)
+        self.assertEqual(w.profile["effect"], "external")
+        self.assertEqual(w.profile["effects"]["external"]["source"], "addon:red")
+        self.assertEqual(w.profile["effects"]["external"]["fallback"], "static")
+        self.assertTrue(g.tiles["external:addon:red"].selected)
+        w.select_effect("flame")
+        self.assertFalse(g.tiles["external:addon:red"].selected)
+        w.unload_plugins()
+        self.assertFalse([k for k in g.tiles if k.startswith("external:")])
+        w.shutdown()
+        w.close()
+
     def test_pro_content_rejected_nicely_without_addon(self):
         p1 = os.path.join(self.d.name, "Christmas.rfxpro")
         with open(p1, "w") as f:

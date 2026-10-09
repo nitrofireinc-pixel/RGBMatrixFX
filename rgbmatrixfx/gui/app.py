@@ -155,6 +155,25 @@ class EffectTile(QFrame):
         p.end()
 
 
+class _PreviewAdapter:
+    """wraps an add-on preview object (frame(dt) -> n x 3) like an Effect for the gallery"""
+    reactive_hint = False
+
+    def __init__(self, obj, n):
+        if not callable(getattr(obj, "frame", None)):
+            raise TypeError("preview() must return an object with frame(dt)")
+        self.obj, self.n = obj, n
+
+    def on_press(self, *a):
+        pass
+
+    def step(self, t, dt):
+        a = np.asarray(self.obj.frame(dt), dtype=np.float64)
+        if a.shape != (self.n, 3):
+            raise ValueError("preview frame has shape %s, expected (%d, 3)" % (a.shape, self.n))
+        return a
+
+
 class Gallery(QScrollArea):
     selected = Signal(str)
 
@@ -172,6 +191,8 @@ class Gallery(QScrollArea):
         head.setObjectName("GalleryHead")
         v.addWidget(head)
         self.painter_ = ScenePainter(scene)
+        self.vbox = v
+        self.ext_head = None
         self.tiles = {}
         self.fx = {}
         for i, cls in enumerate(EFFECTS):
@@ -193,6 +214,52 @@ class Gallery(QScrollArea):
         for k, t in self.tiles.items():
             t.set_selected(k == eid)
 
+    # -- add-on effects (plugin API 1.2: ctx.add_gallery_effect)
+    def scene_info(self):
+        sc = self.scene
+        return {"n": int(sc.n), "n_kb": int(sc.n_kb), "kb_rows": int(sc.kb_rows), "kb_cols": int(sc.kb_cols),
+                "x": [float(v) for v in sc.x], "y": [float(v) for v in sc.y], "kind": list(sc.kind), "fps": 30}
+
+    def add_external(self, source, name, description, preview=None, fallback="starlight", plugin_id=None):
+        """tile id "external:<source>"; clicking it selects the external effect with that source"""
+        key = "external:" + source
+        cls = type("AddonEffect", (), {"id": key, "name": name, "description": description or name,
+                                       "mimics": "Add-on effect: " + (plugin_id or "plugin"), "source": source,
+                                       "fallback": fallback, "plugin_id": plugin_id})
+        fx = None
+        if preview is not None:
+            try:
+                fx = _PreviewAdapter(preview(self.scene_info()), self.scene.n)
+            except Exception:
+                safety.log("gallery preview for %s failed:\n%s" % (source, traceback.format_exc()))
+        if fx is None:
+            fb = EFFECT_BY_ID.get(fallback) or EFFECT_BY_ID["starlight"]
+            fx = fb(self.scene, {}, seed=500 + len(self.tiles))
+        if key in self.tiles:
+            self.tiles[key].cls = cls
+            self.tiles[key].update()
+        else:
+            if self.ext_head is None:
+                self.ext_head = QLabel("ADD-ON EFFECTS")
+                self.ext_head.setObjectName("GalleryHead")
+                self.vbox.insertWidget(self.vbox.count() - 1, self.ext_head)
+            t = EffectTile(cls, self.painter_)
+            t.clicked.connect(self.selected.emit)
+            self.vbox.insertWidget(self.vbox.count() - 1, t)
+            self.tiles[key] = t
+        self.fx[key] = fx
+
+    def clear_external(self):
+        for key in [k for k in self.tiles if k.startswith("external:")]:
+            t = self.tiles.pop(key)
+            self.fx.pop(key, None)
+            t.hide()
+            t.deleteLater()
+        if self.ext_head is not None:
+            self.ext_head.hide()
+            self.ext_head.deleteLater()
+            self.ext_head = None
+
     def tick(self):
         t = time.monotonic() - self.t0
         dt = 0.1 if self.last is None else min(0.2, t - self.last)
@@ -208,7 +275,12 @@ class Gallery(QScrollArea):
                 continue            # scrolled out of view
             if press and fx.reactive_hint:
                 fx.on_press(self.scene.x[i], self.scene.y[i], i, t)
-            rgb = (np.clip(fx.step(t, dt), 0, 1) * 255).astype(np.uint8).tolist()
+            try:
+                rgb = (np.clip(fx.step(t, dt), 0, 1) * 255).astype(np.uint8).tolist()
+            except Exception:                   # a broken add-on preview must not stop the gallery
+                safety.log("gallery preview %s failed:\n%s" % (eid, traceback.format_exc()))
+                self.fx[eid] = EFFECT_BY_ID["starlight"](self.scene, {}, seed=7)
+                break
             if rgb != tile.rgb:
                 tile.rgb = rgb
                 tile.update()
@@ -354,6 +426,8 @@ class MainWindow(QMainWindow):
         except Exception:
             safety.log("plugin unloading failed:\n" + traceback.format_exc())
         had = bool(self.settings_sections)
+        if getattr(self, "gallery", None) is not None:
+            self.gallery.clear_external()
         self.import_handlers.clear()
         self.settings_sections.clear()
         if had and getattr(self, "tab_settings", None) is not None:
@@ -825,7 +899,7 @@ class MainWindow(QMainWindow):
         self.gamer_btn.blockSignals(True)
         self.gamer_btn.setChecked(self.g["gamer_controls"])
         self.gamer_btn.blockSignals(False)
-        self.gallery.set_current(self.profile["effect"])
+        self.gallery.set_current(self.gallery_key(self.profile))
         self._build_effect_tab()
         self._build_react_tab()
         self._build_hl_tab()
@@ -841,11 +915,25 @@ class MainWindow(QMainWindow):
         self.save_btn.setEnabled(mod)
 
     # ---------------------------------------------------------------- effect tab
+    @staticmethod
+    def gallery_key(profile):
+        """effect-list tile for a profile: the effect id, or "external:<source>" for add-on effects"""
+        if profile.get("effect") == "external":
+            return "external:" + str(profile.get("effects", {}).get("external", {}).get("source", ""))
+        return profile.get("effect")
+
     def select_effect(self, eid):
-        if eid == self.profile["effect"]:
+        if eid == self.gallery_key(self.profile):
             return
-        self.profile["effect"] = eid
-        self.profile.setdefault("effects", {}).setdefault(eid, {})
+        if eid.startswith("external:"):             # add-on effect tile (plugin API 1.2)
+            t = self.gallery.tiles.get(eid)
+            if t is None:
+                return
+            self.profile["effect"] = "external"
+            self.profile.setdefault("effects", {})["external"] = {"source": t.cls.source, "fallback": t.cls.fallback}
+        else:
+            self.profile["effect"] = eid
+            self.profile.setdefault("effects", {}).setdefault(eid, {})
         self.gallery.set_current(eid)
         self.changed()
         self._build_effect_tab()

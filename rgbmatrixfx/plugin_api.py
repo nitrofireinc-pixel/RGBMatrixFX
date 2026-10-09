@@ -31,7 +31,7 @@ import traceback
 
 from . import APP_NAME, __version__, paths
 
-API_VERSION = (1, 1)
+API_VERSION = (1, 2)
 API_VERSION_STR = "%d.%d" % API_VERSION
 
 # What a context can offer. Hosts advertise a subset; check with ctx.has(...).
@@ -49,9 +49,10 @@ CAP_LAYOUTS = "layouts"              # ctx.register_layout() (data-only device l
 CAP_IMPORT = "presets.import"        # ctx.register_import_handler() (File > Import presets for other file types)
 CAP_PRESETS = "presets.add"          # ctx.add_presets() (add presets, optionally make one active)
 CAP_SETTINGS_UI = "gui.settings_section"   # ctx.add_settings_section() (a box on the Settings tab)
+CAP_GALLERY = "gui.gallery"          # ctx.add_gallery_effect() (API 1.2: an add-on effect tile in the effect list)
 ALL_CAPABILITIES = frozenset({CAP_LOG, CAP_SETTINGS, CAP_STORAGE, CAP_MENU, CAP_DIALOG_PARENT,
                               CAP_STATUS, CAP_EVENTS, CAP_EDITION, CAP_FEATURES, CAP_LAYOUTS,
-                              CAP_IMPORT, CAP_PRESETS, CAP_SETTINGS_UI})
+                              CAP_IMPORT, CAP_PRESETS, CAP_SETTINGS_UI, CAP_GALLERY})
 
 # Built-in features that are locked in the free edition and shown there as Pro previews.
 # The RGBMatrixFX Pro add-on unlocks them with ctx.enable_feature(); see docs/PLUGIN_API.md.
@@ -294,6 +295,23 @@ class PluginContext:
         if not callable(factory):
             raise TypeError("factory must be callable")
         self._host.add_settings_section(self._info, str(title)[:60], factory)
+
+    # -- API 1.2: effect list
+    def add_gallery_effect(self, source, name, description="", preview=None, fallback="starlight"):
+        """Show an add-on effect in the effect list (left pane) with a live thumbnail. Clicking it
+        selects the ``external`` effect with this ``source`` (frames come from your own process,
+        see "External effect source") and ``fallback``. ``preview(scene)`` is optional: it gets a
+        dict like the engine's "scene" reply (n, x, y, kind, kb_rows, kb_cols, ...) and returns an
+        object whose ``frame(dt)`` returns n RGB rows (floats 0..1) for the thumbnail; without it the
+        fallback effect is shown. Adding the same source again updates the tile."""
+        self._need(CAP_GALLERY)
+        src = str(source or "").strip()[:64]
+        if not src:
+            raise ValueError("source must not be empty")
+        if preview is not None and not callable(preview):
+            raise TypeError("preview must be callable")
+        self._host.add_gallery_effect(self._info, src, str(name or src)[:40], str(description or "")[:300],
+                                      preview, str(fallback or "starlight"))
 
     # -- internal (host side)
     def _need(self, cap):

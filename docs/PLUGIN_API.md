@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception -->
 <!-- SPDX-FileCopyrightText: © 2026 Nitrofire Computing -->
 <!-- The code snippets in this file are also available under 0BSD, like examples/plugins/. -->
-# RGBMatrixFX plugin API 1.1
+# RGBMatrixFX plugin API 1.2
 
 > **Status: 1.1, shipped with RGBMatrixFX 1.2.1** (1.0 shipped with RazorFX 1.1.0). 1.1 adds
 > preset import handlers, plugin presets, Settings sections and the external effect source
@@ -132,6 +132,14 @@ Requests and replies are one JSON object per line:
 
 The engine IPC is a plain local protocol; a program that only talks to it over the socket
 is a separate program, whatever its license.
+
+## What's new in 1.2
+
+| Member | Capability | What it does |
+|---|---|---|
+| `ctx.add_gallery_effect(source, name, description="", preview=None, fallback="starlight")` | `gui.gallery` | Adds a tile under **Add-on effects** in the effect list (left pane). Clicking it selects the `external` effect with this `source` and `fallback`. `preview(scene)` (optional) receives a dict like the engine's `scene` reply and returns an object whose `frame(dt)` returns `n` RGB rows (floats 0..1) for the live thumbnail; without it the fallback effect is shown. Calling it again for the same source updates the tile; tiles disappear when the plugin is unloaded |
+
+Check `ctx.has("gui.gallery")` if your plugin should also run on a 1.1 host.
 
 ## What the API deliberately does *not* include
 
