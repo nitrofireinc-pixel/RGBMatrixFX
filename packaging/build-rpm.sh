@@ -8,10 +8,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 V="$("$ROOT/packaging/version.sh" rpm)"
 UP="$("$ROOT/packaging/version.sh" upstream)"
 T="$ROOT/build/rpm"
-rm -rf "$T"; mkdir -p "$T/SOURCES" "$T/src/razorFX-$UP" "$ROOT/dist"
-# same layout as GitHub's tag archive (razorFX-<version>/), which the spec's Source0 points to
-(cd "$ROOT" && git ls-files -z --cached --others --exclude-standard | tar --null -T - -cf - | tar -xf - -C "$T/src/razorFX-$UP")
-tar -C "$T/src" -czf "$T/SOURCES/rgbmatrixfx-$V.tar.gz" "razorFX-$UP"
+rm -rf "$T"; mkdir -p "$T/SOURCES" "$T/src/RGBMatrixFX-$UP" "$ROOT/dist"
+# same layout as GitHub's tag archive (RGBMatrixFX-<version>/), which the spec's Source0 points to
+(cd "$ROOT" && git ls-files -z --cached --others --exclude-standard | tar --null -T - -cf - | tar -xf - -C "$T/src/RGBMatrixFX-$UP")
+tar -C "$T/src" -czf "$T/SOURCES/rgbmatrixfx-$V.tar.gz" "RGBMatrixFX-$UP"
 DATE="$(LC_ALL=C date -u ${SOURCE_DATE_EPOCH:+-d @$SOURCE_DATE_EPOCH} '+%a %b %d %Y')"
 sed "s|^@CHANGELOG@\$|* $DATE Nitrofire Computing <nitrofireinc-pixel@users.noreply.github.com> - $V-1\\n- RGBMatrixFX $UP; see CHANGELOG.md|" \
     "$ROOT/packaging/rpm/rgbmatrixfx.spec" | sed 's/\\n/\n/' > "$T/rgbmatrixfx.spec"

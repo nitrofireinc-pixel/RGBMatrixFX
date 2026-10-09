@@ -32,7 +32,7 @@ unit_text() {
 $MARK
 [Unit]
 Description=RGBMatrixFX lighting engine (AppImage)
-Documentation=https://github.com/nitrofireinc-pixel/razorFX
+Documentation=https://github.com/nitrofireinc-pixel/RGBMatrixFX
 Wants=openrazer-daemon.service
 After=openrazer-daemon.service
 

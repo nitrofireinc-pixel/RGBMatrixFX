@@ -14,7 +14,7 @@ Version:        %{rfx_version}
 Release:        1%{?dist}
 Summary:        Chroma-style lighting effects for RGB keyboards and mice
 License:        GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
-URL:            https://github.com/nitrofireinc-pixel/razorFX
+URL:            https://github.com/nitrofireinc-pixel/RGBMatrixFX
 Source0:        %{url}/archive/refs/tags/v%{rfx_upstream}.tar.gz#/rgbmatrixfx-%{version}.tar.gz
 BuildArch:      noarch
 
@@ -47,7 +47,7 @@ Not affiliated with or endorsed by Razer Inc.
 Razer is a trademark of Razer Inc.
 
 %prep
-%autosetup -n razorFX-%{rfx_upstream}
+%autosetup -n RGBMatrixFX-%{rfx_upstream}
 
 %build
 # pure Python, nothing to build

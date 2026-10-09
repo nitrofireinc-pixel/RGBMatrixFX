@@ -1,7 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: RGBMatrixFX
-Upstream-Contact: https://github.com/nitrofireinc-pixel/razorFX/issues
-Source: https://github.com/nitrofireinc-pixel/razorFX
+Upstream-Contact: https://github.com/nitrofireinc-pixel/RGBMatrixFX/issues
+Source: https://github.com/nitrofireinc-pixel/RGBMatrixFX
 
 Files: *
 Copyright: 2026 Nitrofire Computing

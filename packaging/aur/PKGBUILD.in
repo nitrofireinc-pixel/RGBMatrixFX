@@ -7,7 +7,7 @@ _upver=@UPVER@
 pkgrel=1
 pkgdesc="Chroma-style lighting effects for RGB keyboards and mice (OpenRazer; lists OpenRGB devices)"
 arch=('any')
-url="https://github.com/nitrofireinc-pixel/razorFX"
+url="https://github.com/nitrofireinc-pixel/RGBMatrixFX"
 license=('GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception')
 depends=('python' 'pyside6' 'python-numpy' 'python-dbus' 'python-openrazer' 'openrazer-daemon' 'openrgb')
 replaces=('razorfx')
@@ -21,7 +21,7 @@ source=("$pkgname-$pkgver.tar.gz::@SOURCE_URL@")
 sha256sums=('@SHA256@')
 
 package() {
-  cd "razorFX-$_upver"
+  cd "$srcdir"/*-"$_upver"     # RGBMatrixFX-<ver>/ (razorFX-<ver>/ from the pre-rename repo)
   DESTDIR="$pkgdir" PREFIX=/usr PYTHON=/usr/bin/python3 \
     LICENSEDIR="/usr/share/licenses/$pkgname" sh packaging/install-tree.sh
   python -m compileall -q -d /usr/share/rgbmatrixfx "$pkgdir/usr/share/rgbmatrixfx"

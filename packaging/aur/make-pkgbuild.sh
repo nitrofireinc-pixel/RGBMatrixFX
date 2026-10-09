@@ -4,14 +4,14 @@
 # Write PKGBUILD + .SRCINFO for the AUR into OUT (default build/aur).
 #   make-pkgbuild.sh                       for the release tag v<version> (downloads the tag tarball
 #                                          to compute sha256; or pass SHA256=... to skip that)
-#   make-pkgbuild.sh --local TARBALL       for a local test build from TARBALL (razorFX-<version>/...)
+#   make-pkgbuild.sh --local TARBALL       for a local test build from TARBALL (RGBMatrixFX-<version>/...)
 # .SRCINFO needs makepkg (pacman); without it only the PKGBUILD is written.
 set -eu
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT="${OUT:-$ROOT/build/aur}"
 PKGVER="$("$ROOT/packaging/version.sh" arch)"
 UPVER="$("$ROOT/packaging/version.sh" upstream)"
-URL="https://github.com/nitrofireinc-pixel/razorFX/archive/refs/tags/v$UPVER.tar.gz"
+URL="${SOURCE_REPO:-https://github.com/nitrofireinc-pixel/RGBMatrixFX}/archive/refs/tags/v$UPVER.tar.gz"
 mkdir -p "$OUT"
 if [ "${1:-}" = "--local" ]; then
     TB="$(cd "$(dirname "$2")" && pwd)/$(basename "$2")"

@@ -1,7 +1,7 @@
 # Contributing to RGBMatrixFX
 
 Thanks for helping! Bug reports, device profiles, plugins and pull requests are welcome at
-<https://github.com/nitrofireinc-pixel/razorFX>.
+<https://github.com/nitrofireinc-pixel/RGBMatrixFX>.
 
 ## Reporting bugs
 Please include:

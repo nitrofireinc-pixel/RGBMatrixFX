@@ -201,7 +201,7 @@ built-in hand-tuned maps, then OpenRazer's tables, then the generic grid. The fo
 ## Download
 
 Ready-made packages of the free version are attached to every
-[GitHub Release](https://github.com/nitrofireinc-pixel/razorFX/releases/latest).
+[GitHub Release](https://github.com/nitrofireinc-pixel/RGBMatrixFX/releases/latest).
 All of them need the OpenRazer driver and daemon from your distribution
 ([openrazer.github.io](https://openrazer.github.io/#download)); RGBMatrixFX never installs a kernel driver itself.
 
@@ -230,8 +230,8 @@ Notes:
 ## Install from source / uninstall
 
 ```
-git clone https://github.com/nitrofireinc-pixel/razorFX.git
-cd razorFX
+git clone https://github.com/nitrofireinc-pixel/RGBMatrixFX.git
+cd RGBMatrixFX
 ./install.sh               # per-user install; sudo is used only for system packages and the OpenRGB setup
 ./install.sh --no-deps     # no sudo: prints the system commands for you to run instead
 ./install.sh --no-openrgb  # skip the OpenRGB setup

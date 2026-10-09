@@ -131,7 +131,7 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           useradd -m builder
           chown -R builder "$GITHUB_WORKSPACE"
-          su builder -c "cd '$GITHUB_WORKSPACE' && packaging/aur/make-pkgbuild.sh"
+          su builder -c "cd '$GITHUB_WORKSPACE' && SOURCE_REPO='https://github.com/${{ github.repository }}' packaging/aur/make-pkgbuild.sh"
           su builder -c "cd '$GITHUB_WORKSPACE/build/aur' && makepkg -f --nodeps --noconfirm"
           namcap build/aur/PKGBUILD build/aur/*.pkg.tar.* || true
           v="$(packaging/version.sh upstream)"

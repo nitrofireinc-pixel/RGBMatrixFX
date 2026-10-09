@@ -4,9 +4,9 @@ Priority: optional
 Maintainer: Nitrofire Computing <nitrofireinc-pixel@users.noreply.github.com>
 Build-Depends: debhelper-compat (= 13), dh-python, python3:any
 Standards-Version: 4.7.0
-Homepage: https://github.com/nitrofireinc-pixel/razorFX
-Vcs-Browser: https://github.com/nitrofireinc-pixel/razorFX
-Vcs-Git: https://github.com/nitrofireinc-pixel/razorFX.git
+Homepage: https://github.com/nitrofireinc-pixel/RGBMatrixFX
+Vcs-Browser: https://github.com/nitrofireinc-pixel/RGBMatrixFX
+Vcs-Git: https://github.com/nitrofireinc-pixel/RGBMatrixFX.git
 Rules-Requires-Root: no
 
 Package: rgbmatrixfx

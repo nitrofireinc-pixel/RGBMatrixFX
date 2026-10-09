@@ -6,9 +6,9 @@ All notable changes to RGBMatrixFX (called RazorFX in 1.1 and Razer FX up to 1.0
 
 ## [Unreleased]
 
-## [1.2.0-dev.1] - 2026-10-09
+## [1.2.0] - 2026-10-09
 
-Development build of the free version.
+RGBMatrixFX 1.2.0, the first release under the new name (free version).
 
 ### Changed
 - Renamed from RazorFX to **RGBMatrixFX**, because the project is expanding towards the keyboards
@@ -202,6 +202,7 @@ First public release, licensed under GPL-3.0-or-later.
 - `install.sh` / `uninstall.sh` (per-user), an optional uaccess udev rule, diagnostics
   (`tools/diag_timing.py`), and unit, GUI, integration and install tests.
 
-[Unreleased]: https://github.com/nitrofireinc-pixel/razorFX/compare/v1.1.0...HEAD
-[1.1.0]: https://github.com/nitrofireinc-pixel/razorFX/compare/v1.0.0...v1.1.0
-[1.0.0]: https://github.com/nitrofireinc-pixel/razorFX/releases/tag/v1.0.0
+[Unreleased]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/releases/tag/v1.0.0
