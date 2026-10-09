@@ -565,6 +565,8 @@ class MainWindow(QMainWindow):
         hm.addAction("Report an issue", self.open_issues)
         sup = self.support_action = hm.addAction("Support", self.open_support)
         sup.setToolTip("Optional: support the development of %s" % APP_NAME)
+        gp = self.get_pro_action = hm.addAction(pro_status.store_action_label(), self.open_pro_store)
+        gp.setEnabled(pro_status.purchase_enabled())
         hm.addSeparator()
         self.about_action = hm.addAction("&About %s" % APP_NAME, self.show_about)
         self.about_action.setShortcut(QKeySequence("F1"))
@@ -579,6 +581,11 @@ class MainWindow(QMainWindow):
     def open_support(self):
         """Help > Support: opens SUPPORT_URL (placeholder until a tip page is chosen). Never nags."""
         QDesktopServices.openUrl(QUrl(SUPPORT_URL))
+
+    def open_pro_store(self):
+        """Help > Get RGBMatrixFX Pro: the store page (pro_status.PRO_STORE_URL), only once Pro is for sale"""
+        if pro_status.purchase_enabled():
+            QDesktopServices.openUrl(QUrl(pro_status.PRO_STORE_URL))
 
     def show_about_qt(self):
         QMessageBox.aboutQt(self, "About Qt")

@@ -199,6 +199,27 @@ def register(ctx):
             appmod.QDesktopServices.openUrl = orig
         self.assertEqual(opened, [rgbmatrixfx.SUPPORT_URL])
 
+    def test_get_pro_store_action(self):
+        from rgbmatrixfx import pro_status
+        import rgbmatrixfx.gui.app as appmod
+        a = self.w.get_pro_action
+        self.assertEqual(a.text(), "RGBMatrixFX Pro (coming soon)")
+        self.assertFalse(a.isEnabled())                    # not for sale yet
+        self.assertTrue(pro_status.PRO_STORE_URL.startswith("https://"))
+        opened = []
+        orig = appmod.QDesktopServices.openUrl
+        appmod.QDesktopServices.openUrl = lambda u: opened.append(u.toString())
+        try:
+            self.w.open_pro_store()
+            self.assertEqual(opened, [])
+            pro_status.PRO_FOR_SALE = True
+            self.w.open_pro_store()
+            self.assertEqual(pro_status.store_action_label(), "Get RGBMatrixFX Pro\u2026")
+        finally:
+            pro_status.PRO_FOR_SALE = False
+            appmod.QDesktopServices.openUrl = orig
+        self.assertEqual(opened, [pro_status.PRO_STORE_URL])
+
     def test_system_info_has_no_serials(self):
         from rgbmatrixfx.gui import about
         from rgbmatrixfx import plugin_api
