@@ -583,7 +583,7 @@ class TestEngine(unittest.TestCase):
             self.assertEqual(eng.comp.effect_id, "external")
             self.assertEqual(eng.cfg["profile"]["effects"]["external"]["source"], "addon:test")
             st = eng.handle({"cmd": "status"})["status"]
-            self.assertEqual(st["external"], {"source": "addon:test", "fallback": "static", "live": False})
+            self.assertEqual(st["external"], {"source": "addon:test", "fallback": "static", "live": False, "settings": {}})
             static = eng.comp.render(_t.monotonic())          # no frames yet: the fallback plays
             self.assertGreater(static.max(), 0)
             self.assertFalse(eng.handle({"cmd": "source_frame", "source": "addon:test", "n": n - 1, "rgb": "00" * 3 * (n - 1)})["ok"])

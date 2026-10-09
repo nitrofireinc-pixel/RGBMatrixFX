@@ -109,7 +109,8 @@ class Engine:
                    "pid": os.getpid()})
         if self.comp.effect_id == "external":
             e = self.comp.effect
-            st["external"] = {"source": e.p.get("source", ""), "fallback": e.p.get("fallback"), "live": e.live()}
+            st["external"] = {"source": e.p.get("source", ""), "fallback": e.p.get("fallback"), "live": e.live(),
+                              "settings": dict(e.p.get("settings") or {})}
         return st
 
     # ------------------------------------------------------------ IPC

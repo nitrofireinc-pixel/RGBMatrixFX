@@ -13,6 +13,8 @@ All notable changes to RGBMatrixFX (called RazorFX in 1.1 and Razer FX up to 1.0
   to the keyboard and mouse, only when OpenRGB reports them, with their current colours; they come
   and go as devices are detected or disappear. Plugin API 1.2 `ctx.set_pc_rgb_live()` lets an add-on
   that drives them make the drawings mirror it live.
+- Plugin API 1.2: add-on effects can have their own settings in the Effect tab
+  (`add_gallery_effect(settings=...)`), passed to the add-on through the engine status.
 - Live panel: the keyboard and mouse drawings show only when that device is connected (hotplug).
 - Settings ▸ Devices ▸ PC RGB no longer repeats the Razer devices OpenRGB also lists.
 - Help ▸ Get RGBMatrixFX Pro (store link, disabled until Pro is for sale).

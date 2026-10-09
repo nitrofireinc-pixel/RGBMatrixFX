@@ -132,6 +132,16 @@ def sanitize_effect_params(eid, params):
             v = str(v) if isinstance(v, str) and v.startswith("#") else s["default"]
         elif t == "text":
             v = str(v)[:64] if isinstance(v, (str, int, float)) else s["default"]
+        elif t == "dict":            # flat {name: number | bool | short text}, for add-on effects
+            src = v if isinstance(v, dict) else {}
+            v = {}
+            for dk, dv in list(src.items())[:24]:
+                if not isinstance(dk, str) or len(dk) > 32:
+                    continue
+                if isinstance(dv, bool) or (isinstance(dv, (int, float)) and abs(dv) < 1e9 and dv == dv):
+                    v[dk] = dv
+                elif isinstance(dv, str):
+                    v[dk] = dv[:64]
         elif t == "gradient":
             v = [str(c) for c in v if isinstance(c, str) and c.startswith("#")][:12] if isinstance(v, list) else s["default"]
             if len(v) < 2:

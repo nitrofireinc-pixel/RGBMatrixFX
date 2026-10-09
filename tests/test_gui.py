@@ -218,6 +218,9 @@ def register(ctx):
     ctx.add_gallery_effect('addon:red', 'Red (add-on)', 'All red', preview=Red, fallback='static')
     ctx.add_gallery_effect('addon:broken', 'Broken', preview=lambda sc: Broken())
     ctx.add_gallery_effect('addon:plain', 'Plain')
+    ctx.add_gallery_effect('addon:set', 'With settings', 'Has its own controls', preview=Red,
+                           settings=[{'id': 'speed', 'label': 'Speed', 'type': 'float', 'default': 1.0, 'min': 0.2, 'max': 3},
+                                     {'id': 'flake', 'label': 'Flake colour', 'type': 'color', 'default': '#ffffff'}])
 """)
         w = MainWindow(sock_path=os.path.join(self.d.name, "none.sock"), cfg_path=self.cfg, plugins=True, plugin_dirs=[pdir])
         w.show()
@@ -239,6 +242,24 @@ def register(ctx):
         self.assertTrue(g.tiles["external:addon:red"].selected)
         w.select_effect("flame")
         self.assertFalse(g.tiles["external:addon:red"].selected)
+        # add-on effect settings: own controls in the Effect tab, values reach the engine profile
+        w.select_effect("external:addon:set")
+        spin(50)
+        from PySide6.QtWidgets import QLabel
+        labels = [l.text() for l in w.tab_effect.widget().findChildren(QLabel)]
+        self.assertIn("With settings", labels)
+        self.assertIn("Flake colour", labels)
+        self.assertNotIn("Add-on source", labels)                    # fixed by the tile
+        w._external_settings({"speed": 2.5, "flake": "#88ccff"})
+        w._effect_params({"source": "addon:set", "fallback": "starlight", "brightness": 0.5, "settings": {}})
+        ext = w.profile["effects"]["external"]
+        self.assertEqual((ext["settings"], ext["brightness"], ext["source"]), ({"speed": 2.5, "flake": "#88ccff"}, 0.5, "addon:set"))
+        from rgbmatrixfx import config as _cfg
+        self.assertEqual(_cfg.sanitize_profile(w.profile)["effects"]["external"]["settings"], {"speed": 2.5, "flake": "#88ccff"})
+        w.select_effect("flame"); w.select_effect("external:addon:set")
+        self.assertEqual(w.profile["effects"]["external"]["settings"]["speed"], 2.5)   # kept for the same tile
+        w._reset_effect()
+        self.assertEqual(w.profile["effects"]["external"], {"source": "addon:set", "fallback": "starlight"})
         w.unload_plugins()
         self.assertFalse([k for k in g.tiles if k.startswith("external:")])
         w.shutdown()

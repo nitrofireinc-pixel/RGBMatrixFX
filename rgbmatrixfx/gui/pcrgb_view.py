@@ -24,8 +24,7 @@ def _zones(dev):
     for name, n in dev.get("zones") or []:
         cols = [tuple(rgb[k]) if k < len(rgb) else (0, 0, 0) for k in range(i, i + n)]
         i += n
-        if n:
-            out.append((name, cols))
+        out.append((name, cols))          # a 0-LED zone (header with nothing set up in OpenRGB): drawn as an empty strip
     return out
 
 
@@ -42,7 +41,7 @@ def tiles_for(devs):
     for d in devs:
         t = d.get("type")
         if t == "dram":
-            sticks += [cols for _n, cols in _zones(d)] or [[(0, 0, 0)]]
+            sticks += [cols for _n, cols in _zones(d) if cols] or [[(0, 0, 0)]]
         elif t == "motherboard":
             tiles.append(("motherboard", "Motherboard", _zones(d)))
         else:
@@ -153,6 +152,10 @@ class PcRgbPanel(QWidget):
             p.drawRoundedRect(rect, 1.5, 1.5)
 
     def _strip(self, p, r, cols):
+        if not cols:
+            p.setPen(QPen(QColor("#2a2a31"), 1.2, Qt.PenStyle.DashLine))
+            p.drawLine(QPointF(r.x() + 2, r.center().y()), QPointF(r.right() - 2, r.center().y()))
+            return
         cols = _sample(cols)
         n = len(cols)
         d = min(r.height(), (r.width() - 2) / max(n, 1) - 1.5, 9.0)
@@ -208,7 +211,7 @@ class PcRgbPanel(QWidget):
                 p.drawLine(QPointF(x + 3, yy), QPointF(x + sw - 3, yy))
 
     def _paint_fans(self, p, r, zones):
-        rings = zones[:4]
+        rings = [z for z in zones if z[1]][:4]
         if not rings:
             return
         cols_n = 2 if len(rings) > 1 else 1

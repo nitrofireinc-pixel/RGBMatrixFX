@@ -827,7 +827,9 @@ class ExternalSource(Effect):
                    "or running, the fallback effect below plays instead.")
     PARAMS = [P("source", "Add-on source", "text", "", help="Name of the external frame source"),
               P("fallback", "Fallback effect", "choice", "starlight", choices=[e.id for e in EFFECTS],
-                help="Free effect that plays while the add-on doesn't send frames")]
+                help="Free effect that plays while the add-on doesn't send frames"),
+              P("settings", "Add-on settings", "dict", {}, hidden=True,
+                help="The add-on effect's own settings (plugin API 1.2), passed to it through the engine status")]
 
     def setup(self):
         self._fb_id = None

@@ -221,12 +221,13 @@ class Gallery(QScrollArea):
         return {"n": int(sc.n), "n_kb": int(sc.n_kb), "kb_rows": int(sc.kb_rows), "kb_cols": int(sc.kb_cols),
                 "x": [float(v) for v in sc.x], "y": [float(v) for v in sc.y], "kind": list(sc.kind), "fps": 30}
 
-    def add_external(self, source, name, description, preview=None, fallback="starlight", plugin_id=None):
+    def add_external(self, source, name, description, preview=None, fallback="starlight", plugin_id=None,
+                     settings=None):
         """tile id "external:<source>"; clicking it selects the external effect with that source"""
         key = "external:" + source
         cls = type("AddonEffect", (), {"id": key, "name": name, "description": description or name,
                                        "mimics": "Add-on effect: " + (plugin_id or "plugin"), "source": source,
-                                       "fallback": fallback, "plugin_id": plugin_id})
+                                       "fallback": fallback, "plugin_id": plugin_id, "settings": settings or []})
         fx = None
         if preview is not None:
             try:
@@ -974,7 +975,9 @@ class MainWindow(QMainWindow):
             if t is None:
                 return
             self.profile["effect"] = "external"
-            self.profile.setdefault("effects", {})["external"] = {"source": t.cls.source, "fallback": t.cls.fallback}
+            fx_ = self.profile.setdefault("effects", {})
+            keep = fx_.get("external") if (fx_.get("external") or {}).get("source") == t.cls.source else {}
+            fx_["external"] = dict(keep or {}, source=t.cls.source, fallback=t.cls.fallback)
         else:
             self.profile["effect"] = eid
             self.profile.setdefault("effects", {}).setdefault(eid, {})
@@ -985,11 +988,15 @@ class MainWindow(QMainWindow):
     def _build_effect_tab(self):
         eid = self.profile["effect"]
         cls = EFFECT_BY_ID[eid]
+        tile = None
+        if eid == "external":                    # an add-on effect with a tile: show it as that effect
+            t = getattr(self, "gallery", None) and self.gallery.tiles.get(self.gallery_key(self.profile))
+            tile = t.cls if t is not None else None
         w = QWidget()
         v = QVBoxLayout(w)
         v.setContentsMargins(16, 14, 16, 14)
         top = QHBoxLayout()
-        name = QLabel(cls.name)
+        name = QLabel(tile.name if tile is not None else cls.name)
         name.setStyleSheet("font-size:16pt; font-weight:700;")
         top.addWidget(name)
         top.addStretch(1)
@@ -997,10 +1004,10 @@ class MainWindow(QMainWindow):
         reset.clicked.connect(self._reset_effect)
         top.addWidget(reset)
         v.addLayout(top)
-        d = QLabel(cls.description)
+        d = QLabel(tile.description if tile is not None else cls.description)
         d.setWordWrap(True)
         v.addWidget(d)
-        m = QLabel("Mimics: " + cls.mimics)
+        m = QLabel(tile.mimics if tile is not None else "Mimics: " + cls.mimics)
         m.setWordWrap(True)
         m.setProperty("muted", True)
         v.addWidget(m)
@@ -1009,10 +1016,17 @@ class MainWindow(QMainWindow):
             n.setProperty("accent", True)
             v.addWidget(n)
         params = self.profile.get("effects", {}).get(eid, {})
-        form = ParamForm(cls.schema(), params)
-        form.changed.connect(self._effect_params)
+        schema = cls.schema()
+        if tile is not None:                     # the source is fixed by the tile
+            schema = [dict(e, hidden=True) if e["id"] == "source" else e for e in schema]
         box = QGroupBox("Settings")
         bl = QVBoxLayout(box)
+        if tile is not None and tile.settings:
+            own = ParamForm(tile.settings, params.get("settings") or {}, adv_key="addon")
+            own.changed.connect(self._external_settings)
+            bl.addWidget(own)
+        form = ParamForm(schema, params)
+        form.changed.connect(self._effect_params)
         bl.addWidget(form)
         v.addWidget(box)
         v.addStretch(1)
@@ -1020,11 +1034,22 @@ class MainWindow(QMainWindow):
 
     def _effect_params(self, values):
         eid = self.profile["effect"]
+        if eid == "external":                    # keep the add-on's own settings (their own form)
+            old = self.profile.setdefault("effects", {}).get("external", {})
+            values = dict(values, settings=old.get("settings") or {})
         self.profile.setdefault("effects", {})[eid] = values
         self.changed()
 
+    def _external_settings(self, values):
+        ext = self.profile.setdefault("effects", {}).setdefault("external", {})
+        ext["settings"] = dict(values)
+        self.changed()
+
     def _reset_effect(self):
-        self.profile.setdefault("effects", {})[self.profile["effect"]] = {}
+        eid = self.profile["effect"]
+        old = self.profile.setdefault("effects", {}).get(eid) or {}
+        # an add-on effect keeps its source (and the tile's fallback); everything else -> defaults
+        self.profile["effects"][eid] = {k: old[k] for k in ("source", "fallback") if k in old} if eid == "external" else {}
         self.changed()
         self._build_effect_tab()
 
