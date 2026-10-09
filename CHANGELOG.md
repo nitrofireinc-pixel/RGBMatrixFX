@@ -43,6 +43,7 @@ RGBMatrixFX 1.2.1, the first release under the new name (free version).
 ### Fixed
 - `install.sh` removes empty migrated plugin, plugin-data and layout directories with a real `if`,
   so shellcheck no longer rejects `A && B || C` there.
+- The RPM description is wrapped so rpmlint accepts the package.
 
 ## [1.2.0] - 2026-10-09
 
