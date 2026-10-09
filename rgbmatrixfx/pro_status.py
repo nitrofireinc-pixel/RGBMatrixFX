@@ -25,3 +25,25 @@ def teaser_message(what):
     if PRO_FOR_SALE:
         return "%s is a RGBMatrixFX Pro feature." % what
     return "%s will be part of RGBMatrixFX Pro, which is coming soon (not for sale yet)." % what
+
+
+# Signed RGBMatrixFX Pro content (presets / effects sold or given to Pro users). The free app
+# can't open them; File > Import explains that instead of failing with a parse error. An
+# installed add-on can handle them (plugin API: ctx.register_import_handler).
+PRO_CONTENT_SUFFIXES = (".rfxpro",)
+PRO_CONTENT_FORMAT = "rgbmatrixfx-pro-content"
+
+
+def is_pro_content(path, data=None):
+    """True for a .rfxpro file, or a JSON object marked as signed Pro content"""
+    if str(path).lower().endswith(PRO_CONTENT_SUFFIXES):
+        return True
+    return isinstance(data, dict) and data.get("format") == PRO_CONTENT_FORMAT
+
+
+def needs_pro_message(filename):
+    """friendly text for a Pro file opened without the Pro add-on"""
+    tail = ("Install the RGBMatrixFX Pro add-on to use it." if PRO_FOR_SALE
+            else "RGBMatrixFX Pro is coming soon (not for sale yet).")
+    return ("\u201c%s\u201d is an RGBMatrixFX Pro preset, so it needs RGBMatrixFX Pro. "
+            "Your other presets are unchanged. %s" % (filename, tail))

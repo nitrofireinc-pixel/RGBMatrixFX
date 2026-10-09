@@ -120,6 +120,69 @@ class TestGui(unittest.TestCase):
         # the default window (nothing on the port) explains instead of failing
         self.assertNotIn("Traceback", self.w.orgb_info.text())
 
+    def test_pro_content_rejected_nicely_without_addon(self):
+        p1 = os.path.join(self.d.name, "Christmas.rfxpro")
+        with open(p1, "w") as f:
+            json.dump({"format": "rgbmatrixfx-pro-content", "v": 1, "payload": "x", "sig": "y"}, f)
+        p2 = os.path.join(self.d.name, "sneaky.json")             # Pro content with a .json name
+        with open(p2, "w") as f:
+            json.dump({"format": "rgbmatrixfx-pro-content", "v": 1}, f)
+        before = dict(self.w.cfg["presets"])
+        self.assertEqual(self.w.import_presets([p1, p2]), [])
+        self.assertEqual(self.w.cfg["presets"], before)
+        text = self.warnings[-1][1]
+        self.assertIn("\u201cChristmas.rfxpro\u201d is an RGBMatrixFX Pro preset, so it needs RGBMatrixFX Pro", text)
+        self.assertIn("sneaky.json", text)
+        self.assertNotIn("Traceback", text)
+
+    def test_plugin_api_1_1_import_presets_settings(self):
+        pdir = os.path.join(self.d.name, "plugins11")
+        os.makedirs(os.path.join(pdir, "addon"))
+        with open(os.path.join(pdir, "addon", "plugin.json"), "w") as f:
+            json.dump({"id": "addon", "name": "Addon", "version": "1", "api": "1.1"}, f)
+        with open(os.path.join(pdir, "addon", "plugin.py"), "w") as f:
+            f.write("""
+from PySide6.QtWidgets import QLabel
+def handler(path):
+    if path.endswith('bad.rfxpro'):
+        raise ValueError('signature check failed')
+    return {'Snow (addon)': {'effect': 'external', 'effects': {'external': {'source': 'addon:snow', 'fallback': 'starlight'}}}}
+def register(ctx):
+    ctx.register_import_handler(['.rfxpro'], handler)
+    ctx.add_settings_section('Addon box', lambda: QLabel('addon settings here'))
+    ctx.add_presets({'Glow (addon)': {'effect': 'static'}}, activate='Glow (addon)')
+""")
+        old = {k: os.environ.get(k) for k in ("XDG_DATA_HOME", "XDG_CONFIG_HOME")}
+        os.environ.update(XDG_DATA_HOME=os.path.join(self.d.name, "data"), XDG_CONFIG_HOME=os.path.join(self.d.name, "cfg"))
+        try:
+            w = MainWindow(sock_path=os.path.join(self.d.name, "none.sock"), cfg_path=self.cfg, plugins=True, plugin_dirs=[pdir])
+            warns = []
+            w._warn = lambda *a: warns.append(a)
+            w.show()
+            spin(100)
+            self.assertEqual([lp.info.id for lp in w.plugins.loaded], ["addon"])
+            self.assertEqual(w.g["active_preset"], "Glow (addon)")
+            self.assertIn("Addon box", [b.title() for b in w.tab_settings.widget().findChildren(QGroupBox)])
+            good = os.path.join(self.d.name, "Snow.rfxpro")
+            bad = os.path.join(self.d.name, "bad.rfxpro")
+            for p in (good, bad):
+                open(p, "w").close()
+            self.assertEqual(w.import_presets([good, bad]), ["Snow (addon)"])
+            self.assertEqual(w.profile["effect"], "external")
+            self.assertIn("signature check failed", warns[-1][1])
+            w.unload_plugins()
+            self.assertEqual((w.import_handlers, w.settings_sections), ([], []))
+            w.import_presets([good])
+            self.assertIn("needs RGBMatrixFX Pro", warns[-1][1])
+            w.shutdown()
+            w.close()
+        finally:
+            for k, v in old.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
     def test_help_support_item(self):
         hm = self.w.help_menu
         labels = [a.text().replace("&", "") for a in hm.actions()]

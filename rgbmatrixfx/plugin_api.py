@@ -31,7 +31,7 @@ import traceback
 
 from . import APP_NAME, __version__, paths
 
-API_VERSION = (1, 0)
+API_VERSION = (1, 1)
 API_VERSION_STR = "%d.%d" % API_VERSION
 
 # What a context can offer. Hosts advertise a subset; check with ctx.has(...).
@@ -45,8 +45,13 @@ CAP_EVENTS = "events"                # ctx.on("effect_changed" | "engine_connect
 CAP_EDITION = "app.edition"          # ctx.set_edition() (for the RGBMatrixFX Pro add-on; a label only)
 CAP_FEATURES = "app.features"        # ctx.enable_feature() (for the RGBMatrixFX Pro add-on)
 CAP_LAYOUTS = "layouts"              # ctx.register_layout() (data-only device layout packs)
+# API 1.1
+CAP_IMPORT = "presets.import"        # ctx.register_import_handler() (File > Import presets for other file types)
+CAP_PRESETS = "presets.add"          # ctx.add_presets() (add presets, optionally make one active)
+CAP_SETTINGS_UI = "gui.settings_section"   # ctx.add_settings_section() (a box on the Settings tab)
 ALL_CAPABILITIES = frozenset({CAP_LOG, CAP_SETTINGS, CAP_STORAGE, CAP_MENU, CAP_DIALOG_PARENT,
-                              CAP_STATUS, CAP_EVENTS, CAP_EDITION, CAP_FEATURES, CAP_LAYOUTS})
+                              CAP_STATUS, CAP_EVENTS, CAP_EDITION, CAP_FEATURES, CAP_LAYOUTS,
+                              CAP_IMPORT, CAP_PRESETS, CAP_SETTINGS_UI})
 
 # Built-in features that are locked in the free edition and shown there as Pro previews.
 # The RGBMatrixFX Pro add-on unlocks them with ctx.enable_feature(); see docs/PLUGIN_API.md.
@@ -258,6 +263,37 @@ class PluginContext:
         its maps. Data only: nothing in it is executed. Returns the saved file's path."""
         self._need(CAP_LAYOUTS)
         return self._host.register_layout(self._info, layout)
+
+    # -- API 1.1: presets and settings
+    def register_import_handler(self, suffixes, handler):
+        """Handle more file types in File > Import presets. ``suffixes``: e.g. [".rfxpro"].
+        ``handler(path)`` returns {preset name: profile dict} (profiles are validated like any
+        imported preset), or None to decline the file; raise ValueError("reason") to reject it
+        with a message shown to the user."""
+        self._need(CAP_IMPORT)
+        if not callable(handler):
+            raise TypeError("handler must be callable")
+        sfx = tuple(str(x).lower() for x in ([suffixes] if isinstance(suffixes, str) else suffixes))
+        if not sfx or not all(x.startswith(".") for x in sfx):
+            raise ValueError("suffixes must look like '.ext'")
+        self._host.register_import_handler(self._info, sfx, handler)
+
+    def add_presets(self, presets, activate=None):
+        """Add presets ({name: profile dict}; profiles are validated, names made unique) and,
+        if ``activate`` is one of the given names, make it the active preset. Returns the list of
+        names actually used."""
+        self._need(CAP_PRESETS)
+        if not isinstance(presets, dict):
+            raise TypeError("presets must be a dict {name: profile}")
+        return self._host.add_presets(self._info, presets, activate)
+
+    def add_settings_section(self, title, factory):
+        """Add a box titled ``title`` to the Settings tab. ``factory()`` returns a PySide6
+        QWidget with your controls; it is called whenever the tab is (re)built."""
+        self._need(CAP_SETTINGS_UI)
+        if not callable(factory):
+            raise TypeError("factory must be callable")
+        self._host.add_settings_section(self._info, str(title)[:60], factory)
 
     # -- internal (host side)
     def _need(self, cap):

@@ -22,6 +22,11 @@ RGBMatrixFX 1.2.0, the first release under the new name (free version).
   `razorfx` / `razorfx-engine` as aliases. The packages replace the old `razorfx` package.
 
 ### Added
+- Plugin API 1.1 (docs/PLUGIN_API.md): preset import handlers, plugin-supplied presets and
+  Settings sections, and the `external` effect source, which plays frames sent by another
+  process over the engine socket (`scene` / `source_frame`) with a built-in fallback effect.
+- RGBMatrixFX Pro content (`*.rfxpro`) is recognised on import: without the Pro add-on the import
+  explains that the preset needs Pro instead of failing with an error.
 - *Settings ▸ Devices* lists the motherboard, RAM and fan / ARGB-header lighting found by
   OpenRGB's SDK server (name, type, zones), read-only. It re-scans by itself, so devices that
   OpenRGB detects late after login still appear; OpenRGB missing or stopped is shown plainly.

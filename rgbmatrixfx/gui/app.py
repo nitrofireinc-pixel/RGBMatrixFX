@@ -49,7 +49,7 @@ REACTIVE_ADV = [
     ADV("rainbow_step", "Rainbow hue step", "float", 0.137, "Hue change between consecutive rainbow ripples", min=0.01, max=0.5, step=0.001),
     ADV("rainbow_sat", "Rainbow saturation", "float", 1.0, "", min=0.0, max=1.0, step=0.01),
 ]
-PRESET_FILE_FILTER = "%s presets (*.rgbmatrixfx.json *.razorfx.json *.razerfx.json *.json)" % APP_NAME   # older exports: .razorfx.json (1.1), .razerfx.json (1.0)
+PRESET_FILE_FILTER = "%s presets (*.rgbmatrixfx.json *.razorfx.json *.razerfx.json *.json *.rfxpro)" % APP_NAME   # older exports: .razorfx.json (1.1), .razerfx.json (1.0)
 PRESET_FORMAT = "rgbmatrixfx-presets"
 
 UNIT = APP_ID + "-engine.service"
@@ -237,6 +237,8 @@ class MainWindow(QMainWindow):
         self._graveyard = []          # replaced widgets waiting for deleteLater (see _retire)
         self.edition = plugin_api.Edition()          # "Free" unless the Pro add-on says otherwise
         self.features = set()                         # plugin_api.PRO_FEATURES unlocked by the Pro add-on
+        self.import_handlers = []                     # [(plugin id, (".ext", ...), handler)] (plugin API 1.1)
+        self.settings_sections = []                   # [(plugin id, title, factory)] (plugin API 1.1)
         self.plugin_host = GuiPluginHost(self)
         self.plugins = plugin_api.PluginManager(self.plugin_host, plugin_dirs)
         self._orgb_gen = -1
@@ -351,6 +353,11 @@ class MainWindow(QMainWindow):
             self.plugins.unload_all()
         except Exception:
             safety.log("plugin unloading failed:\n" + traceback.format_exc())
+        had = bool(self.settings_sections)
+        self.import_handlers.clear()
+        self.settings_sections.clear()
+        if had and getattr(self, "tab_settings", None) is not None:
+            self._build_settings_tab()
 
     def _apply_geometry(self):
         """mouse gap / offset changed -> rebuild the scene used by preview + local render"""
@@ -1404,6 +1411,18 @@ class MainWindow(QMainWindow):
         pl.addLayout(prow)
         v.addWidget(pg)
         self._update_plugin_info()
+        for pid, title, factory in list(self.settings_sections):   # plugin API 1.1 sections
+            try:
+                inner = factory()
+                if inner is None:
+                    continue
+                box = QGroupBox(title)
+                box.setToolTip("Provided by plugin %s" % pid)
+                bl = QVBoxLayout(box)
+                bl.addWidget(inner)
+                v.addWidget(box)
+            except Exception:
+                safety.log("settings section of plugin %s failed:\n%s" % (pid, traceback.format_exc()))
         ver = QLabel("%s %s \u2022 config: %s" % (APP_NAME, __version__, self.cfg_path))
         ver.setProperty("muted", True)
         v.addWidget(ver)
@@ -1607,8 +1626,20 @@ class MainWindow(QMainWindow):
         added, errors = [], []
         for path in paths:
             try:
+                handled = self._plugin_import(path)
+                if handled is not None:
+                    for name, prof in handled.items():
+                        if isinstance(prof, dict):
+                            nm = self._unique_name(str(name).strip()[:60] or "Imported")
+                            self.cfg["presets"][nm] = config.sanitize_profile(prof)
+                            added.append(nm)
+                    continue
+                if pro_status.is_pro_content(path):
+                    raise ValueError(pro_status.needs_pro_message(os.path.basename(path)))
                 with open(path) as f:
                     data = json.load(f)
+                if pro_status.is_pro_content(path, data):
+                    raise ValueError(pro_status.needs_pro_message(os.path.basename(path)))
                 if isinstance(data, dict) and isinstance(data.get("presets"), dict):
                     items = data["presets"].items()
                 elif isinstance(data, dict) and "effect" in data:          # a bare profile
@@ -1633,6 +1664,45 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().showMessage(msg, 6000)
         return added
+
+    def _plugin_import(self, path):
+        """ask plugin import handlers (API 1.1) for this file: {name: profile} or None"""
+        low = path.lower()
+        for pid, sfx, handler in list(self.import_handlers):
+            if not low.endswith(sfx):
+                continue
+            try:
+                res = handler(path)
+            except ValueError:
+                raise
+            except Exception:
+                safety.log("import handler of plugin %s failed:\n%s" % (pid, traceback.format_exc()))
+                raise ValueError("the %s plugin couldn't read this file" % pid)
+            if res is not None:
+                if not isinstance(res, dict):
+                    raise ValueError("the %s plugin returned no presets" % pid)
+                return res
+        return None
+
+    def add_presets_from_plugin(self, presets, activate=None):
+        """plugin API 1.1 (ctx.add_presets): add presets, optionally activate one"""
+        names, active = [], None
+        for name, prof in presets.items():
+            if not isinstance(prof, dict):
+                continue
+            nm = str(name).strip()[:60] or "Plugin preset"
+            if nm in self.cfg["presets"]:
+                nm = self._unique_name(nm)
+            self.cfg["presets"][nm] = config.sanitize_profile(prof)
+            names.append(nm)
+            if name == activate:
+                active = nm
+        if active:
+            self.g["active_preset"] = active
+            self.cfg["profile"] = copy.deepcopy(self.cfg["presets"][active])
+        if names:
+            self.changed(rebuild=True)
+        return names
 
     def delete_preset(self):
         name = self.g.get("active_preset")

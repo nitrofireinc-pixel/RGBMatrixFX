@@ -801,3 +801,69 @@ class AudioMeter(Effect):
 EFFECTS = [Flame, Wave, Spectrum, Breathing, Static, Starlight, Fire, Reactive, Ripple,
            Wheel, MatrixRain, Aurora, Heatmap, AudioMeter]
 EFFECT_BY_ID = {e.id: e for e in EFFECTS}
+
+
+# ----------------------------------------------------------------- External source (add-ons)
+# Frames pushed through the engine's documented "source_frame" IPC command (docs/PLUGIN_API.md,
+# "Engine IPC: external effect sources"): {source name: (monotonic time, (N, 3) float array)}.
+EXTERNAL_FRAMES = {}
+EXTERNAL_TIMEOUT_S = 1.0
+
+
+def push_external(source, rgb, now):
+    """store one frame from an external renderer (called by the engine's IPC handler)"""
+    EXTERNAL_FRAMES[str(source)[:64]] = (float(now), rgb)
+
+
+class ExternalSource(Effect):
+    """Plays frames that a separate program (for example an add-on) renders and sends through
+    the engine's "source_frame" IPC command. While no fresh frame arrives (the program is not
+    installed, not running, or stopped for more than a second) the chosen free effect plays
+    instead. Not shown in the effect gallery; presets select it."""
+    id = "external"
+    name = "Add-on effect"
+    mimics = "an effect provided by an installed add-on"
+    description = ("This preset uses an effect rendered by an add-on. When the add-on isn't installed "
+                   "or running, the fallback effect below plays instead.")
+    PARAMS = [P("source", "Add-on source", "text", "", help="Name of the external frame source"),
+              P("fallback", "Fallback effect", "choice", "starlight", choices=[e.id for e in EFFECTS],
+                help="Free effect that plays while the add-on doesn't send frames")]
+
+    def setup(self):
+        self._fb_id = None
+        self._make_fallback()
+
+    def params_changed(self):
+        if getattr(self, "_fb_id", None) is not None:
+            self._make_fallback()
+
+    def _make_fallback(self):
+        fid = self.p.get("fallback")
+        if fid not in EFFECT_BY_ID or fid == self.id:
+            fid = "starlight"
+        if fid != self._fb_id:
+            self.fb = EFFECT_BY_ID[fid](self.scene, {}, seed=self.seed)
+            self._fb_id = fid
+
+    def live(self, now=None):
+        """True while the source sends fresh frames of the right size"""
+        ent = EXTERNAL_FRAMES.get(str(self.p.get("source", "")))
+        if ent is None:
+            return False
+        import time as _time
+        now = _time.monotonic() if now is None else now
+        return now - ent[0] <= EXTERNAL_TIMEOUT_S and len(ent[1]) == self.n
+
+    def step(self, t, dt):
+        self.t = t
+        if self.live():
+            rgb = np.array(EXTERNAL_FRAMES[str(self.p.get("source", ""))][1], dtype=np.float64)
+        else:
+            rgb = self.fb.step(t, dt)
+        return rgb * float(self.p.get("brightness", 1.0))
+
+    def on_press(self, x, y, idx, t):
+        self.fb.on_press(x, y, idx, t)
+
+
+EFFECT_BY_ID[ExternalSource.id] = ExternalSource     # selectable by presets, not in the gallery (EFFECTS)

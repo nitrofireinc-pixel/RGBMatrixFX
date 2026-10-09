@@ -11,7 +11,7 @@ from . import safety
 class GuiPluginHost:
     capabilities = frozenset({api.CAP_LOG, api.CAP_SETTINGS, api.CAP_STORAGE, api.CAP_MENU,
                               api.CAP_DIALOG_PARENT, api.CAP_STATUS, api.CAP_EVENTS, api.CAP_EDITION, api.CAP_FEATURES,
-                              api.CAP_LAYOUTS})
+                              api.CAP_LAYOUTS, api.CAP_IMPORT, api.CAP_PRESETS, api.CAP_SETTINGS_UI})
 
     def __init__(self, window):
         self._w = window
@@ -67,6 +67,19 @@ class GuiPluginHost:
 
     def dialog_parent(self):
         return self._w
+
+    # -- API 1.1
+    def register_import_handler(self, info, suffixes, handler):
+        self._w.import_handlers.append((info.id, suffixes, handler))
+        safety.log("import handler for %s registered by plugin %s" % (", ".join(suffixes), info.id))
+
+    def add_presets(self, info, presets, activate=None):
+        return self._w.add_presets_from_plugin(presets, activate)
+
+    def add_settings_section(self, info, title, factory):
+        self._w.settings_sections.append((info.id, title, factory))
+        if getattr(self._w, "tab_settings", None) is not None:
+            self._w._build_settings_tab()
 
     def engine_status(self):
         w = self._w

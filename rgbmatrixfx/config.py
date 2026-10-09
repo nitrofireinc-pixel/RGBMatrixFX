@@ -130,6 +130,8 @@ def sanitize_effect_params(eid, params):
             v = v if v in s["choices"] else s["default"]
         elif t == "color":
             v = str(v) if isinstance(v, str) and v.startswith("#") else s["default"]
+        elif t == "text":
+            v = str(v)[:64] if isinstance(v, (str, int, float)) else s["default"]
         elif t == "gradient":
             v = [str(c) for c in v if isinstance(c, str) and c.startswith("#")][:12] if isinstance(v, list) else s["default"]
             if len(v) < 2:

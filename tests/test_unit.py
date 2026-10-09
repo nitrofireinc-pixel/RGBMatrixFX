@@ -569,6 +569,34 @@ class TestEngine(unittest.TestCase):
             self.assertEqual(st["mouse_pid"], 0x0073)
             self.assertFalse(eng.handle({"cmd": "bogus"})["ok"])
 
+    def test_external_source_frames_and_fallback(self):
+        import time as _t
+        from rgbmatrixfx.engine import Engine
+        from rgbmatrixfx import effects as fx
+        with tempfile.TemporaryDirectory() as d:
+            eng = Engine(cfg_path=os.path.join(d, "c.json"), sock_path=os.path.join(d, "s"), hub=FakeHub(), inputs=FakeInputs())
+            sc = eng.handle({"cmd": "scene"})
+            n = sc["n"]
+            self.assertEqual((len(sc["x"]), len(sc["kind"]), sc["kb_rows"], sc["kb_cols"]), (n, n, 6, 22))
+            prof = config.make_profile("external", {"source": "addon:test", "fallback": "static"})
+            self.assertTrue(eng.handle({"cmd": "set_profile", "profile": prof})["ok"])
+            self.assertEqual(eng.comp.effect_id, "external")
+            self.assertEqual(eng.cfg["profile"]["effects"]["external"]["source"], "addon:test")
+            st = eng.handle({"cmd": "status"})["status"]
+            self.assertEqual(st["external"], {"source": "addon:test", "fallback": "static", "live": False})
+            static = eng.comp.render(_t.monotonic())          # no frames yet: the fallback plays
+            self.assertGreater(static.max(), 0)
+            self.assertFalse(eng.handle({"cmd": "source_frame", "source": "addon:test", "n": n - 1, "rgb": "00" * 3 * (n - 1)})["ok"])
+            self.assertTrue(eng.handle({"cmd": "source_frame", "source": "addon:test", "n": n, "rgb": "ff0000" * n})["ok"])
+            out = eng.comp.render(_t.monotonic())
+            self.assertTrue(np.allclose(out[:, 0], 1.0) and np.allclose(out[:, 1:], 0.0))
+            self.assertTrue(eng.handle({"cmd": "status"})["status"]["external"]["live"])
+            fx.EXTERNAL_FRAMES["addon:test"] = (_t.monotonic() - 5, fx.EXTERNAL_FRAMES["addon:test"][1])
+            self.assertFalse(np.allclose(eng.comp.render(_t.monotonic())[:, 1:], 0.0) and
+                             np.allclose(eng.comp.render(_t.monotonic())[:, 0], 1.0))   # stale -> fallback
+            fx.EXTERNAL_FRAMES.clear()
+            self.assertNotIn("external", [e.id for e in fx.EFFECTS])                     # not in the gallery
+
 
 
 class TestGenericInputDetection(unittest.TestCase):

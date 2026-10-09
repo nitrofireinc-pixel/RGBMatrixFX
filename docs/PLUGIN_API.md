@@ -1,10 +1,11 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception -->
 <!-- SPDX-FileCopyrightText: © 2026 Nitrofire Computing -->
 <!-- The code snippets in this file are also available under 0BSD, like examples/plugins/. -->
-# RGBMatrixFX plugin API 1.0
+# RGBMatrixFX plugin API 1.1
 
-> **Status: 1.0, shipped with RazorFX 1.1.0.** This is the first, deliberately small version
-> of the API. It may grow in a later RGBMatrixFX release; a plugin written for API 1.0 keeps
+> **Status: 1.1, shipped with RGBMatrixFX 1.2.0** (1.0 shipped with RazorFX 1.1.0). 1.1 adds
+> preset import handlers, plugin presets, Settings sections and the external effect source
+> (see [What's new in 1.1](#whats-new-in-11)). The API is deliberately small. It may grow in a later RGBMatrixFX release; a plugin written for API 1.0 keeps
 > loading while the major version matches.
 
 RGBMatrixFX is GPL-3.0-or-later **with the [RGBMatrixFX plugin exception](../LICENSE-EXCEPTION)**.
@@ -99,10 +100,43 @@ handlers are caught and logged, so they cannot crash the GUI.
 
 A plugin may use Qt for Python (PySide6, LGPL) directly for its own windows and dialogs.
 
-## What 1.0 deliberately does *not* include
+## What's new in 1.1
 
-No custom effects, no access to the engine's frames or devices, no editing of presets or
-config, and no hooks into the effect pipeline. These need a careful, stable design first
+Declare `"api": "1.1"` in `plugin.json` to use these (a 1.1 plugin is not loaded by a 1.0 host).
+
+| Member | Capability | What it does |
+|---|---|---|
+| `ctx.register_import_handler(suffixes, handler)` | `presets.import` | **File > Import presets** offers each file whose name ends in one of `suffixes` (e.g. `[".mypack"]`) to `handler(path)` before the built-in importer. Return a dict `{preset name: profile}` to import those presets, `None` to let the built-in importer try, or raise `ValueError("reason")` to reject the file (the reason is shown to the user; other presets in the same import continue). Profiles are sanitized like any imported preset |
+| `ctx.add_presets(presets, activate=None)` | `presets.add` | Adds `{name: profile}` presets to the user's list (existing names are not overwritten) and optionally activates one of them |
+| `ctx.add_settings_section(title, factory)` | `gui.settings_section` | Adds a group box titled `title` to the Settings tab. `factory()` returns the QWidget to put inside; it is called each time the tab is rebuilt |
+
+### External effect source (engine IPC)
+
+The effect `external` (not shown in the gallery) plays frames that **another process** sends
+to the engine, so a plugin can provide its own effects without running code inside the engine.
+A profile using it looks like
+`{"effect": "external", "effects": {"external": {"source": "myplugin:snow", "fallback": "starlight"}}}`.
+`source` is any short name (max 64 characters) you choose; `fallback` is a built-in effect that
+plays whenever no fresh frame has arrived for 1 second (for example when your process is not
+running), so the lighting never freezes.
+
+The engine listens on the Unix socket `$XDG_RUNTIME_DIR/rgbmatrixfx/engine.sock` (same user only).
+Requests and replies are one JSON object per line:
+
+- `{"cmd": "scene"}` → `{"ok": true, "n": …, "n_kb": …, "kb_rows": …, "kb_cols": …, "x": […], "y": […], "kind": […], "fps": …}`:
+  the LED list the effects render to (`x`, `y` are LED centres in key units, keyboard top-left at 0,0; `kind` is e.g. `"key"`, `"kb_logo"`, `"phantom"`, `"mouse_logo"`, `"mouse_scroll"`, `"extra"`).
+- `{"cmd": "source_frame", "source": "myplugin:snow", "n": N, "rgb": "<hex>"}` sends one frame:
+  `N` must equal the scene's `n`, and `rgb` is `N` × 6 hex digits (`rrggbb` per LED, in scene order).
+  Send at the scene's `fps` (or slower). Frames for a source that is not active are ignored.
+- `{"cmd": "status"}` includes `"external": {"source", "fallback", "live"}` while the external effect is active.
+
+The engine IPC is a plain local protocol; a program that only talks to it over the socket
+is a separate program, whatever its license.
+
+## What the API deliberately does *not* include
+
+No in-process custom effects, no access to devices, no editing of config, and no hooks into
+the effect pipeline beyond the external source above. These need a careful, stable design first
 (see the roadmap). Ask in the issue tracker if you need something.
 
 ## Versioning

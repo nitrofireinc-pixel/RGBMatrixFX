@@ -17,6 +17,7 @@ import numpy as np
 from . import config, ipc, layout as L
 from .devices import DeviceHub, log
 from .inputs import InputHub
+from .effects import push_external
 from .scene import Scene, Compositor
 from . import effects as fxlib
 
@@ -106,6 +107,9 @@ class Engine:
                    "inputs": self.inputs.info(), "uptime": round(self.clock() - self.t0, 1),
                    "audio": None if self.audio is None else (self.audio.error or ("ok" if self.audio.alive else "stopped")),
                    "pid": os.getpid()})
+        if self.comp.effect_id == "external":
+            e = self.comp.effect
+            st["external"] = {"source": e.p.get("source", ""), "fallback": e.p.get("fallback"), "live": e.live()}
         return st
 
     # ------------------------------------------------------------ IPC
@@ -137,6 +141,19 @@ class Engine:
             rgb = (np.clip(self.rgb, 0, 1) * 255 + 0.5).astype(np.uint8)
             return {"ok": True, "n": int(self.scene.n), "rgb": rgb.tobytes().hex(),
                     "paused": self.cfg["global"]["paused"], "fps": round(self.fps_measured, 1)}
+        if cmd == "scene":                    # LED points, for external renderers (docs/PLUGIN_API.md)
+            sc = self.scene
+            return {"ok": True, "n": int(sc.n), "n_kb": int(sc.n_kb), "kb_rows": int(sc.kb_rows),
+                    "kb_cols": int(sc.kb_cols), "x": [round(float(v), 3) for v in sc.x],
+                    "y": [round(float(v), 3) for v in sc.y], "kind": list(sc.kind),
+                    "fps": int(self.cfg["global"]["fps"])}
+        if cmd == "source_frame":             # one frame from an external renderer
+            src, n, data = str(req.get("source", ""))[:64], int(req.get("n", -1)), req.get("rgb", "")
+            if not src or n != self.scene.n or not isinstance(data, str) or len(data) != n * 6:
+                return {"ok": False, "error": "frame must have n=%d points (rgb hex, 6 chars each)" % self.scene.n}
+            rgb = np.frombuffer(bytes.fromhex(data), dtype=np.uint8).reshape(n, 3) / 255.0
+            push_external(src, rgb, time.monotonic())
+            return {"ok": True}
         if cmd == "inject":
             kind, code = req.get("kind"), req.get("code")
             if kind == "key":
