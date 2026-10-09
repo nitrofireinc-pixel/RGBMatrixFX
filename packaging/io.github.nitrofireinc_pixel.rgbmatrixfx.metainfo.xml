@@ -61,12 +61,12 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
-    <release version="1.2.0" date="2026-10-09">
+    <release version="1.2.1" date="2026-10-09">
       <description>
         <p>
           Renamed from RazorFX to RGBMatrixFX (settings are copied over). The Devices box lists
           motherboard, RAM and fan lighting found by OpenRGB; the installer sets OpenRGB up.
-          Help has an optional Support link.
+          Help has an optional Support link. 1.2.0 was not released; the installer lint is fixed here.
         </p>
       </description>
     </release>

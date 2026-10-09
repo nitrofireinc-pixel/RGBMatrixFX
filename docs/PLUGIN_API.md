@@ -3,7 +3,7 @@
 <!-- The code snippets in this file are also available under 0BSD, like examples/plugins/. -->
 # RGBMatrixFX plugin API 1.1
 
-> **Status: 1.1, shipped with RGBMatrixFX 1.2.0** (1.0 shipped with RazorFX 1.1.0). 1.1 adds
+> **Status: 1.1, shipped with RGBMatrixFX 1.2.1** (1.0 shipped with RazorFX 1.1.0). 1.1 adds
 > preset import handlers, plugin presets, Settings sections and the external effect source
 > (see [What's new in 1.1](#whats-new-in-11)). The API is deliberately small. It may grow in a later RGBMatrixFX release; a plugin written for API 1.0 keeps
 > loading while the major version matches.

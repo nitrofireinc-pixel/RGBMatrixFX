@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: © 2026 Nitrofire Computing
 """RGBMatrixFX (formerly RazorFX): selectable lighting effects engine for RGB keyboards + mice
 (OpenRazer devices today; read-only display of OpenRGB devices)."""
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 APP_ID = "rgbmatrixfx"            # directories, systemd unit, desktop file, icon name
 APP_NAME = "RGBMatrixFX"
 LEGACY_APP_ID = "razer-fx"    # the 1.0.x name ("Razer FX"); only read when migrating

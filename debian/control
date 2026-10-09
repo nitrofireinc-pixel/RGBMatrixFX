@@ -25,8 +25,8 @@ Recommends: openrgb,
             python3-evdev
 Suggests: pipewire-bin | pulseaudio-utils,
           polychromatic
-Breaks: razorfx (<< 1.2.0~)
-Replaces: razorfx (<< 1.2.0~)
+Breaks: razorfx (<< 1.2.1~)
+Replaces: razorfx (<< 1.2.1~)
 Description: Chroma-style lighting effects for RGB keyboards and mice
  RGBMatrixFX (formerly RazorFX) renders animated lighting effects onto Razer keyboards and mice
  through the OpenRazer driver and daemon, and reacts to key presses, mouse

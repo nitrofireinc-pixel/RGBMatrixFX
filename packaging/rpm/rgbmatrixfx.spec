@@ -30,7 +30,7 @@ Requires:       python3-openrazer
 Recommends:     openrazer-daemon
 # OpenRGB lists motherboard / RAM / fan lighting (its package brings the udev rules)
 Recommends:     openrgb
-Obsoletes:      razorfx < 1.2.0
+Obsoletes:      razorfx < 1.2.1
 Provides:       razorfx = %{version}-%{release}
 Recommends:     python3-evdev
 Suggests:       pipewire-utils

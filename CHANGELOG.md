@@ -6,9 +6,10 @@ All notable changes to RGBMatrixFX (called RazorFX in 1.1 and Razer FX up to 1.0
 
 ## [Unreleased]
 
-## [1.2.0] - 2026-10-09
+## [1.2.1] - 2026-10-09
 
-RGBMatrixFX 1.2.0, the first release under the new name (free version).
+RGBMatrixFX 1.2.1, the first release under the new name (free version).
+1.2.0 was tagged and never released: the release workflow failed shellcheck on the installer, so no packages were published.
 
 ### Changed
 - Renamed from RazorFX to **RGBMatrixFX**, because the project is expanding towards the keyboards
@@ -38,6 +39,14 @@ RGBMatrixFX 1.2.0, the first release under the new name (free version).
 - Packages recommend / depend on `openrgb` (deb, rpm: Recommends; Arch: depends) and ship
   `openrgb-server.service` (user unit, not enabled) and `modules-load.d/rgbmatrixfx-i2c.conf`.
 - *Help ▸ Support*: an optional link to support development (never shown unasked).
+
+### Fixed
+- `install.sh` removes empty migrated plugin, plugin-data and layout directories with a real `if`,
+  so shellcheck no longer rejects `A && B || C` there.
+
+## [1.2.0] - 2026-10-09
+
+Tagged, never released. The same changes shipped in 1.2.1 after the installer lint fix.
 
 ## [1.1.0] - 2026-10-05
 
@@ -207,7 +216,8 @@ First public release, licensed under GPL-3.0-or-later.
 - `install.sh` / `uninstall.sh` (per-user), an optional uaccess udev rule, diagnostics
   (`tools/diag_timing.py`), and unit, GUI, integration and install tests.
 
-[Unreleased]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.1.0...v1.2.1
 [1.2.0]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/releases/tag/v1.0.0

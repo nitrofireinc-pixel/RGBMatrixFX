@@ -216,7 +216,7 @@ if [[ -f "$UNIT_DIR/$PREV_UNIT" || -f "$PREV_PREFIX/razorfx/__init__.py" || -f "
     if [[ -d "$PREV_PREFIX" ]]; then                 # program files + venv; other files stay
         rm -rf "${PREV_PREFIX:?}/razorfx" "${PREV_PREFIX:?}/bin" "${PREV_PREFIX:?}/data" "${PREV_PREFIX:?}/venv" \
                "${PREV_PREFIX:?}/README.md" "${PREV_PREFIX:?}/LICENSE" "${PREV_PREFIX:?}/LICENSE-EXCEPTION"
-        for d in plugins plugin-data layouts; do [[ -d "$PREV_PREFIX/$d" ]] && rmdir "$PREV_PREFIX/$d" 2>/dev/null || true; done
+        for d in plugins plugin-data layouts; do if [[ -d "$PREV_PREFIX/$d" ]]; then rmdir "$PREV_PREFIX/$d" 2>/dev/null || true; fi; done
         if rmdir "$PREV_PREFIX" 2>/dev/null; then echo "   removed the old program files ($PREV_PREFIX)"
         else echo "   removed the old program files; kept other files in $PREV_PREFIX: $(find "$PREV_PREFIX" -mindepth 1 -maxdepth 1 -printf '%f ' | head -c 200)"; fi
     fi
