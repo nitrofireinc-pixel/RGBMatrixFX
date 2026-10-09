@@ -16,6 +16,8 @@ HDR = struct.Struct("<4sIII")         # magic, device index, packet id, payload 
 REQUEST_CONTROLLER_COUNT = 0
 REQUEST_CONTROLLER_DATA = 1
 SET_CLIENT_NAME = 50
+REQUEST_PROTOCOL_VERSION = 40
+REQUEST_RESCAN_DEVICES = 140      # protocol >= 5 (OpenRGB 0.9+ git / 1.0)
 MAX_PACKET = 4 * 1024 * 1024          # sanity limit for one reply (a big keyboard is ~100 KB)
 MAX_CONTROLLERS = 256
 MAX_COLORS = 4096
@@ -162,6 +164,17 @@ class Client:
         if len(body) < 4:
             raise SDKError("short controller data")
         return parse_controller(body[4:])
+
+    def request_rescan(self):
+        """ask the server to detect its devices again (like the OpenRGB GUI's Rescan). Uses this
+        connection's protocol negotiation, so call it on a fresh, short-lived client. -> bool
+        (False: the server is too old for this)"""
+        body = self._request(0, REQUEST_PROTOCOL_VERSION, struct.pack("<I", 5))
+        ver = struct.unpack("<I", body[:4])[0] if len(body) >= 4 else 0
+        if ver < 5:
+            return False
+        self._send(0, REQUEST_RESCAN_DEVICES)
+        return True
 
     def controllers(self):
         out = []

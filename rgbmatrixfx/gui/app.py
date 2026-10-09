@@ -801,6 +801,18 @@ class MainWindow(QMainWindow):
         btn = getattr(self, "orgb_start_btn", None)
         if btn is not None and shiboken6.isValid(btn):
             btn.setVisible(state == "not_running" and bool(shutil.which("openrgb")))
+        rb = getattr(self, "orgb_rescan_btn", None)
+        if rb is not None and shiboken6.isValid(rb):
+            rb.setVisible(state == "ok")
+
+    def rescan_openrgb(self):
+        """Settings > Devices > Rescan devices (OpenRGB re-detects; the list updates by itself)"""
+        if self.openrgb is None:
+            return
+        ok = self.openrgb.request_detection()
+        self.statusBar().showMessage("OpenRGB is detecting devices again; the list updates in a few seconds." if ok else
+                                     "This OpenRGB server can't rescan on request; restart it "
+                                     "(systemctl --user restart openrgb-server) instead.", 8000)
 
     def start_openrgb_server(self):
         """Settings > Devices > Start OpenRGB server: enable the user unit (no sudo)"""
@@ -1512,6 +1524,12 @@ class MainWindow(QMainWindow):
         self.orgb_start_btn.clicked.connect(self.start_openrgb_server)
         self.orgb_start_btn.setVisible(False)
         orow.addWidget(self.orgb_start_btn)
+        self.orgb_rescan_btn = QPushButton("Rescan devices")
+        self.orgb_rescan_btn.setToolTip("Asks OpenRGB to detect its devices again (for example a RAM stick or "
+                                        "fan controller it missed at startup). Takes a few seconds.")
+        self.orgb_rescan_btn.clicked.connect(self.rescan_openrgb)
+        self.orgb_rescan_btn.setVisible(False)
+        orow.addWidget(self.orgb_rescan_btn)
         orow.addStretch(1)
         cl.addLayout(orow)
         self.orgb_pro_hint = QLabel("\U0001F512 Sync with effects \u00b7 " + pro_status.badge())

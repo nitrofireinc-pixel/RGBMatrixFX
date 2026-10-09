@@ -82,6 +82,13 @@ class FakeOpenRGB:
                 self.log.append((dev, pkt, body))
                 if pkt == 0:
                     p = struct.pack("<I", len(self.ctrls))
+                elif pkt == 40:                    # protocol version
+                    p = struct.pack("<I", getattr(self, "protocol", 5))
+                elif pkt == 140:                   # rescan devices
+                    self.rescans = getattr(self, "rescans", 0) + 1
+                    if getattr(self, "on_rescan", None):
+                        self.on_rescan()
+                    continue
                 elif pkt == 1:
                     if dev >= len(self.ctrls):      # list changed between count and data
                         p = struct.pack("<I", 0)

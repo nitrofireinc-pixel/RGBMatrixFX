@@ -169,6 +169,16 @@ class TestGui(unittest.TestCase):
             self.assertTrue(wait(lambda: not panel.isHidden()))
             self.assertEqual([k for k, _t, _p in panel.tiles], ["ram"])
             self.assertTrue(all(p in (1, 0, 50) for _d, p, _b in srv.log))              # read-only
+            # Rescan devices: OpenRGB re-detects (e.g. a RAM stick it missed); the list follows
+            spin(1200)
+            self.assertFalse(w.orgb_rescan_btn.isHidden())
+            srv.on_rescan = lambda: srv.ctrls.append((1, "ENE DRAM", [("DRAM", 5, None)]))
+            w.rescan_openrgb()
+            self.assertEqual(srv.rescans, 1)
+            self.assertTrue(wait(lambda: len(panel.tiles[0][2]) == 2))                   # two sticks now
+            self.assertTrue(wait(lambda: w.orgb_info.text().count("RAM: ENE DRAM") == 2))
+            srv.protocol = 4                                                             # older server
+            self.assertFalse(w.openrgb.request_detection())
             w.shutdown(); w.close(); w.deleteLater()
         finally:
             os.environ.pop("RGBMATRIXFX_OPENRGB_PORT", None)

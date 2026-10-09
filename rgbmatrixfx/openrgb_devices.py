@@ -100,10 +100,28 @@ class Scanner:
     def stop(self):
         self._stop.set()
         self._wake.set()
+        if self._client is not None:
+            self._client.close()
 
     def rescan(self):
         """scan again now (e.g. the user opened the Settings tab)"""
         self._wake.set()
+
+    def request_detection(self):
+        """Settings > Devices > Rescan: have the OpenRGB server re-detect its devices (e.g. a RAM
+        stick it missed), then look quickly for a minute. -> bool (False: server too old/unreachable)"""
+        c = sdk.Client(host=self.host, port=self.port, timeout=2.0, name="RGBMatrixFX rescan")
+        try:
+            c.connect()
+            ok = c.request_rescan()
+        except (OSError, sdk.SDKError):
+            ok = False
+        finally:
+            c.close()
+        if ok:
+            self._t0 = time.monotonic()      # fast re-scans again for FAST_PHASE_S
+            self._wake.set()
+        return ok
 
     def snapshot(self):
         """(state, devices, message, generation); generation grows whenever the result changed"""
@@ -111,14 +129,11 @@ class Scanner:
             return self._state
 
     def scan_once(self):
-        if self.live and self._scan is scan:
+        if self._scan is scan:          # one kept-open connection (no connect/disconnect churn in OpenRGB's log)
             if self._client is None:
                 self._client = sdk.Client(host=self.host, port=self.port, timeout=0.5)
             state, devs, msg = scan(self.host, self.port, client=self._client)
         else:
-            if self._client is not None:
-                self._client.close()
-                self._client = None
             state, devs, msg = self._scan(self.host, self.port)
         with self._lock:
             old = self._state
