@@ -19,7 +19,7 @@ def _s(txt):
     return struct.pack("<H", len(b)) + b
 
 
-def controller_blob(ctype, name, zones, mode_names=("Direct", "Static")):
+def controller_blob(ctype, name, zones, colors=None, mode_names=("Direct", "Static")):
     """serialise a controller the way OpenRGB's RGBController::GetDeviceDescription(0) does"""
     out = struct.pack("<i", ctype) + _s(name) + _s("desc") + _s("1.0") + _s("") + _s("HID: /dev/hidraw3")
     out += struct.pack("<Hi", len(mode_names), 0)
@@ -36,7 +36,8 @@ def controller_blob(ctype, name, zones, mode_names=("Direct", "Static")):
             out += struct.pack("<H", 0)
         nleds += count
     out += struct.pack("<H", nleds) + b"".join(_s("LED %d" % i) + struct.pack("<I", i) for i in range(nleds))
-    out += struct.pack("<H", nleds) + b"\0\0\0\0" * nleds
+    cols = list(colors or [])[:nleds] + [(0, 0, 0)] * max(0, nleds - len(colors or []))
+    out += struct.pack("<H", nleds) + b"".join(bytes([r, g, b, 0]) for r, g, b in cols)
     return struct.pack("<I", len(out) + 4) + out
 
 
@@ -48,6 +49,7 @@ class FakeOpenRGB:
                       (1, "ENE DRAM", [("DRAM", 8, None)]),
                       (1, "ENE DRAM", [("DRAM", 8, None)])]
         self.log = []
+        self.connections = 0
         self.srv = socket.socket()
         self.srv.bind(("127.0.0.1", 0))
         self.srv.listen(4)
@@ -60,6 +62,7 @@ class FakeOpenRGB:
                 c, _ = self.srv.accept()
             except OSError:
                 return
+            self.connections = getattr(self, "connections", 0) + 1
             threading.Thread(target=self._client, args=(c,), daemon=True).start()
 
     def _client(self, c):
@@ -80,7 +83,10 @@ class FakeOpenRGB:
                 if pkt == 0:
                     p = struct.pack("<I", len(self.ctrls))
                 elif pkt == 1:
-                    p = controller_blob(*self.ctrls[dev])
+                    if dev >= len(self.ctrls):      # list changed between count and data
+                        p = struct.pack("<I", 0)
+                    else:
+                        p = controller_blob(*self.ctrls[dev])
                 else:
                     continue
                 c.sendall(struct.pack("<4sIII", b"ORGB", dev, pkt, len(p)) + p)

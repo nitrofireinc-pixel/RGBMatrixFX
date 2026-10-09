@@ -8,7 +8,7 @@ os.environ.setdefault("RGBMATRIXFX_NO_PORTAL", "1")    # don't follow the box's 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from PySide6.QtWidgets import (QApplication, QGroupBox, QSlider, QAbstractSpinBox, QComboBox, QScrollBar,
                              QAbstractSlider)
-from PySide6.QtCore import QPointF, QPoint, Qt
+from PySide6.QtCore import QPointF, QPoint, QRectF, Qt
 from PySide6.QtGui import QWheelEvent, QColor
 from PySide6.QtWidgets import QToolButton
 import rgbmatrixfx
@@ -119,6 +119,84 @@ class TestGui(unittest.TestCase):
             srv.close()
         # the default window (nothing on the port) explains instead of failing
         self.assertNotIn("Traceback", self.w.orgb_info.text())
+
+    def test_live_panel_pc_rgb_devices(self):
+        from tests.test_openrgb import FakeOpenRGB
+        srv = FakeOpenRGB()
+        srv.ctrls.insert(0, (5, "Razer BlackWidow V3", [("Keyboard", 132, None)]))     # also listed by OpenRGB
+        srv.ctrls[1] = srv.ctrls[1] + ([(255, 0, 0)] + [(0, 0, 0)] * 6,)              # JRGB1 red, onboard off
+        os.environ["RGBMATRIXFX_OPENRGB_PORT"] = str(srv.port)
+        try:
+            w = MainWindow(sock_path=os.path.join(self.d.name, "none3.sock"), cfg_path=self.cfg)
+            w.openrgb.fast = 0.2
+            w.resize(1300, 850)
+            w.show()
+            panel = w.pcrgb_panel
+
+            def wait(cond, t=5):
+                end = time.time() + t
+                while not cond() and time.time() < end:
+                    spin(50)
+                return cond()
+            self.assertTrue(wait(lambda: bool(panel.tiles)))
+            self.assertFalse(panel.isHidden())
+            self.assertEqual([k for k, _t, _p in panel.tiles], ["motherboard", "ram", "other"])
+            self.assertEqual([n for n, _c in panel.tiles[0][2]], ["JRGB1", "Onboard"])
+            self.assertEqual(panel.tiles[0][2][0][1], [(255, 0, 0)])                    # current colour
+            self.assertEqual(len(panel.tiles[1][2]), 2)                                 # two sticks
+            self.assertNotIn("Razer", w.orgb_info.text())                               # not listed twice
+            self.assertIn("Sync with effects", panel.hint)
+            w._set_pro_teasers(False)
+            spin(300)
+            self.assertEqual(panel.hint, "")                                            # hide previews
+            w._set_pro_teasers(True)
+            panel.grab()                                                                # paints without errors
+            # live mirroring (an add-on drives the devices): faster re-reads, one connection
+            w.set_pc_rgb_live(True)
+            spin(300)
+            self.assertIn("Synced", panel.hint)
+            conns = srv.connections
+            srv.ctrls[1] = srv.ctrls[1][:3] + ([(0, 255, 0)] * 7,)
+            self.assertTrue(wait(lambda: panel.tiles[0][2][0][1] == [(0, 255, 0)], 2))
+            spin(600)
+            self.assertLessEqual(srv.connections - conns, 1)
+            w.set_pc_rgb_live(False)
+            # devices disappear -> tiles go; only Razer left -> panel hidden; late device -> back
+            del srv.ctrls[1:]
+            self.assertTrue(wait(lambda: panel.isHidden()))
+            self.assertTrue(wait(lambda: "no motherboard" in w.orgb_info.text()), w.orgb_info.text())
+            srv.ctrls.append((1, "ENE DRAM", [("DRAM", 8, None)]))
+            self.assertTrue(wait(lambda: not panel.isHidden()))
+            self.assertEqual([k for k, _t, _p in panel.tiles], ["ram"])
+            self.assertTrue(all(p in (1, 0, 50) for _d, p, _b in srv.log))              # read-only
+            w.shutdown(); w.close(); w.deleteLater()
+        finally:
+            os.environ.pop("RGBMATRIXFX_OPENRGB_PORT", None)
+            srv.close()
+
+    def test_live_panel_only_connected_devices(self):
+        w = self.w
+        pv = w.preview
+        self.assertEqual(pv.presence(), (True, True))           # engine not running: full preview
+        base = {"fps": 30, "inputs": {}, "mouse_pid": 0x0073}
+        kb = {"name": "BlackWidow", "serial": "X", "matrix": [6, 22], "frames": 1}
+        ms = {"name": "Basilisk", "serial": "Y", "matrix": [1, 3], "frames": 1}
+        w.link.ok = True
+        for k, m, want in ((kb, None, (True, False)), (None, ms, (False, True)), (None, None, (False, False)), (kb, ms, (True, True))):
+            w.status = dict(base, keyboard=k, mouse=m)
+            w._update_engine_ui()
+            self.assertEqual(pv.presence(), want)
+            pv.grab()
+            r = pv.rect().adjusted(6, 6, -6, -6)
+            hit_kb = pv.painter_.hit(QRectF(r), QPointF(*self._key_pos(pv, "ESC")))
+            self.assertEqual(hit_kb is not None and hit_kb[0] == "key", want[0])
+        w.link.ok = False
+
+    @staticmethod
+    def _key_pos(pv, name):
+        s, ox, oy = pv.painter_.geometry(QRectF(pv.rect().adjusted(6, 6, -6, -6)))
+        k = L.KEY_BY_NAME[name]
+        return ox + (k.x + k.w / 2) * s, oy + (k.y + k.h / 2) * s
 
     def test_plugin_api_1_2_gallery_effect(self):
         pdir = os.path.join(self.d.name, "plugins12")

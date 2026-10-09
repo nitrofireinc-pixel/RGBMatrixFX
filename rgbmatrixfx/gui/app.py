@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (QFileDialog, QToolButton, QMenu,
 from .. import paths as P
 from .. import pro_status
 from .. import openrgb_devices
+from .pcrgb_view import PcRgbPanel
 from .. import (config, ipc, layout as L, plugin_api, __version__, APP_ID, APP_NAME, REPO_URL, SUPPORT_URL, COPYRIGHT,
                LICENSE, TRADEMARK_NOTICE)
 from ..effects import EFFECTS, EFFECT_BY_ID
@@ -340,6 +341,10 @@ class MainWindow(QMainWindow):
         self.frame_timer.start()
         self.status_timer = QTimer(self, interval=1000, timeout=self._tick_status)
         self.status_timer.start()
+        self._pcrgb_live = False                 # an add-on drives the PC RGB devices (plugin API 1.2)
+        self._pcrgb_key = None
+        self.pcrgb_timer = QTimer(self, interval=200, timeout=self._tick_pcrgb)   # <= 5 updates/s
+        self.pcrgb_timer.start()
         self.thumb_timer = QTimer(self, interval=125, timeout=self._tick_thumbs)
         self.thumb_timer.start()
         self.push_timer = QTimer(self, singleShot=True, interval=60, timeout=self._push_now)
@@ -426,6 +431,8 @@ class MainWindow(QMainWindow):
         except Exception:
             safety.log("plugin unloading failed:\n" + traceback.format_exc())
         had = bool(self.settings_sections)
+        if getattr(self, "_pcrgb_live", False):
+            self.set_pc_rgb_live(False)
         if getattr(self, "gallery", None) is not None:
             self.gallery.clear_external()
         self.import_handlers.clear()
@@ -528,7 +535,7 @@ class MainWindow(QMainWindow):
     def shutdown(self):
         """stop everything that could call back into the window during teardown"""
         pending_push, pending_save = self.push_timer.isActive(), self.save_timer.isActive()
-        for t in (self.frame_timer, self.status_timer, self.thumb_timer, self.push_timer, self.save_timer):
+        for t in (self.frame_timer, self.status_timer, self.thumb_timer, self.push_timer, self.save_timer, self.pcrgb_timer):
             t.stop()
         if self.openrgb is not None:
             self.openrgb.stop()
@@ -591,7 +598,12 @@ class MainWindow(QMainWindow):
         self.preview.setMinimumHeight(120)
         self.preview.keyClicked.connect(self._preview_key)
         self.preview.mouseClicked.connect(self._preview_mouse)
-        cv.addWidget(self.preview, 1)
+        prow = QHBoxLayout()
+        prow.setSpacing(8)
+        prow.addWidget(self.preview, 1)
+        self.pcrgb_panel = PcRgbPanel()          # motherboard / RAM / fans, only when OpenRGB reports them
+        prow.addWidget(self.pcrgb_panel)
+        cv.addLayout(prow, 1)
         card.setMinimumHeight(150)
         self.split_v.addWidget(card)
         self.tabs = QTabWidget()
@@ -722,6 +734,34 @@ class MainWindow(QMainWindow):
         state, devs, _msg, _gen = self.openrgb.snapshot()
         return state, devs
 
+    def set_pc_rgb_live(self, on):
+        """plugin API 1.2: an add-on is (not) driving the PC RGB devices right now"""
+        self._pcrgb_live = bool(on)
+        if self.openrgb is not None:
+            self.openrgb.set_live(self._pcrgb_live)
+        self._pcrgb_key = None
+
+    def _tick_pcrgb(self):
+        """Live panel: draw the OpenRGB devices that exist (throttled to the scan's changes)"""
+        try:
+            panel = getattr(self, "pcrgb_panel", None)
+            if panel is None or not shiboken6.isValid(panel):
+                return
+            snap = self.openrgb.snapshot() if self.openrgb is not None else ("off", [], "", -1)
+            key = (snap[3], self._pcrgb_live, self.show_pro_teasers(), self.edition.is_free)
+            if key == self._pcrgb_key:
+                return
+            self._pcrgb_key = key
+            panel.set_devices(openrgb_devices.pc_devices(snap[1]) if snap[0] == "ok" else [])
+            if self._pcrgb_live:
+                panel.set_hint("● Synced with effects", live=True)
+            elif self.show_pro_teasers() and self.edition.is_free:
+                panel.set_hint("🔒 Sync with effects · " + pro_status.badge())
+            else:
+                panel.set_hint("")
+        except Exception:
+            safety.log("PC RGB panel update failed:\n" + traceback.format_exc())
+
     def _update_openrgb_ui(self, force=False):
         """refresh the PC RGB lines in Settings > Devices when the scan result changed"""
         lbl = getattr(self, "orgb_info", None)
@@ -739,10 +779,14 @@ class MainWindow(QMainWindow):
         if gen == self._orgb_gen and not force:
             return
         self._orgb_gen = gen
+        found = len(devs)
+        devs = openrgb_devices.pc_devices(devs)         # the Razer devices are listed above already
         if state == "scanning":
             text = "Looking for OpenRGB devices\u2026"
         elif state == "ok" and devs:
             text = "\n".join(openrgb_devices.describe(d) for d in devs)
+        elif state == "ok" and found:
+            text = "OpenRGB found no motherboard, RAM or fan lighting (only the devices listed above)."
         elif state == "ok":
             text = ("OpenRGB is running but hasn't found any devices yet (it can take a few seconds "
                     "after login; this list updates by itself).")
@@ -1926,6 +1970,7 @@ class MainWindow(QMainWindow):
             self.engine_btn.setText("Hand back to Polychromatic")
             self.engine_btn.setObjectName("Danger")
             self.preview_title.setText("Live \u2014 mirroring your devices")
+            self.preview.set_presence(bool(kb), bool(ms))     # only the devices that are connected
             names = []
             for k, lab in (("keyboard", "Keyboard"), ("mouse", "Mouse")):
                 d = st.get(k)
@@ -1946,6 +1991,7 @@ class MainWindow(QMainWindow):
             self.engine_btn.setText("Start engine")
             self.engine_btn.setObjectName("Primary")
             self.preview_title.setText("Preview (engine not running \u2014 changes are saved)")
+            self.preview.set_presence(True, True)
             if hasattr(self, "dev_info"):
                 self.dev_info.setText("Engine not running. Start it to drive the keyboard and mouse.")
         self.pill.setProperty("state", state)

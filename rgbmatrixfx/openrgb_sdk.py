@@ -18,6 +18,7 @@ REQUEST_CONTROLLER_DATA = 1
 SET_CLIENT_NAME = 50
 MAX_PACKET = 4 * 1024 * 1024          # sanity limit for one reply (a big keyboard is ~100 KB)
 MAX_CONTROLLERS = 256
+MAX_COLORS = 4096
 
 DEVICE_TYPE_MOTHERBOARD = 0
 DEVICE_TYPE_DRAM = 1
@@ -90,9 +91,10 @@ def parse_controller(data):
         r.string()
         r.u32()
     ncolors = r.u16()
+    rgb = [tuple(r.take(4)[:3]) for _ in range(min(ncolors, MAX_COLORS))]   # current LED colours (R, G, B, pad)
     return {"type": ctype, "type_name": TYPE_NAMES.get(ctype, str(ctype)), "name": name,
             "description": desc, "location": loc, "modes": modes, "active_mode": active,
-            "zones": zones, "leds": nleds, "colors": ncolors}
+            "zones": zones, "leds": nleds, "colors": ncolors, "rgb": rgb}
 
 
 class Client:

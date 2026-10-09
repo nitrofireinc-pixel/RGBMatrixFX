@@ -41,8 +41,9 @@ def mouse_path(sx, sy, ox, oy):
 
 
 class ScenePainter:
-    def __init__(self, scene):
+    def __init__(self, scene, show_kb=True, show_mouse=True):
         self.scene = scene
+        self.show_kb, self.show_mouse = show_kb, show_mouse   # Live panel: only detected devices
         self.font = QFont()
         self.font.setPixelSize(10)
         self.font.setBold(True)
@@ -51,11 +52,11 @@ class ScenePainter:
 
     def _layout(self, rect):
         """per-size cache of key rectangles (saves most of the Python work per frame)"""
-        key = (rect.x(), rect.y(), rect.width(), rect.height(), L.MOUSE_X0, L.MOUSE_Y0)
+        key = (rect.x(), rect.y(), rect.width(), rect.height(), L.MOUSE_X0, L.MOUSE_Y0, self.show_kb, self.show_mouse)
         if key != self._cache_key:
             s, ox, oy = self.geometry(rect)
             keys = []
-            for k in L.KEYS:
+            for k in (L.KEYS if self.show_kb else ()):
                 if k.name == "LOGO":
                     continue
                 r = self.key_rect(k, s, ox, oy)
@@ -70,7 +71,7 @@ class ScenePainter:
 
     def _layers(self, rect, dpr=1.0):
         """background + keycap overlay pixmaps, cached per size"""
-        key = (rect.x(), rect.y(), rect.width(), rect.height(), dpr, L.MOUSE_X0, L.MOUSE_Y0)
+        key = (rect.x(), rect.y(), rect.width(), rect.height(), dpr, L.MOUSE_X0, L.MOUSE_Y0, self.show_kb, self.show_mouse)
         if getattr(self, "_layers_key", None) == key:
             return self._layers_val
         s, ox, oy, keys, mpath = self._layout(rect)
@@ -83,14 +84,15 @@ class ScenePainter:
             return x
         body = QRectF(ox - 0.35 * s, oy - 0.35 * s, (L.KB_W + 0.7) * s, (L.KB_H + 0.35 + L.KB_LIP) * s)
         bg = pm()
-        q = QPainter(bg)
-        q.setRenderHint(QPainter.RenderHint.Antialiasing)
-        grad = QLinearGradient(body.topLeft(), body.bottomLeft())
-        grad.setColorAt(0, QColor("#1d1d22")); grad.setColorAt(1, QColor("#141417"))
-        q.setPen(QPen(QColor("#2c2c33"), max(1.0, s * 0.04)))
-        q.setBrush(QBrush(grad))
-        q.drawRoundedRect(body, 0.35 * s, 0.35 * s)
-        q.end()
+        if self.show_kb:
+            q = QPainter(bg)
+            q.setRenderHint(QPainter.RenderHint.Antialiasing)
+            grad = QLinearGradient(body.topLeft(), body.bottomLeft())
+            grad.setColorAt(0, QColor("#1d1d22")); grad.setColorAt(1, QColor("#141417"))
+            q.setPen(QPen(QColor("#2c2c33"), max(1.0, s * 0.04)))
+            q.setBrush(QBrush(grad))
+            q.drawRoundedRect(body, 0.35 * s, 0.35 * s)
+            q.end()
         # overlay: opaque body colour in the gaps, transparent key tops, darker skirts, edges
         ov = pm()
         q = QPainter(ov)
@@ -168,11 +170,12 @@ class ScenePainter:
                 if k.name in sel:
                     p.drawRoundedRect(r.adjusted(-0.04 * s, -0.04 * s, 0.04 * s, 0.04 * s), 0.18 * s, 0.18 * s)
         lg = L.KEY_BY_NAME["LOGO"]
-        self._logo(p, ox + (lg.x + lg.w / 2) * s, oy + (lg.y + lg.h / 2) * s, 0.33 * s,
-                   rgb[sc.cell_index(lg.row, lg.col)], s)
-        if zone_hl == "kb_logo":
-            self._ring(p, ox + (lg.x + lg.w / 2) * s, oy + (lg.y + lg.h / 2) * s, 0.6 * s)
-        if sc.has_mouse:
+        if self.show_kb:
+            self._logo(p, ox + (lg.x + lg.w / 2) * s, oy + (lg.y + lg.h / 2) * s, 0.33 * s,
+                       rgb[sc.cell_index(lg.row, lg.col)], s)
+            if zone_hl == "kb_logo":
+                self._ring(p, ox + (lg.x + lg.w / 2) * s, oy + (lg.y + lg.h / 2) * s, 0.6 * s)
+        if self.has_mouse:
             self._mouse(p, s, ox, oy, rgb, True, zone_hl, mpath)
 
     def paint_fast(self, p: QPainter, rect, rgb):
@@ -185,7 +188,7 @@ class ScenePainter:
         lg = L.KEY_BY_NAME["LOGO"]
         p.fillRect(QRectF(ox + (lg.cx - 0.25) * s, oy + (lg.cy - 0.25) * s, 0.5 * s, 0.5 * s), _col(rgb[self.scene.cell_index(lg.row, lg.col)], 40))
         sc = self.scene
-        if sc.has_mouse:
+        if self.has_mouse:
             p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(QColor("#202026"))
@@ -199,15 +202,25 @@ class ScenePainter:
                     else:
                         p.drawEllipse(QPointF(x, y), 0.5 * s, 0.5 * s)
 
+    @property
+    def has_mouse(self):
+        return self.scene.has_mouse and self.show_mouse
+
     def geometry(self, rect):
-        sc = self.scene
         kb_bottom = L.KB_H + L.KB_LIP - 0.35          # MARGIN already covers 0.35 of frame
-        y0, y1 = (min(0.0, L.MOUSE_Y0), max(kb_bottom, L.MOUSE_Y0 + L.MOUSE_L)) if sc.has_mouse else (0.0, kb_bottom)
-        x1 = (L.MOUSE_X0 + L.MOUSE_W) if sc.has_mouse else L.KB_W
-        wx = x1 + 2 * MARGIN
+        boxes = []                                     # world bounding boxes of what is drawn
+        if self.show_kb or not self.has_mouse:
+            boxes.append((0.0, 0.0, L.KB_W, kb_bottom))
+        if self.has_mouse:
+            boxes.append((L.MOUSE_X0 - 0.35, L.MOUSE_Y0, L.MOUSE_X0 + L.MOUSE_W, L.MOUSE_Y0 + L.MOUSE_L))
+        x0, y0 = min(b[0] for b in boxes), min(b[1] for b in boxes)
+        x1, y1 = max(b[2] for b in boxes), max(b[3] for b in boxes)
+        if self.show_kb:
+            x0, y0 = min(x0, 0.0), min(y0, 0.0)
+        wx = (x1 - x0) + 2 * MARGIN
         wy = (y1 - y0) + 2 * MARGIN
         s = min(rect.width() / wx, rect.height() / wy)
-        ox = rect.x() + (rect.width() - wx * s) / 2 + MARGIN * s
+        ox = rect.x() + (rect.width() - wx * s) / 2 + (MARGIN - x0) * s
         oy = rect.y() + (rect.height() - wy * s) / 2 + (MARGIN - y0) * s
         return s, ox, oy
 
@@ -262,7 +275,7 @@ class ScenePainter:
         if zone_hl == "kb_logo":
             k = L.KEY_BY_NAME["LOGO"]
             self._ring(p, ox + (k.x + k.w / 2) * s, oy + (k.y + k.h / 2) * s, 0.6 * s)
-        if sc.has_mouse:
+        if self.has_mouse:
             self._mouse(p, s, ox, oy, rgb, glow, zone_hl, mpath)
 
     def _ring(self, p, cx, cy, r):
@@ -340,10 +353,10 @@ class ScenePainter:
         """widget pos -> ("key", Key) | ("mouse", button_code) | None"""
         s, ox, oy = self.geometry(rect)
         x, y = (pos.x() - ox) / s, (pos.y() - oy) / s
-        for k in L.KEYS:
+        for k in (L.KEYS if self.show_kb else ()):
             if k.x <= x <= k.x + k.w and k.y <= y <= k.y + k.h:
                 return ("key", k)
-        if self.scene.has_mouse and L.MOUSE_X0 - 0.3 <= x <= L.MOUSE_X0 + L.MOUSE_W + 0.3 \
+        if self.has_mouse and L.MOUSE_X0 - 0.3 <= x <= L.MOUSE_X0 + L.MOUSE_W + 0.3 \
                 and L.MOUSE_Y0 <= y <= L.MOUSE_Y0 + L.MOUSE_L:
             sx, sy = L.MOUSE_LED_POS["scroll"][:2]
             if abs(x - sx) < 0.4 and abs(y - sy) < 0.6:
@@ -374,11 +387,23 @@ class PreviewWidget(QWidget):
         # we paint every pixel ourselves -> Qt needn't repaint the (stylesheet) parents
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
         self.bg = None                          # None: the theme's panel colour (the card around it)
+        self.empty_text = "No keyboard or mouse connected"
 
     def set_scene(self, scene):
-        self.painter_ = ScenePainter(scene)
+        self.painter_ = ScenePainter(scene, self.painter_.show_kb, self.painter_.show_mouse)
         self.rgb = [(0, 0, 0)] * scene.n
         self.update()
+
+    def set_presence(self, keyboard, mouse):
+        """draw only the devices that are connected (both False: nothing but the overlay text)"""
+        keyboard, mouse = bool(keyboard), bool(mouse)
+        pp = self.painter_
+        if (pp.show_kb, pp.show_mouse) != (keyboard, mouse):
+            pp.show_kb, pp.show_mouse = keyboard, mouse
+            self.update()
+
+    def presence(self):
+        return self.painter_.show_kb, self.painter_.has_mouse
 
     def set_frame(self, rgb):
         if rgb == self.rgb:
@@ -390,8 +415,13 @@ class PreviewWidget(QWidget):
         p = QPainter(self)
         p.fillRect(self.rect(), self.bg if self.bg is not None else QColor(theme.PANEL))
         r = QRectF(self.rect()).adjusted(6, 6, -6, -6)
-        self.painter_.paint_live(p, r, self.rgb, selected=self.selected, zone_hl=self.zone_hl,
-                                 dpr=self.devicePixelRatioF())
+        if self.painter_.show_kb or self.painter_.has_mouse:
+            self.painter_.paint_live(p, r, self.rgb, selected=self.selected, zone_hl=self.zone_hl,
+                                     dpr=self.devicePixelRatioF())
+        elif self.empty_text:
+            p.setPen(QColor(theme.MUTED))
+            f = QFont(); f.setPixelSize(12); p.setFont(f)
+            p.drawText(r, int(Qt.AlignmentFlag.AlignCenter) | int(Qt.TextFlag.TextWordWrap), self.empty_text)
         if self.overlay:
             p.setPen(QColor(theme.MUTED))
             f = QFont(); f.setPixelSize(11); p.setFont(f)

@@ -49,10 +49,11 @@ CAP_LAYOUTS = "layouts"              # ctx.register_layout() (data-only device l
 CAP_IMPORT = "presets.import"        # ctx.register_import_handler() (File > Import presets for other file types)
 CAP_PRESETS = "presets.add"          # ctx.add_presets() (add presets, optionally make one active)
 CAP_SETTINGS_UI = "gui.settings_section"   # ctx.add_settings_section() (a box on the Settings tab)
+CAP_PC_RGB_LIVE = "gui.pc_rgb_live"  # ctx.set_pc_rgb_live() (API 1.2: Live panel mirrors driven OpenRGB devices)
 CAP_GALLERY = "gui.gallery"          # ctx.add_gallery_effect() (API 1.2: an add-on effect tile in the effect list)
 ALL_CAPABILITIES = frozenset({CAP_LOG, CAP_SETTINGS, CAP_STORAGE, CAP_MENU, CAP_DIALOG_PARENT,
                               CAP_STATUS, CAP_EVENTS, CAP_EDITION, CAP_FEATURES, CAP_LAYOUTS,
-                              CAP_IMPORT, CAP_PRESETS, CAP_SETTINGS_UI, CAP_GALLERY})
+                              CAP_IMPORT, CAP_PRESETS, CAP_SETTINGS_UI, CAP_GALLERY, CAP_PC_RGB_LIVE})
 
 # Built-in features that are locked in the free edition and shown there as Pro previews.
 # The RGBMatrixFX Pro add-on unlocks them with ctx.enable_feature(); see docs/PLUGIN_API.md.
@@ -295,6 +296,14 @@ class PluginContext:
         if not callable(factory):
             raise TypeError("factory must be callable")
         self._host.add_settings_section(self._info, str(title)[:60], factory)
+
+    # -- API 1.2: Live panel
+    def set_pc_rgb_live(self, on):
+        """Tell RGBMatrixFX that your add-on is (not) driving the PC's OpenRGB devices right now.
+        While on, the Live panel re-reads their colours from OpenRGB a few times per second, so its
+        motherboard / RAM / fan drawings mirror what you send. RGBMatrixFX itself still only reads."""
+        self._need(CAP_PC_RGB_LIVE)
+        self._host.set_pc_rgb_live(self._info, bool(on))
 
     # -- API 1.2: effect list
     def add_gallery_effect(self, source, name, description="", preview=None, fallback="starlight"):
