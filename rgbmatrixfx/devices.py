@@ -33,6 +33,8 @@ D-Bus calls one at a time, so drawing both devices per frame took
 import glob
 import os
 import threading
+
+from . import trace
 import time
 
 import numpy as np
@@ -127,7 +129,7 @@ class Out:
     def submit(self, kind, data):
         """non-blocking: replace whatever is still waiting"""
         with self._cv:
-            self._job = (kind, data)
+            self._job = (kind, data, trace.SEQ)
             self._cv.notify()
 
     def push(self, frame):                    # synchronous (tests / tools)
@@ -174,7 +176,7 @@ class Out:
                 if job[0] == "zones":
                     self._write_zones(job[1])
                 else:
-                    self._write_matrix(job[1], now)
+                    self._write_matrix(job[1], now, job[2] if len(job) > 2 else None)
             except Exception as e:             # reported to the main thread
                 self.error = e
                 return
@@ -209,7 +211,7 @@ class Out:
         self._next_kick = now + self.opts["custom_refresh_s"]
         self.kicks += 1
 
-    def _write_matrix(self, frame, now):
+    def _write_matrix(self, frame, now, seq=None):
         f = frame[: self.rows, : self.cols]
         if f.shape != (self.rows, self.cols, 3):
             g = np.zeros((self.rows, self.cols, 3), np.uint8)
@@ -226,9 +228,12 @@ class Out:
             return
         t0 = time.monotonic()
         self._write_frame(rows_payload(f, rows))
-        if self._need_kick or self.opts["custom_every_frame"] or now >= self._next_kick:
+        tk = time.monotonic()
+        kicked = self._need_kick or self.opts["custom_every_frame"] or now >= self._next_kick
+        if kicked:
             self._kick(now)
         t1 = time.monotonic()
+        trace.ev("write:" + self.kind, t0, (t1 - t0) * 1000, (seq, len(rows), round((t1 - tk) * 1000, 1) if kicked else 0))
         if self.sent is None:
             self.sent = f.copy()
         else:

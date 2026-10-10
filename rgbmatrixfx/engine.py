@@ -14,7 +14,7 @@ import time
 
 import numpy as np
 
-from . import config, ipc, layout as L
+from . import config, ipc, layout as L, trace
 from .devices import DeviceHub, log
 from .inputs import InputHub
 from .effects import push_external
@@ -229,6 +229,11 @@ class Engine:
                 return {"ok": False, "error": "next_tick needs a socket client"}
             self.tick_waiters[self.server.current_fd] = True
             return ipc.DEFER
+        if cmd == "trace":                 # diagnostics: {"on": true} starts, {"on": false} returns events
+            if req.get("on"):
+                trace.start()
+                return {"ok": True}
+            return {"ok": True, "events": trace.stop()}
         if cmd == "external_stats":
             from .effects import EXTERNAL_STATS
             if req.get("reset"):
@@ -299,7 +304,11 @@ class Engine:
                 break
             g = self.cfg["global"]
             self.hub.configure(g)
-            if self.hub.maybe_scan(now, want_mouse=g["include_mouse"]):
+            _t = self.clock()
+            scanned = self.hub.maybe_scan(now, want_mouse=g["include_mouse"])
+            if trace.RING is not None and self.clock() - _t > 0.001:
+                trace.ev("hub_scan", _t, (self.clock() - _t) * 1000)
+            if scanned:
                 prof = self.hub.mouse_profile() or self.scene.mouse_profile
                 if self.hub.mouse is not None:
                     self.mouse_pid = self.hub.mouse.pid
@@ -308,7 +317,9 @@ class Engine:
                 log("layout: keyboard %s, mouse %s, %d other device(s)" % (
                     self.scene.keymap.source, prof["model"] if prof else "none", len(self.scene.extra_cells)))
             if now >= next_scan_inputs:
+                _t = self.clock()
                 self.inputs.scan()
+                trace.ev("inputs_scan", _t, (self.clock() - _t) * 1000)
                 next_scan_inputs = now + 3.0
             if now >= next_cfg_check:
                 next_cfg_check = now + 2.0
@@ -316,6 +327,7 @@ class Engine:
                 if m is not None and m != self.cfg_mtime and self.dirty_at is None:
                     self.cfg_mtime = m
                     self.reload()
+                    trace.ev("reload", now)
             if self.dirty_at is not None and now - self.dirty_at > 1.0:
                 self._save_now()
             if self.override is not None and now > self.override["until"]:
@@ -345,8 +357,12 @@ class Engine:
                 next_frame = now
                 continue
             if now >= next_frame:
+                late = (now - next_frame) * 1000
                 self.rgb = self._post(self.comp.render(now), now)
                 self.tick_seq += 1
+                trace.SEQ = self.tick_seq
+                if trace.RING is not None:
+                    trace.ev("tick", now, (self.clock() - now) * 1000, (self.tick_seq, round(late, 1)))
                 if self.tick_waiters:             # tell pull-mode renderers: render tick seq+1 for now+period
                     w, self.tick_waiters = self.tick_waiters, {}
                     msg = {"ok": True, "seq": self.tick_seq, "t": now, "period": period}
