@@ -810,9 +810,19 @@ EXTERNAL_FRAMES = {}
 EXTERNAL_TIMEOUT_S = 1.0
 
 
+EXTERNAL_QUEUE = {}          # source -> deque of frames not shown yet (a small jitter buffer)
+EXTERNAL_QUEUE_MAX = 3       # at most ~3 frames (100 ms at 30 fps) behind
+
+
 def push_external(source, rgb, now):
     """store one frame from an external renderer (called by the engine's IPC handler)"""
-    EXTERNAL_FRAMES[str(source)[:64]] = (float(now), rgb)
+    from collections import deque
+    src = str(source)[:64]
+    EXTERNAL_FRAMES[src] = (float(now), rgb)
+    q = EXTERNAL_QUEUE.setdefault(src, deque())
+    q.append(rgb)
+    while len(q) > EXTERNAL_QUEUE_MAX:
+        q.popleft()
 
 
 class ExternalSource(Effect):
@@ -859,7 +869,16 @@ class ExternalSource(Effect):
     def step(self, t, dt):
         self.t = t
         if self.live():
-            rgb = np.array(EXTERNAL_FRAMES[str(self.p.get("source", ""))][1], dtype=np.float64)
+            # one queued frame per engine tick: a sender running at the same rate but out of phase
+            # (or with a little jitter) plays evenly instead of dropping / doubling frames
+            src = str(self.p.get("source", ""))
+            q = EXTERNAL_QUEUE.get(src)
+            if q:
+                self._cur = q.popleft()
+            cur = getattr(self, "_cur", None)
+            if cur is None or len(cur) != self.n:
+                cur = EXTERNAL_FRAMES[src][1]
+            rgb = np.array(cur, dtype=np.float64)
         else:
             rgb = self.fb.step(t, dt)
         return rgb * float(self.p.get("brightness", 1.0))

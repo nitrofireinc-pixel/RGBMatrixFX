@@ -595,6 +595,18 @@ class TestEngine(unittest.TestCase):
             self.assertFalse(np.allclose(eng.comp.render(_t.monotonic())[:, 1:], 0.0) and
                              np.allclose(eng.comp.render(_t.monotonic())[:, 0], 1.0))   # stale -> fallback
             fx.EXTERNAL_FRAMES.clear()
+            fx.EXTERNAL_QUEUE.clear()
+            # jitter buffer: two frames arriving in one tick, none in the next -> shown one per tick
+            green, blue = "00ff00" * n, "0000ff" * n
+            eng.handle({"cmd": "source_frame", "source": "addon:test", "n": n, "rgb": green})
+            eng.handle({"cmd": "source_frame", "source": "addon:test", "n": n, "rgb": blue})
+            a, b, c = (eng.comp.render(_t.monotonic()) for _ in range(3))
+            self.assertTrue(a[0, 1] > 0.9 and b[0, 2] > 0.9 and c[0, 2] > 0.9)  # green, blue, hold blue
+            for _ in range(10):
+                eng.handle({"cmd": "source_frame", "source": "addon:test", "n": n, "rgb": green})
+            self.assertLessEqual(len(fx.EXTERNAL_QUEUE["addon:test"]), fx.EXTERNAL_QUEUE_MAX)   # latency capped
+            fx.EXTERNAL_FRAMES.clear()
+            fx.EXTERNAL_QUEUE.clear()
             self.assertNotIn("external", [e.id for e in fx.EFFECTS])                     # not in the gallery
 
 
