@@ -12,6 +12,9 @@ def socket_path():
     return os.path.join(paths.runtime_dir(), APP_ID, "engine.sock")
 
 
+DEFER = object()   # a handler returns this to answer later with Server.reply(fd, resp)
+
+
 class Server:
     def __init__(self, handler, path=None):
         self.path = path or socket_path()
@@ -33,6 +36,7 @@ class Server:
         self.sock.setblocking(False)
         self.clients = {}         # fd -> [socket, inbuf]
         self.handler = handler
+        self.current_fd = None    # the client whose request the handler is running
 
     def fds(self):
         return [self.sock.fileno()] + list(self.clients)
@@ -69,9 +73,14 @@ class Server:
                 continue
             try:
                 req = json.loads(line)
+                self.current_fd = fd
                 resp = self.handler(req)
             except Exception as e:  # never let a client crash the engine
                 resp = {"ok": False, "error": "%s: %s" % (type(e).__name__, e)}
+            finally:
+                self.current_fd = None
+            if resp is DEFER:
+                continue
             try:
                 c.setblocking(True)
                 c.settimeout(1.0)
@@ -80,6 +89,22 @@ class Server:
             except OSError:
                 self._close(fd)
                 return
+
+    def reply(self, fd, resp):
+        """answer a deferred request; False if the client is gone"""
+        ent = self.clients.get(fd)
+        if ent is None:
+            return False
+        c = ent[0]
+        try:
+            c.setblocking(True)
+            c.settimeout(0.2)
+            c.sendall((json.dumps(resp) + "\n").encode())
+            c.setblocking(False)
+            return True
+        except OSError:
+            self._close(fd)
+            return False
 
     def _close(self, fd):
         ent = self.clients.pop(fd, None)

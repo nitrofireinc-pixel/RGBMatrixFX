@@ -32,6 +32,8 @@ class Engine:
         self.hub = hub or DeviceHub()
         self.inputs = inputs if inputs is not None else InputHub(enable_mouse=self.cfg["global"]["include_mouse"])
         self.mouse_pid = 0x0073
+        self.tick_seq = 0                     # render ticks; "next_tick" waiters are answered on each
+        self.tick_waiters = {}
         self.override = None                  # temporary look from a plugin (set_override); never saved
         self._xfade = None                    # (previous frame, start) while switching profiles
         self._level = np.ones(3)              # current dim/tint/off multiplier (eases towards the target)
@@ -219,8 +221,24 @@ class Engine:
             if not src or n != self.scene.n or not isinstance(data, str) or len(data) != n * 6:
                 return {"ok": False, "error": "frame must have n=%d points (rgb hex, 6 chars each)" % self.scene.n}
             rgb = np.frombuffer(bytes.fromhex(data), dtype=np.uint8).reshape(n, 3) / 255.0
-            push_external(src, rgb, time.monotonic())
+            seq = req.get("seq")
+            push_external(src, rgb, time.monotonic(), int(seq) if isinstance(seq, int) else None)
             return {"ok": True}
+        if cmd == "next_tick":                # pull mode: answered right after the next render tick
+            if self.server.current_fd is None:
+                return {"ok": False, "error": "next_tick needs a socket client"}
+            self.tick_waiters[self.server.current_fd] = True
+            return ipc.DEFER
+        if cmd == "external_stats":
+            from .effects import EXTERNAL_STATS
+            if req.get("reset"):
+                EXTERNAL_STATS.clear()
+            out = {}
+            for k, v in EXTERNAL_STATS.items():
+                a = sorted(v["ages"])
+                out[k] = dict({x: v[x] for x in ("shown", "repeats", "jumps", "dropped")},
+                              age_ms_median=a[len(a) // 2] if a else None, age_ms_max=a[-1] if a else None)
+            return {"ok": True, "stats": out}
         if cmd == "inject":
             kind, code = req.get("kind"), req.get("code")
             if kind == "key":
@@ -328,6 +346,12 @@ class Engine:
                 continue
             if now >= next_frame:
                 self.rgb = self._post(self.comp.render(now), now)
+                self.tick_seq += 1
+                if self.tick_waiters:             # tell pull-mode renderers: render tick seq+1 for now+period
+                    w, self.tick_waiters = self.tick_waiters, {}
+                    msg = {"ok": True, "seq": self.tick_seq, "t": now, "period": period}
+                    for fd in w:
+                        self.server.reply(fd, msg)
                 next_frame += period
                 if next_frame < now - 0.25:
                     next_frame = now + period

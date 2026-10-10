@@ -814,15 +814,35 @@ EXTERNAL_QUEUE = {}          # source -> deque of frames not shown yet (a small 
 EXTERNAL_QUEUE_MAX = 3       # at most ~3 frames (100 ms at 30 fps) behind
 
 
-def push_external(source, rgb, now):
-    """store one frame from an external renderer (called by the engine's IPC handler)"""
+EXTERNAL_STATS = {}          # source -> {"shown", "repeats", "jumps", "dropped", "age_ms": [...]} (engine status)
+_PUSH_SEQ = {}
+
+
+def _stats(src):
+    return EXTERNAL_STATS.setdefault(src, {"shown": 0, "repeats": 0, "jumps": 0, "dropped": 0, "ages": []})
+
+
+def push_external(source, rgb, now, seq=None):
+    """store one frame from an external renderer (called by the engine's IPC handler).
+    seq given (pull mode, "next_tick"): the frame is for engine tick ``seq`` and shown on that tick.
+    No seq (push mode): frames are queued and shown one per tick."""
     from collections import deque
     src = str(source)[:64]
     EXTERNAL_FRAMES[src] = (float(now), rgb)
-    q = EXTERNAL_QUEUE.setdefault(src, deque())
-    q.append(rgb)
-    while len(q) > EXTERNAL_QUEUE_MAX:
-        q.popleft()
+    if seq is None:
+        PULLED.pop(src, None)
+        _PUSH_SEQ[src] = _PUSH_SEQ.get(src, 0) + 1
+        q = EXTERNAL_QUEUE.setdefault(src, deque())
+        q.append((_PUSH_SEQ[src], float(now), rgb))
+        while len(q) > EXTERNAL_QUEUE_MAX:
+            q.popleft()
+            _stats(src)["dropped"] += 1
+    else:
+        EXTERNAL_QUEUE.pop(src, None)
+        PULLED[src] = (int(seq), float(now), rgb)
+
+
+PULLED = {}                  # source -> (tick seq, arrival time, frame): the newest pulled frame
 
 
 class ExternalSource(Effect):
@@ -872,9 +892,27 @@ class ExternalSource(Effect):
             # one queued frame per engine tick: a sender running at the same rate but out of phase
             # (or with a little jitter) plays evenly instead of dropping / doubling frames
             src = str(self.p.get("source", ""))
+            st = _stats(src)
             q = EXTERNAL_QUEUE.get(src)
-            if q:
-                self._cur = q.popleft()
+            prev = getattr(self, "_seq", None)
+            import time as _time
+            if src in PULLED:                     # pull mode: the frame rendered for this tick
+                seq, at, frame = PULLED[src]
+                self._cur, self._seq, age = frame, seq, (_time.monotonic() - at) * 1000.0
+            elif q:
+                seq, at, frame = q.popleft()
+                self._cur, self._seq, age = frame, seq, (_time.monotonic() - at) * 1000.0
+            else:
+                age = None
+            seq = getattr(self, "_seq", None)
+            if prev is not None and seq is not None:
+                if seq == prev:
+                    st["repeats"] += 1
+                elif seq > prev + 1:
+                    st["jumps"] += 1
+            st["shown"] += 1
+            if age is not None and seq != prev:
+                st["ages"] = (st["ages"] + [round(age, 1)])[-300:]
             cur = getattr(self, "_cur", None)
             if cur is None or len(cur) != self.n:
                 cur = EXTERNAL_FRAMES[src][1]
