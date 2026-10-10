@@ -434,6 +434,7 @@ class MainWindow(QMainWindow):
         had = bool(self.settings_sections)
         if getattr(self, "_pcrgb_live", False):
             self.set_pc_rgb_live(False)
+        self._pcrgb_sync_ctl = None
         if getattr(self, "gallery", None) is not None:
             self.gallery.clear_external()
         self.import_handlers.clear()
@@ -735,6 +736,12 @@ class MainWindow(QMainWindow):
         state, devs, _msg, _gen = self.openrgb.snapshot()
         return state, devs
 
+    def _on_pcrgb_sync_toggled(self, on):
+        ctl = getattr(self, "_pcrgb_sync_ctl", None)
+        if ctl is not None:
+            ctl[1](bool(on))
+            self._pcrgb_key = None
+
     def set_pc_rgb_live(self, on):
         """plugin API 1.2: an add-on is (not) driving the PC RGB devices right now"""
         self._pcrgb_live = bool(on)
@@ -756,7 +763,7 @@ class MainWindow(QMainWindow):
             panel.set_devices(openrgb_devices.pc_devices(snap[1]) if snap[0] == "ok" else [])
             if self._pcrgb_live:
                 panel.set_hint("● Synced with effects", live=True)
-            elif self.show_pro_teasers() and self.edition.is_free:
+            elif self.show_pro_teasers() and self.edition.is_free and getattr(self, "_pcrgb_sync_ctl", None) is None:
                 panel.set_hint("🔒 Sync with effects · " + pro_status.badge())
             else:
                 panel.set_hint("")
@@ -769,8 +776,18 @@ class MainWindow(QMainWindow):
         if lbl is None or not shiboken6.isValid(lbl):
             return
         hint = getattr(self, "orgb_pro_hint", None)
+        ctl = getattr(self, "_pcrgb_sync_ctl", None)
         if hint is not None and shiboken6.isValid(hint):
-            hint.setVisible(self.show_pro_teasers())
+            hint.setVisible(self.show_pro_teasers() and ctl is None)
+        box = getattr(self, "orgb_sync_box", None)
+        if box is not None and shiboken6.isValid(box):
+            box.setVisible(ctl is not None)
+            if ctl is not None:
+                on = bool(ctl[0]())
+                if on != box.isChecked():
+                    box.blockSignals(True)
+                    box.setChecked(on)
+                    box.blockSignals(False)
         if self.openrgb is None:
             if force or self._orgb_gen != -2:
                 self._orgb_gen = -2
@@ -1536,6 +1553,11 @@ class MainWindow(QMainWindow):
         self.orgb_pro_hint.setProperty("muted", True)
         self.orgb_pro_hint.setToolTip(pro_status.teaser_message("Driving motherboard, RAM and fan lighting from your effects"))
         cl.addWidget(self.orgb_pro_hint)
+        self.orgb_sync_box = QCheckBox("Sync motherboard, RAM and fans with effects")
+        self.orgb_sync_box.setToolTip("Provided by an add-on: the PC's OpenRGB lighting follows the current effect")
+        self.orgb_sync_box.setVisible(False)
+        self.orgb_sync_box.toggled.connect(self._on_pcrgb_sync_toggled)
+        cl.addWidget(self.orgb_sync_box)
         self._orgb_gen = -1
         self._update_openrgb_ui()
         v.addWidget(c)

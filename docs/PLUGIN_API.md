@@ -130,6 +130,15 @@ Requests and replies are one JSON object per line:
   Send at the scene's `fps` (or slower). Frames for a source that is not active are ignored.
 - `{"cmd": "status"}` includes `"external": {"source", "fallback", "live"}` while the external effect is active.
 
+### Pull mode: one frame per engine tick (engine IPC)
+
+Instead of sending frames at your own pace, send `{"cmd": "next_tick"}`: the engine answers right
+after its next render tick with `{"ok": true, "seq": S, "t": T, "period": P}`. Render the frame for
+time `T + P` and send it as `source_frame` with `"seq": S + 1`; the engine shows it on that tick.
+No queue builds up and the frame rate always matches the engine's. If a frame is late, the last one
+is shown again for one tick. `{"cmd": "external_stats"}` reports shown/repeated/skipped frames and
+their age (`"reset": true` clears it). Frames without `seq` are queued (up to 3) and shown one per tick.
+
 ### Temporary override (engine IPC)
 
 `{"cmd": "set_override", "override": {"owner": "myplugin", "label": "Steam game", "profile": {…}, "dim": 0.3, "tint": "#ffb070", "off": false, "ttl": 15}}`
@@ -151,6 +160,7 @@ is a separate program, whatever its license.
 |---|---|---|
 | `ctx.add_gallery_effect(source, name, description="", preview=None, fallback="starlight")` | `gui.gallery` | Adds a tile under **Add-on effects** in the effect list (left pane). Clicking it selects the `external` effect with this `source` and `fallback`. `preview(scene)` (optional) receives a dict like the engine's `scene` reply and returns an object whose `frame(dt)` returns `n` RGB rows (floats 0..1) for the live thumbnail; without it the fallback effect is shown. Calling it again for the same source updates the tile; tiles disappear when the plugin is unloaded |
 | `ctx.add_gallery_effect(..., settings=[...])` | `gui.effect_settings` | Optional controls for that effect in the Effect tab: a list of `{"id", "label", "type": float/int/bool/choice/color, "default", "min", "max", "step", "choices", "help"}` (max 12). The chosen values are saved in the profile (`effects.external.settings`) and reach your process in the engine `status` reply as `external.settings`. Brightness and the fallback stay RGBMatrixFX's own controls |
+| `ctx.set_pc_rgb_sync_control(get, set_)` | `gui.pc_rgb_sync` | Shows a working **Sync motherboard, RAM and fans with effects** switch in Settings ▸ Devices instead of the locked teaser. `get()` returns the current state (polled about once a second), `set_(on)` changes it. RGBMatrixFX only shows the switch; your add-on does the syncing |
 | `ctx.set_pc_rgb_live(on)` | `gui.pc_rgb_live` | Tells RGBMatrixFX that your add-on is (not) driving the PC's OpenRGB devices. While on, the Live panel re-reads their colours from OpenRGB a few times per second (one kept-open connection), so its motherboard / RAM / fan drawings mirror what you send, and it shows "Synced with effects". Reset when the plugin is unloaded. RGBMatrixFX itself never writes to OpenRGB |
 
 Check `ctx.has("gui.gallery")` if your plugin should also run on a 1.1 host.

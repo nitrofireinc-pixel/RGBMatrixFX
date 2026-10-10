@@ -49,12 +49,13 @@ CAP_LAYOUTS = "layouts"              # ctx.register_layout() (data-only device l
 CAP_IMPORT = "presets.import"        # ctx.register_import_handler() (File > Import presets for other file types)
 CAP_PRESETS = "presets.add"          # ctx.add_presets() (add presets, optionally make one active)
 CAP_SETTINGS_UI = "gui.settings_section"   # ctx.add_settings_section() (a box on the Settings tab)
+CAP_PC_RGB_SYNC = "gui.pc_rgb_sync"  # ctx.set_pc_rgb_sync_control() (API 1.2: real "Sync with effects" switch)
 CAP_PC_RGB_LIVE = "gui.pc_rgb_live"  # ctx.set_pc_rgb_live() (API 1.2: Live panel mirrors driven OpenRGB devices)
 CAP_EFFECT_SETTINGS = "gui.effect_settings"  # add_gallery_effect(settings=[...]) (API 1.2: Effect tab controls)
 CAP_GALLERY = "gui.gallery"          # ctx.add_gallery_effect() (API 1.2: an add-on effect tile in the effect list)
 ALL_CAPABILITIES = frozenset({CAP_LOG, CAP_SETTINGS, CAP_STORAGE, CAP_MENU, CAP_DIALOG_PARENT,
                               CAP_STATUS, CAP_EVENTS, CAP_EDITION, CAP_FEATURES, CAP_LAYOUTS,
-                              CAP_IMPORT, CAP_PRESETS, CAP_SETTINGS_UI, CAP_GALLERY, CAP_PC_RGB_LIVE,
+                              CAP_IMPORT, CAP_PRESETS, CAP_SETTINGS_UI, CAP_GALLERY, CAP_PC_RGB_LIVE, CAP_PC_RGB_SYNC,
                               CAP_EFFECT_SETTINGS})
 
 # Built-in features that are locked in the free edition and shown there as Pro previews.
@@ -339,6 +340,15 @@ class PluginContext:
         motherboard / RAM / fan drawings mirror what you send. RGBMatrixFX itself still only reads."""
         self._need(CAP_PC_RGB_LIVE)
         self._host.set_pc_rgb_live(self._info, bool(on))
+
+    def set_pc_rgb_sync_control(self, get, set_):
+        """Offer a working "Sync with effects" switch in Settings ▸ Devices (it replaces the locked
+        teaser). ``get()`` -> bool (current state, polled about once a second), ``set_(bool)`` changes
+        it. Pass None, None to remove it. Removed when the plugin is unloaded."""
+        self._need(CAP_PC_RGB_SYNC)
+        ok = get is not None and set_ is not None
+        self._host.set_pc_rgb_sync_control(self._info, self._guard(get, "sync state") if ok else None,
+                                           self._guard(set_, "sync switch") if ok else None)
 
     # -- API 1.2: effect list
     def add_gallery_effect(self, source, name, description="", preview=None, fallback="starlight", settings=None):
