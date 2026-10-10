@@ -299,16 +299,26 @@ class Engine:
         want = kb.sustainable_fps(g["fps"]) if (g["adaptive_fps"] and kb is not None and
                                                  hasattr(kb, "sustainable_fps")) else None
         cur = self.fps_out or g["fps"]
+        new = self.fps_out
         if not g["adaptive_fps"] or kb is None:
-            new = None
-        elif want is None:
-            new = self.fps_out
-        elif want < cur:
-            new = want
-        elif want >= cur + 2 or (want > cur and want >= g["fps"]):
-            new = cur + 1
-        else:
-            new = self.fps_out
+            new, self._fps_votes = None, 0
+        elif want is not None:
+            # a few fixed steps with strong hysteresis: every rate change is a small visible hitch,
+            # and the measured write time wobbles with CPU load, so the rate must not flap
+            ladder = sorted({f for f in (g["fps"], 24, 20, 15) if f <= g["fps"]}, reverse=True)
+            target = next((f for f in ladder if f <= want), ladder[-1])
+            votes = getattr(self, "_fps_votes", 0)
+            if target < cur:
+                votes = min(0, votes) - 1
+                if votes <= -2:
+                    new, votes = target, 0
+            elif target > cur:
+                votes = max(0, votes) + 1
+                if votes >= 4:
+                    new, votes = min(f for f in ladder if f > cur), 0
+            else:
+                votes = 0
+            self._fps_votes = votes
         if new is not None and new >= g["fps"]:
             new = None
         if new != self.fps_out:

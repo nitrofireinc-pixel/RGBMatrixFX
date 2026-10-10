@@ -151,8 +151,8 @@ class Out:
         if len(self.full_ms) < 30:
             return None
         a = sorted(self.full_ms)
-        p95 = a[int(0.95 * (len(a) - 1))]
-        return max(15, min(cap, int(1000.0 / (p95 * 1.05 + 1.5))))
+        p75 = a[int(0.75 * (len(a) - 1))]        # robust to the odd write delayed by CPU load
+        return max(15, min(cap, int(1000.0 / (p75 * 1.1 + 1.5))))
 
     def info(self):
         return {"name": self.name, "serial": self.serial, "pid": self.pid,

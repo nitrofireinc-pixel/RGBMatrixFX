@@ -562,21 +562,27 @@ class TestAdaptiveFps(unittest.TestCase):
         kb = KB()
         self.assertIsNone(kb.sustainable_fps(30))                  # not enough data
         kb.full_ms = [35.7] * 80 + [38.2] * 10
-        self.assertEqual(kb.sustainable_fps(30), 24)               # 38 ms writes -> 24 fps, every frame
+        self.assertEqual(kb.sustainable_fps(30), 24)               # 36-38 ms writes -> 24 fps, every frame
         kb.full_ms = [12.0] * 90
         self.assertEqual(kb.sustainable_fps(30), 30)               # fast device: unchanged
         eng = Engine.__new__(Engine)
         eng.fps_out = None
         eng.hub = type("H", (), {"kb": kb})()
         g = {"fps": 30, "adaptive_fps": True}
-        kb.full_ms = [38.2] * 90
+        kb.full_ms = [36.0] * 90
+        eng._adapt_fps(g)
+        self.assertIsNone(eng.fps_out)                             # one slow reading isn't enough
         eng._adapt_fps(g)
         self.assertEqual(eng.fps_out, 24)
-        kb.full_ms = [12.0] * 90                                   # faster again: rises one step at a time
-        eng._adapt_fps(g)
-        self.assertEqual(eng.fps_out, 25)
-        for _ in range(10):
+        for ms in [30.0, 38.0, 33.0, 40.0, 31.0, 37.0] * 3:       # load wobble: no flapping
+            kb.full_ms = [ms] * 90
             eng._adapt_fps(g)
+            self.assertEqual(eng.fps_out, 24)
+        kb.full_ms = [12.0] * 90                                   # really faster: back up after ~12 s
+        for _ in range(3):
+            eng._adapt_fps(g)
+        self.assertEqual(eng.fps_out, 24)
+        eng._adapt_fps(g)
         self.assertIsNone(eng.fps_out)
         kb.full_ms = [38.2] * 90
         eng._adapt_fps(dict(g, adaptive_fps=False))
