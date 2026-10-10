@@ -130,6 +130,18 @@ Requests and replies are one JSON object per line:
   Send at the scene's `fps` (or slower). Frames for a source that is not active are ignored.
 - `{"cmd": "status"}` includes `"external": {"source", "fallback", "live"}` while the external effect is active.
 
+### Temporary override (engine IPC)
+
+`{"cmd": "set_override", "override": {"owner": "myplugin", "label": "Steam game", "profile": {…}, "dim": 0.3, "tint": "#ffb070", "off": false, "ttl": 15}}`
+puts a temporary look on top of the user's lighting, for example a per-app profile or a night
+schedule. All fields are optional: `profile` plays instead of the current profile (switching
+cross-fades for 0.25 s), `dim` (0..1) and `tint` (colour multiplier) scale the output, `off`
+turns the LEDs dark; brightness changes ease in. Nothing is saved, the user's profile and
+presets are untouched, and the override ends by itself after `ttl` seconds (1 to 300, default 15)
+unless it is sent again, so a crashed process can't leave the lights dimmed. Send
+`{"cmd": "set_override", "override": null}` to end it now. One override at a time (the last
+request wins); `status` shows it as `"override": {owner, label, profile, dim, tint, off, ttl_left}`.
+
 The engine IPC is a plain local protocol; a program that only talks to it over the socket
 is a separate program, whatever its license.
 

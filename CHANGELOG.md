@@ -7,6 +7,7 @@ All notable changes to RGBMatrixFX (called RazorFX in 1.1 and Razer FX up to 1.0
 ## [Unreleased]
 
 ### Added
+- Engine IPC `set_override`: a temporary, unsaved look (profile, dim, tint, off) with automatic expiry, for add-ons such as per-app profiles and schedules (docs/PLUGIN_API.md).
 - Plugin API 1.2: `ctx.add_gallery_effect()` shows add-on effects in the effect list with a live
   thumbnail (clicking one selects it).
 - Live panel: your PC's OpenRGB devices (motherboard zones, RAM sticks, fans / strips) appear next

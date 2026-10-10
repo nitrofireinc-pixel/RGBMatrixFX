@@ -599,6 +599,49 @@ class TestEngine(unittest.TestCase):
 
 
 
+    def test_override_temporary_not_saved(self):
+        from rgbmatrixfx.engine import Engine
+        with tempfile.TemporaryDirectory() as d:
+            cp = os.path.join(d, "c.json")
+            eng = Engine(cfg_path=cp, sock_path=os.path.join(d, "s"), hub=FakeHub(), inputs=FakeInputs())
+            base = eng.cfg["profile"]
+            other = config.make_profile("static", {"color": "#0000ff"})
+            r = eng.handle({"cmd": "set_override", "override": {"owner": "test", "label": "Game", "profile": other, "ttl": 5}})
+            self.assertTrue(r["ok"] and r["override"]["profile"])
+            self.assertEqual(eng.comp.effect_id, "static")
+            self.assertEqual(eng.cfg["profile"], base)                    # the saved profile is untouched
+            self.assertIsNone(eng.dirty_at)                               # and nothing is written to disk
+            self.assertEqual(eng.handle({"cmd": "status"})["status"]["override"]["label"], "Game")
+            # the first frames cross-fade from the previous picture (no black flash)
+            eng.rgb = np.full((eng.scene.n, 3), 0.5)
+            eng._xfade = (eng.rgb.copy(), 0.0)
+            mid = eng._post(np.zeros((eng.scene.n, 3)), 0.125)
+            self.assertTrue(np.allclose(mid, 0.25))
+            # a GUI edit (set_config) keeps the override on screen
+            eng.handle({"cmd": "set_global", "global": {"fps": 30}})
+            self.assertEqual(eng.comp.effect_id, "static")
+            # dim + warm tint eases in; off goes to black
+            eng._xfade = None
+            eng.handle({"cmd": "set_override", "override": {"owner": "test", "dim": 0.3, "tint": "#ffb070"}})
+            self.assertNotEqual(eng.comp.effect_id, "static")             # no profile in the override: saved one again
+            eng._xfade = None
+            ones = np.ones((eng.scene.n, 3))
+            for _ in range(60):
+                out = eng._post(ones, 1.0)
+            self.assertTrue(np.allclose(out[0], [0.3, 0.3 * 0xb0 / 255, 0.3 * 0x70 / 255], atol=0.01), (out[0], eng.override, eng._level))
+            eng.handle({"cmd": "set_override", "override": {"owner": "test", "off": True}})
+            for _ in range(60):
+                out = eng._post(ones, 2.0)
+            self.assertEqual(out.max(), 0.0)
+            # expiry: not renewed -> back to normal by itself
+            eng.override["until"] = 0
+            eng.handle({"cmd": "set_override", "override": None})
+            self.assertIsNone(eng.handle({"cmd": "status"})["status"].get("override"))
+            for _ in range(60):
+                out = eng._post(ones, 3.0)
+            self.assertTrue(np.allclose(out, 1.0))
+
+
 class TestGenericInputDetection(unittest.TestCase):
     def test_classify(self):
         from rgbmatrixfx.inputs import classify_generic
