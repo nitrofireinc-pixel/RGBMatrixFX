@@ -46,6 +46,8 @@ class Engine:
         self.rgb = np.zeros((self.scene.n, 3))
         self.frames = 0
         self.fps_measured = 0.0
+        self.fps_out = None             # adaptive output rate (None: the configured fps)
+        self._fps_check = 0.0
         self.audio = None
         self.t0 = clock()
 
@@ -134,7 +136,7 @@ class Engine:
             else:
                 t = np.array([int(o["tint"][i:i + 2], 16) / 255.0 for i in (1, 3, 5)]) if o["tint"] else np.ones(3)
                 target = t * o["dim"]
-        k = min(1.0, (1.0 / max(1, self.cfg["global"]["fps"])) / self.LEVEL_EASE_S)
+        k = min(1.0, (1.0 / max(1, self.fps_out or self.cfg["global"]["fps"])) / self.LEVEL_EASE_S)
         self._level = self._level + (target - self._level) * k
         if np.abs(self._level - target).max() < 0.004:
             self._level = target
@@ -164,6 +166,7 @@ class Engine:
     def status(self):
         st = self.hub.info()
         st.update({"paused": self.cfg["global"]["paused"], "fps": round(self.fps_measured, 1),
+                   "fps_target": self.fps_out or self.cfg["global"]["fps"],
                    "effect": self.comp.effect_id, "mouse_pid": self.mouse_pid,
                    "layout": self.scene.keymap.source,
                    "inputs": self.inputs.info(), "uptime": round(self.clock() - self.t0, 1),
@@ -215,7 +218,7 @@ class Engine:
             return {"ok": True, "n": int(sc.n), "n_kb": int(sc.n_kb), "kb_rows": int(sc.kb_rows),
                     "kb_cols": int(sc.kb_cols), "x": [round(float(v), 3) for v in sc.x],
                     "y": [round(float(v), 3) for v in sc.y], "kind": list(sc.kind),
-                    "fps": int(self.cfg["global"]["fps"])}
+                    "fps": int(self.fps_out or self.cfg["global"]["fps"])}
         if cmd == "source_frame":             # one frame from an external renderer
             src, n, data = str(req.get("source", ""))[:64], int(req.get("n", -1)), req.get("rgb", "")
             if not src or n != self.scene.n or not isinstance(data, str) or len(data) != n * 6:
@@ -290,6 +293,28 @@ class Engine:
         self._apply_cfg(config.load(self.cfg_path), save=False)
         log("config reloaded")
 
+    def _adapt_fps(self, g):
+        """match the frame rate to the keyboard's real write speed (hysteresis: drop at once, rise slowly)"""
+        kb = self.hub.kb
+        want = kb.sustainable_fps(g["fps"]) if (g["adaptive_fps"] and kb is not None and
+                                                 hasattr(kb, "sustainable_fps")) else None
+        cur = self.fps_out or g["fps"]
+        if not g["adaptive_fps"] or kb is None:
+            new = None
+        elif want is None:
+            new = self.fps_out
+        elif want < cur:
+            new = want
+        elif want >= cur + 2 or (want > cur and want >= g["fps"]):
+            new = cur + 1
+        else:
+            new = self.fps_out
+        if new is not None and new >= g["fps"]:
+            new = None
+        if new != self.fps_out:
+            log("output rate: %s fps (keyboard writes take %.0f ms)" % (new or g["fps"], kb.write_ms if kb else 0))
+            self.fps_out = new
+
     def run(self, duration=None):
         log("engine started (pid %d), socket %s" % (os.getpid(), self.server.path))
         sd_notify("READY=1\nMAINPID=%d" % os.getpid())
@@ -335,7 +360,10 @@ class Engine:
                 self._set_override(None, now)
             self._audio_update()
 
-            period = 1.0 / g["fps"]
+            if now >= self._fps_check:
+                self._fps_check = now + 3.0
+                self._adapt_fps(g)
+            period = 1.0 / (self.fps_out or g["fps"])
             active = not g["paused"]          # render even with no device so the GUI mirror stays smooth
             deadline = next_frame if active else now + 0.25
             fds = self.inputs.fds() + self.server.fds()

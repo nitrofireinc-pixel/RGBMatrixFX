@@ -15,6 +15,7 @@ CONFIG_FILE = paths.config_file()
 DEFAULT_GLOBAL = {
     "master_brightness": 1.0,
     "fps": 30,
+    "adaptive_fps": True,          # lower the frame rate to what the keyboard can really write, evenly
     "paused": False,
     "exit_mode": "restore",        # restore | off | leave
     "mouse_method": "matrix",      # matrix | zones
@@ -199,6 +200,7 @@ def sanitize_config(cfg):
     g.update({k: v for k, v in (cfg.get("global") or {}).items() if k in DEFAULT_GLOBAL})
     g["master_brightness"] = _num(g["master_brightness"], 0, 1, 1)
     g["fps"] = int(_num(g["fps"], 5, 60, 30))
+    g["adaptive_fps"] = bool(g.get("adaptive_fps", True))
     g["paused"] = bool(g["paused"])
     g["include_mouse"] = bool(g["include_mouse"])
     g["exit_mode"] = g["exit_mode"] if g["exit_mode"] in ("restore", "off", "leave") else "restore"

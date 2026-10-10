@@ -32,6 +32,7 @@ D-Bus calls one at a time, so drawing both devices per frame took
 """
 import glob
 import os
+import collections
 import threading
 
 from . import trace
@@ -117,6 +118,7 @@ class Out:
         self._need_kick = True
         self._last_write = 0.0
         self._rate_t, self._rate_n = time.monotonic(), 0
+        self.full_ms = collections.deque(maxlen=90)   # recent writes scaled to a whole-matrix write
         self.thread = None
 
     # ------------------------------------------------------------ main-thread API
@@ -141,6 +143,16 @@ class Out:
             self._cv.notify()
         if self.thread is not None and self.thread is not threading.current_thread():
             self.thread.join(timeout)
+
+    def sustainable_fps(self, cap):
+        """the highest steady rate this device can take every frame at (None: not enough data yet).
+        Writes that take longer than the tick make the writer drop frames unevenly, which shows as
+        periodic stumbles in fast motion; a slightly lower but even rate looks smoother."""
+        if len(self.full_ms) < 30:
+            return None
+        a = sorted(self.full_ms)
+        p95 = a[int(0.95 * (len(a) - 1))]
+        return max(15, min(cap, int(1000.0 / (p95 * 1.05 + 1.5))))
 
     def info(self):
         return {"name": self.name, "serial": self.serial, "pid": self.pid,
@@ -239,6 +251,8 @@ class Out:
         else:
             self.sent[rows] = f[rows]
         self.rows_sent += len(rows)
+        if len(rows) * 2 >= self.rows and self.rows:
+            self.full_ms.append((t1 - t0) * 1000 * self.rows / len(rows))
         self._last_write = t0
         self._count(t1, t1 - t0)
 
