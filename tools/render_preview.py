@@ -18,12 +18,12 @@ OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path
 P = config.builtin_presets()
 SEGMENTS = [  # (title, subtitle, profile, seconds, scripted input)
     ("Flame", "default preset: flames + white WASD + green ripples (typing, then mouse clicks)", P["Flame"], 6, "type+click"),
-    ("Wave", "rainbow wave flowing from the keyboard onto the mouse", P["Rainbow Wave"], 4, None),
-    ("Ripple", "Razer Ripple: rings travel across the keyboard to the mouse with distance delay", P["Ripple"], 5, "type+click"),
-    ("Starlight", "twinkling keys, mouse LEDs included", P["Starlight Night"], 4, None),
-    ("Aurora + independent zones", "mouse logo static Razer green, scroll wheel breathing", None, 4, None),
-    ("Reactive", "Razer Reactive: pressed keys light and fade; click lights the mouse", P["Reactive"], 4, "type+click"),
-    ("Wheel", "colours rotating around a centre point", P["Color Wheel"], 4, None),
+    ("Colour Sweep", "a colour gradient flowing from the keyboard onto the mouse", P["Rainbow Sweep"], 4, None),
+    ("Ring Burst", "rings travel across the keyboard to the mouse with distance delay", P["Ring Burst"], 5, "type+click"),
+    ("Night Sparks", "twinkling keys, mouse LEDs included", P["Night Sparks"], 4, None),
+    ("Aurora + independent zones", "mouse logo a solid green, scroll wheel in a deep breath", None, 4, None),
+    ("Press Fade", "pressed keys light and fade; a click lights the mouse", P["Press Fade"], 4, "type+click"),
+    ("Colour Spin", "colours rotating around a centre point", P["Colour Spin"], 4, None),
     ("Matrix Rain", "digital rain", P["Matrix"], 4, None),
 ]
 aur = config.sanitize_profile(P["Aurora"])

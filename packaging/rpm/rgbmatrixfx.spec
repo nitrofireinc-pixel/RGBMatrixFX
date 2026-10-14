@@ -37,14 +37,19 @@ Suggests:       pipewire-utils
 
 %description
 RGBMatrixFX (formerly RazorFX) renders animated lighting effects onto
-Razer keyboards and mice through the OpenRazer driver and daemon, and
+Razer and other compatible keyboards and mice through the OpenRazer driver and daemon, and
 reacts to key presses, mouse clicks and scrolling. A small background
 engine (a systemd user service) keeps the lighting running; the window
 lets you pick and tune effects live, build presets and manage per-zone
 lighting. It follows the desktop's light or dark theme.
 
-Not affiliated with or endorsed by Razer Inc.
-Razer is a trademark of Razer Inc.
+RGBMatrixFX is an independent project by Nitrofire Computing. It is not
+affiliated with, endorsed by, sponsored by, authorized by, or otherwise
+associated with Razer Inc. or its subsidiaries. Nitrofire Computing does
+not work for or on behalf of Razer. Razer, Chroma and related names and
+logos are trademarks of Razer Inc. and are used here only to describe
+hardware compatibility. All other trademarks belong to their respective
+owners.
 
 %prep
 %autosetup -n RGBMatrixFX-%{rfx_upstream}

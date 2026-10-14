@@ -414,7 +414,7 @@ class DeviceHub:
                 self._log_devices()
                 self._last_msg = None
             if not self.any:
-                self._note("daemon is up but no Razer keyboard/mouse with a matrix found; retrying")
+                self._note("daemon is up but no Razer or other compatible keyboard/mouse with a matrix found; retrying")
             return after != before
         except Exception as e:
             for o in [self.kb, self.mouse] + self.extras:

@@ -144,3 +144,7 @@ the effect pipeline beyond the external source above. These need a careful, stab
 `API_VERSION = (major, minor)`. Minor versions only add things. A plugin written for
 `1.0` keeps working on every `1.x`. A major bump may remove or change things, and
 plugins declaring an older major version are then not loaded (Settings says why).
+
+## Trademark notice
+
+RGBMatrixFX is an independent project by Nitrofire Computing. It is not affiliated with, endorsed by, sponsored by, authorized by, or otherwise associated with Razer Inc. or its subsidiaries. Nitrofire Computing does not work for or on behalf of Razer. Razer, Chroma and related names and logos are trademarks of Razer Inc. and are used here only to describe hardware compatibility. All other trademarks belong to their respective owners.

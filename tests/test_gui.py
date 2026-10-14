@@ -58,7 +58,11 @@ class TestGui(unittest.TestCase):
         for want in ("<h3>RGBMatrixFX 1.2.1</h3>", "GNU General Public License", "version 3",
                      "GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception", "plugin exception",
                      "LICENSE-EXCEPTION", "https://github.com/nitrofireinc-pixel/RGBMatrixFX", "\u00a9 2026 Nitrofire Computing",
-                     "Not affiliated with or endorsed by Razer Inc. Razer is a trademark of Razer Inc."):
+                     "Trademark notice.",
+                     "not affiliated with, endorsed by, sponsored by, authorized by, or otherwise associated with Razer Inc.",
+                     "does not work for or on behalf of Razer",
+                     "Razer, Chroma and related names and logos are trademarks of Razer Inc.",
+                     "All other trademarks belong to their respective owners."):
             self.assertIn(want, t)
         self.assertNotIn("Razer FX", t)
         box = self.w.show_about()
@@ -69,14 +73,18 @@ class TestGui(unittest.TestCase):
         self.assertEqual(box.edition_lbl.text(), "Free edition")
         about = box.pages["about"].toPlainText()
         for want in ("Edition: Free", "Created by Nitrofire Computing", "https://github.com/nitrofireinc-pixel/RGBMatrixFX",
-                     "without any warranty", "Not affiliated with or endorsed by Razer Inc."):
+                     "without any warranty", "Trademark notice.",
+                     "not affiliated with, endorsed by, sponsored by, authorized by, or otherwise associated with Razer Inc.",
+                     "All other trademarks belong to their respective owners."):
             self.assertIn(want, about)
         cred = box.pages["credits"].toPlainText()
         for want in ("OpenRazer", "openrazer.github.io", "GPL-2.0-or-later", "PySide6", "LGPL-3.0"):
             self.assertIn(want, cred)
         lic = box.pages["license"].toPlainText()
         for want in ("version 3 of the License", "WITHOUT ANY WARRANTY", "Plugin exception",
-                     "RGBMatrixFX Plugin Exception, version 1.0", "Razer is a trademark of Razer Inc."):
+                     "RGBMatrixFX Plugin Exception, version 1.0", "Trademark notice.",
+                     "Razer, Chroma and related names and logos are trademarks of Razer Inc.",
+                     "All other trademarks belong to their respective owners."):
             self.assertIn(want, lic)
         text = box.copy_system_info()
         self.assertEqual(app.clipboard().text(), text)
@@ -523,7 +531,7 @@ def register(ctx):
         a = list(self.w.preview.rgb)
         spin(300)
         self.assertNotEqual(a, list(self.w.preview.rgb))
-        self.w.load_preset("Reactive")
+        self.w.load_preset("Press Fade")
         self.w._preview_key(L.KEY_BY_NAME["G"])
         spin(100)
         g = self.w.scene.cell_index(L.KEY_BY_NAME["G"].row, L.KEY_BY_NAME["G"].col)

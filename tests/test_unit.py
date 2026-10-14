@@ -299,6 +299,32 @@ class TestConfig(unittest.TestCase):
     def test_presets_valid(self):
         for name, p in config.builtin_presets().items():
             self.assertEqual(config.sanitize_profile(p)["effect"], p["effect"], name)
+        self.assertEqual(config.builtin_presets()["Deep Breath"]["effect"], "breathing")
+        self.assertNotIn("Razer Breathing", config.builtin_presets())
+
+    def test_legacy_preset_names_still_load(self):
+        """a config saved under an older preset name still round-trips; the effect id is what matters"""
+        cfg = config.default_config()
+        cfg["presets"]["Razer Breathing"] = config.make_profile("breathing", {"color": "#44d62c"}, {"enabled": False})
+        cfg["presets"]["Razer Fire"] = config.make_profile("fire", {}, {"color": "#ffffff", "mode": "fade"})
+        cfg["global"]["active_preset"] = "Razer Breathing"
+        got = config.sanitize_config(cfg)
+        self.assertEqual(got["global"]["active_preset"], "Razer Breathing")
+        self.assertEqual(got["presets"]["Razer Breathing"]["effect"], "breathing")
+        self.assertEqual(got["presets"]["Razer Fire"]["effect"], "fire")
+        self.assertEqual(got["presets"]["Deep Breath"]["effect"], "breathing")
+
+    def test_effect_display_names_are_ours(self):
+        from rgbmatrixfx.effects import EFFECTS
+        banned = ("Razer Breathing", "Razer Wave", "Razer Spectrum", "Razer Starlight", "Razer Fire",
+                  "Razer Reactive", "Razer Ripple", "Razer Wheel", "Razer Static", "Razer Audio")
+        by_id = {c.id: c for c in EFFECTS}
+        self.assertEqual(by_id["breathing"].name, "Deep Breath")
+        self.assertEqual(by_id["breathing"].id, "breathing")
+        for c in EFFECTS:
+            blob = "%s %s %s" % (c.name, c.mimics, c.description)
+            for phrase in banned:
+                self.assertNotIn(phrase, blob, c.id)
 
 
 class TestIPC(unittest.TestCase):

@@ -69,7 +69,7 @@ Zones: `keyboard` (Keyboard keys), `kb_logo` (Keyboard logo), `mouse_logo` (Mous
 |---|---|---|
 | `mode` | `"follow"` | `follow` (the effect), `static`, `breathing`, `spectrum` or `off` |
 | `color` | `"#44d62c"` | Colour for static and breathing |
-| `speed` | `1.0` | Breathing/spectrum speed (0.1–5) |
+| `speed` | `1.0` | Deep breath / hue loop speed (0.1–5) |
 | `brightness` | `1.0` | 0–1 |
 | `reactive` | `true` | Ripples and fades show in this zone |
 
@@ -99,7 +99,7 @@ Every effect also has `brightness` (0–1).
 | `tongue_level` | Tongue threshold | float | `0.72` | 0.3–0.95 |
 | `flicker_smooth` | Flicker smoothing | float | `0.35` | 0.02–1 |
 
-### `wave` (Wave)
+### `wave` (Colour Sweep)
 
 | Key | Setting | Type | Default | Range / choices |
 |---|---|---|---|---|
@@ -112,7 +112,7 @@ Every effect also has `brightness` (0–1).
 | `cy` | Centre Y (centre in/out) | float | `0.5` | 0–1 |
 | `soft` | Smooth blending | bool | `true` |  |
 
-### `spectrum` (Spectrum Cycling)
+### `spectrum` (Hue Loop)
 
 | Key | Setting | Type | Default | Range / choices |
 |---|---|---|---|---|
@@ -123,7 +123,7 @@ Every effect also has `brightness` (0–1).
 | `rate` | Cycles per second | float | `0.08` | 0.005–1 |
 | `value` | Colour brightness (HSV value) | float | `1.0` | 0–1 |
 
-### `breathing` (Breathing)
+### `breathing` (Deep Breath)
 
 | Key | Setting | Type | Default | Range / choices |
 |---|---|---|---|---|
@@ -136,13 +136,13 @@ Every effect also has `brightness` (0–1).
 | `hold` | Hold at peak | float | `0.0` | 0–0.8 |
 | `rand_sat` | Random colour saturation | float | `1.0` | 0–1 |
 
-### `static` (Static)
+### `static` (Solid Colour)
 
 | Key | Setting | Type | Default | Range / choices |
 |---|---|---|---|---|
 | `color` | Colour | color | `"#44d62c"` |  |
 
-### `starlight` (Starlight)
+### `starlight` (Night Sparks)
 
 | Key | Setting | Type | Default | Range / choices |
 |---|---|---|---|---|
@@ -158,7 +158,7 @@ Every effect also has `brightness` (0–1).
 | `dual_mix` | Dual: share of second colour | float | `0.5` | 0–1 |
 | `rand_sat` | Random colour saturation | float | `1.0` | 0–1 |
 
-### `fire` (Fire)
+### `fire` (Ember Flicker)
 
 | Key | Setting | Type | Default | Range / choices |
 |---|---|---|---|---|
@@ -170,7 +170,7 @@ Every effect also has `brightness` (0–1).
 | `follow` | Follow speed | float | `12.0` | 1–60 |
 | `rise_mix` | Bottom heat weight | float | `0.75` | 0–1 |
 
-### `reactive` (Reactive)
+### `reactive` (Press Fade)
 
 | Key | Setting | Type | Default | Range / choices |
 |---|---|---|---|---|
@@ -184,7 +184,7 @@ Every effect also has `brightness` (0–1).
 | `neighbours` | Light neighbouring keys | float | `0.0` | 0–3 |
 | `rand_sat` | Random colour saturation | float | `1.0` | 0–1 |
 
-### `ripple` (Ripple)
+### `ripple` (Ring Burst)
 
 | Key | Setting | Type | Default | Range / choices |
 |---|---|---|---|---|
@@ -199,7 +199,7 @@ Every effect also has `brightness` (0–1).
 | `max` | Max simultaneous ripples | int | `48` | 4–200 |
 | `rand_sat` | Random colour saturation | float | `1.0` | 0–1 |
 
-### `wheel` (Wheel)
+### `wheel` (Colour Spin)
 
 | Key | Setting | Type | Default | Range / choices |
 |---|---|---|---|---|
@@ -259,7 +259,7 @@ Every effect also has `brightness` (0–1).
 | `per_press` | Heat per press | float | `0.12` | 0.01–1 |
 | `curve` | Saturation curve | float | `1.4` | 0.2–5 |
 
-### `audio` (Audio Meter)
+### `audio` (Sound Bars)
 
 | Key | Setting | Type | Default | Range / choices |
 |---|---|---|---|---|

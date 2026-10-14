@@ -5,11 +5,8 @@ Effect library. Every effect renders an (N, 3) float RGB array (0..1) for the
 scene's points (keyboard cells + mouse LEDs, in physical world coordinates),
 so spatial effects flow from the keyboard onto the mouse.
 
-Razer reference for the built-in effect names/behaviour:
-  Razer support "How to add lighting effects on Razer Chroma Studio"
-  https://mysupport.razer.com/app/answers/detail/a_id/13713
-  (Breathing, Fire, Reactive, Ripple, Spectrum Cycling, Starlight, Static, Wave)
-  Wheel / Audio Meter / Ambient Awareness: https://slurptech.com/razer-chroma-studio-guide/
+Display names are RGBMatrixFX's own. The ``id`` on each class is the stable key
+presets store; do not change it.
 """
 import math
 import threading
@@ -109,9 +106,10 @@ class Effect:
 class Flame(Effect):
     id = "flame"
     name = "Flame"
-    mimics = "Razer Fire (Chroma Studio), as a rising-flame variant"
-    description = ("Flames rise from the bottom row (yellow/white-orange) to deep red at the top, "
-                   "with drifting noise and per-key flicker. Mouse scroll wheel = top, logo = base.")
+    mimics = ""
+    description = ("Flames rise from the bottom row (yellow and white-orange) to deep red at the top, "
+                   "with drifting noise, bright tongues and a little flicker on each key. "
+                   "On the mouse, the scroll wheel is the top and the logo is the base.")
     PARAMS = [SPEED,
               P("intensity", "Heat", "float", 1.0, min=0.3, max=1.6, step=0.01),
               P("height", "Flame height", "float", 1.0, min=0.3, max=2.0, step=0.01),
@@ -165,12 +163,13 @@ class Flame(Effect):
         return sample_gradient(self.stops, np.clip(float(self.p["base"]) + float(self.p["range"]) * self.h ** float(self.p["curve"]), 0, 1))
 
 
-# ----------------------------------------------------------------- Fire (Razer style)
+# ----------------------------------------------------------------- Ember flicker
 class Fire(Effect):
     id = "fire"
-    name = "Fire"
-    mimics = "Razer Fire (Chroma Studio): each key lights up in warm colours like moving flames"
-    description = "Every key flickers independently through warm colours, hotter towards the bottom."
+    name = "Ember Flicker"
+    mimics = ""
+    description = ("Each key eases toward a new random heat on its own, so warm colours flicker "
+                   "independently, hotter toward the bottom row.")
     PARAMS = [SPEED,
               P("colors", "Colours", "gradient", ["#300000", "#a00000", "#ff2a00", "#ff7a00", "#ffc400"]),
               P("rise", "Hotter at bottom", "float", 0.5, min=0.0, max=1.0, step=0.01),
@@ -221,9 +220,10 @@ def direction_coord(scene, direction, cx=0.5, cy=0.5):
 
 class Wave(Effect):
     id = "wave"
-    name = "Wave"
-    mimics = "Razer Wave: a continuous wave of colour moving across all devices"
-    description = "A colour gradient (rainbow by default) sweeps across keyboard and mouse."
+    name = "Colour Sweep"
+    mimics = ""
+    description = ("A colour gradient (rainbow by default) travels across the keyboard and mouse "
+                   "in the direction you pick, including out from or in toward a centre.")
     PARAMS = [SPEED,
               P("direction", "Direction", "choice", DIRECTIONS[0], choices=DIRECTIONS),
               P("width", "Wave length", "float", 1.0, min=0.15, max=4.0, step=0.05),
@@ -250,9 +250,10 @@ class Wave(Effect):
 # ----------------------------------------------------------------- Wheel
 class Wheel(Effect):
     id = "wheel"
-    name = "Wheel"
-    mimics = "Razer Wheel (Synapse 3): rotates a colour pattern around a centre point"
-    description = "Colours spin around a centre point you choose (it can be on the mouse too)."
+    name = "Colour Spin"
+    mimics = ""
+    description = ("Colours spin around a centre you place (it can sit on the mouse), with optional "
+                   "repeated wedges and a spiral twist.")
     PARAMS = [SPEED,
               P("cx", "Centre X", "float", 0.45, min=0.0, max=1.0, step=0.01),
               P("cy", "Centre Y", "float", 0.5, min=0.0, max=1.0, step=0.01),
@@ -279,9 +280,10 @@ class Wheel(Effect):
 # ----------------------------------------------------------------- Spectrum
 class Spectrum(Effect):
     id = "spectrum"
-    name = "Spectrum Cycling"
-    mimics = "Razer Spectrum Cycling: slowly cycles through the colour spectrum"
-    description = "All LEDs cycle together through the full hue wheel (or your own colours)."
+    name = "Hue Loop"
+    mimics = ""
+    description = ("Every LED shows the same colour, walking the hue wheel together, or stepping "
+                   "through colours you choose.")
     PARAMS = [SPEED,
               P("saturation", "Saturation", "float", 1.0, min=0.0, max=1.0, step=0.01),
               P("custom", "Use custom colours", "bool", False),
@@ -304,9 +306,10 @@ class Spectrum(Effect):
 # ----------------------------------------------------------------- Breathing
 class Breathing(Effect):
     id = "breathing"
-    name = "Breathing"
-    mimics = "Razer Breathing: gently pulses (every ~7 s) in one, two or random colours"
-    description = "Fades in and out. Single colour, alternating dual colours, or a random colour each breath."
+    name = "Deep Breath"
+    mimics = ""
+    description = ("All LEDs rise and fall together over a breath you set (7 seconds by default), "
+                   "in one colour, two alternating colours, or a new random colour each breath.")
     PARAMS = [P("mode", "Mode", "choice", "Single", choices=["Single", "Dual", "Random"]),
               P("color", "Colour", "color", "#44d62c"),
               P("color2", "Second colour", "color", "#00a2ff"),
@@ -355,9 +358,9 @@ class Breathing(Effect):
 # ----------------------------------------------------------------- Static
 class Static(Effect):
     id = "static"
-    name = "Static"
-    mimics = "Razer Static: one solid colour"
-    description = "One solid colour everywhere (combine with highlights and the reactive layer)."
+    name = "Solid Colour"
+    mimics = ""
+    description = "Every LED holds the one colour you pick, with no animation."
     PARAMS = [P("color", "Colour", "color", "#44d62c")]
 
     def render(self, dt):
@@ -367,9 +370,10 @@ class Static(Effect):
 # ----------------------------------------------------------------- Starlight
 class Starlight(Effect):
     id = "starlight"
-    name = "Starlight"
-    mimics = "Razer Starlight: twinkling lights in one, two or random colours"
-    description = "Random keys twinkle on and fade out over a background colour."
+    name = "Night Sparks"
+    mimics = ""
+    description = ("Random LEDs twinkle on and fade back into a background colour, in one colour, "
+                   "two colours, or a random colour.")
     PARAMS = [SPEED,
               P("mode", "Colours", "choice", "Random", choices=["Single", "Dual", "Random"]),
               P("color", "Star colour", "color", "#ffffff"),
@@ -468,9 +472,10 @@ REACT_TIMES = {"Short": 0.5, "Medium": 1.5, "Long": 3.0, "Custom": None}
 
 class Reactive(Effect):
     id = "reactive"
-    name = "Reactive"
-    mimics = "Razer Reactive: keys light up when pressed and fade (short/medium/long)"
-    description = "Pressed keys (and clicked mouse LEDs) light up, then fade back to the background."
+    name = "Press Fade"
+    mimics = ""
+    description = ("Pressed keys and mouse LEDs near a click light up, then fade back to the background "
+                   "over a short, medium, or long time.")
     reactive_hint = True
     PARAMS = [P("color", "Press colour", "color", "#44d62c"),
               P("random", "Random colours", "bool", False),
@@ -504,9 +509,10 @@ class Reactive(Effect):
 # ----------------------------------------------------------------- Ripple (base)
 class Ripple(Effect):
     id = "ripple"
-    name = "Ripple"
-    mimics = "Razer Ripple: radiates colour outward from the pressed key like a ripple of water"
-    description = "Each key press / click sends a ring across the keyboard and on to the mouse."
+    name = "Ring Burst"
+    mimics = ""
+    description = ("Each press sends a ring outward from that point; it crosses the keyboard and "
+                   "continues onto the mouse, then fades out.")
     reactive_hint = True
     PARAMS = [P("color", "Ripple colour", "color", "#00c8ff"),
               P("random", "Random colours", "bool", False),
@@ -737,10 +743,10 @@ class AudioSource:
 
 class AudioMeter(Effect):
     id = "audio"
-    name = "Audio Meter"
-    mimics = "Razer Audio Meter (Synapse 3): lighting reacts to your PC's audio output"
-    description = ("Spectrum bars across the keyboard columns rise with the music; the mouse shows the "
-                   "bass. Uses PipeWire's pw-record (no extra packages on Ubuntu).")
+    name = "Sound Bars"
+    mimics = ""
+    description = ("Columns across the keyboard rise with your audio, and the mouse shows the bass. "
+                   "If nothing is capturing audio, a demo animation plays instead.")
     PARAMS = [P("colors", "Colours (low \u2192 high)", "gradient", ["#00ff40", "#c8ff00", "#ffb000", "#ff0020"]),
               P("background", "Background", "color", "#000000"),
               P("gain", "Sensitivity", "float", 1.0, min=0.2, max=5.0, step=0.05),
