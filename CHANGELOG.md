@@ -6,6 +6,17 @@ All notable changes to RGBMatrixFX (called RazorFX in 1.1 and Razer FX up to 1.0
 
 ## [Unreleased]
 
+### Changed
+- Effect display names are RGBMatrixFX's own. Deep Breath (was shown as Razer Breathing),
+  Colour Sweep, Hue Loop, Solid Colour, Night Sparks, Ember Flicker, Press Fade, Ring Burst,
+  Colour Spin and Sound Bars replace the old labels. Effect ids (`breathing`, `wave`,
+  `spectrum`, `static`, `starlight`, `fire`, `reactive`, `ripple`, `wheel`, `audio`, and the
+  rest) are unchanged, so saved presets still load. Built-in preset names for new installs
+  match the new labels; a preset already saved under an older name is left as it is.
+- The trademark notice (README, About, License, AppStream, man page and RPM description) now
+  states that RGBMatrixFX is an independent Nitrofire Computing project and is not affiliated
+  with, endorsed by, sponsored by, authorized by, or otherwise associated with Razer Inc.
+
 ## [1.2.1] - 2026-10-09
 
 RGBMatrixFX 1.2.1, the first release under the new name (free version).

@@ -1,7 +1,7 @@
 # RGBMatrixFX
 
-**Chroma-style lighting effects for RGB keyboards and mice on Linux.** Today it drives Razer
-keyboards and mice through [OpenRazer](https://openrazer.github.io/).
+**Chroma-style lighting effects for RGB keyboards and mice on Linux.** Today it drives
+Razer and other compatible keyboards and mice through [OpenRazer](https://openrazer.github.io/).
 
 > **RGBMatrixFX is the new name of RazorFX.** The project is expanding towards the keyboards and
 > mice supported by [OpenRGB](https://openrgb.org/). That work has started (your motherboard,
@@ -19,13 +19,14 @@ engine (and your lighting) running.
 
 ![Demo: Flame preset with WASD highlight and ripples on typing and clicks](docs/screenshots/demo.gif)
 
-> **Not affiliated with or endorsed by Razer Inc. Razer is a trademark of Razer Inc.**
-> RGBMatrixFX is an independent community project. "Chroma", "Synapse" and the device names are also
-> trademarks of Razer Inc. They are used here only to describe compatibility.
->
-> *RGBMatrixFX was called "RazorFX" in 1.1 and "Razer FX" up to 1.0.0. See
-> [Upgrading from RazorFX or Razer FX](#upgrading-from-razorfx-or-razer-fx).*
+## Trademark notice
 
+RGBMatrixFX is an independent project by Nitrofire Computing. It is not affiliated with, endorsed by, sponsored by, authorized by, or otherwise associated with Razer Inc. or its subsidiaries. Nitrofire Computing does not work for or on behalf of Razer. Razer, Chroma and related names and logos are trademarks of Razer Inc. and are used here only to describe hardware compatibility. All other trademarks belong to their respective owners.
+
+*RGBMatrixFX was called "RazorFX" in 1.1 and "Razer FX" up to 1.0.0. See
+[Upgrading from RazorFX or Razer FX](#upgrading-from-razorfx-or-razer-fx).*
+
+- [Trademark notice](#trademark-notice)
 - [Features](#features)
 - [Effects](#effects)
 - [Compatibility](#compatibility)
@@ -48,14 +49,14 @@ engine (and your lighting) running.
 * **14 effects** modelled on Razer Chroma / Synapse effects plus a few community favourites
   (see the table below). Each has a main settings panel and an *Advanced* section that exposes every
   tunable, documented in [PARAMETERS.md](PARAMETERS.md).
-* **One scene across devices**: the keyboard and mouse share a physical layout, so waves,
-  wheels and ripples travel from the keyboard on to the mouse.
+* **One scene across devices**: the keyboard and mouse share a physical layout, so sweeps,
+  spins and rings travel from the keyboard on to the mouse.
 * **Reactive layer** on top of *any* effect: ripples and/or key fades triggered by keys, clicks
   and the scroll wheel.
 * **Highlight key groups** at a fixed colour (WASD by default).
 * **Gamer Controls**: one click keeps W A S D lit on top of everything, in every preset.
 * **Zones**: keyboard keys, keyboard logo, mouse logo and mouse scroll wheel can each follow the
-  effect or run their own static, breathing or spectrum colour, with separate brightness.
+  effect or run their own solid colour, deep breath or hue loop, with separate brightness.
 * **Presets**: 14 built-ins; save, duplicate, rename, revert, import and export
   (`*.rgbmatrixfx.json`).
 * **Live preview** of exactly what is sent to the devices. Click keys or mouse buttons in the preview to fire reactions.
@@ -82,29 +83,28 @@ engine (and your lighting) running.
 
 ## Effects
 
-| Effect | Mimics | What it does |
-|---|---|---|
-| **Flame** | Razer *Fire* (Chroma Studio), as a rising-flame variant | Flames rise from the bottom row (yellow/white-orange) to deep red at the top, with drifting noise and per-key flicker |
-| **Wave** | Razer *Wave* | A colour gradient (rainbow by default) sweeps across keyboard and mouse. 8 directions, plus centre-out and centre-in |
-| **Spectrum Cycling** | Razer *Spectrum Cycling* | All LEDs cycle together through the hue wheel or your own colours |
-| **Breathing** | Razer *Breathing* | Fades in and out (about 7 s period): a single colour, alternating dual colours, or a random colour each breath |
-| **Static** | Razer *Static* | One solid colour. Combine it with highlights and the reactive layer |
-| **Starlight** | Razer *Starlight* | Random keys twinkle and fade over a background, in one, two or random colours |
-| **Fire** | Razer *Fire* (Chroma Studio) | Every key flickers independently through warm colours, hotter towards the bottom |
-| **Reactive** | Razer *Reactive* | Pressed keys and clicked mouse LEDs light up, then fade (short, medium or long) |
-| **Ripple** | Razer *Ripple* | Each key press or click sends a ring across the keyboard and on to the mouse |
-| **Wheel** | Razer *Wheel* (Synapse 3 / Chroma Studio) | Colours spin around a centre point you choose, which can be on the mouse |
-| **Matrix Rain** | Community "digital rain" (OpenRGB effects plugin / Chroma Workshop style) | Green code drips down each key column with bright heads and fading trails |
-| **Aurora / Plasma** | Community Aurora / Plasma (OpenRGB effects plugin, Chroma Workshop) | Slow, flowing curtains of colour, or a classic sine plasma |
-| **Heatmap** | Community typing heatmap | Every key press heats that key (and a little around it); the heat cools slowly |
-| **Audio Meter** | Razer *Audio Meter* (Synapse 3) | Spectrum bars across the keyboard follow your PC's audio output, and the mouse shows the bass. Uses PipeWire's `pw-record` (or `parec`), with a demo animation if neither is available |
+| Effect | What it does |
+|---|---|
+| **Flame** | Flames rise from the bottom row (yellow and white-orange) to deep red at the top, with drifting noise, bright tongues and a little flicker on each key. On the mouse, the scroll wheel is the top and the logo is the base |
+| **Colour Sweep** | A colour gradient (rainbow by default) travels across the keyboard and mouse in the direction you pick, including out from or in toward a centre |
+| **Hue Loop** | Every LED shows the same colour, walking the hue wheel together, or stepping through colours you choose |
+| **Deep Breath** | All LEDs rise and fall together over a breath you set (7 seconds by default), in one colour, two alternating colours, or a new random colour each breath |
+| **Solid Colour** | Every LED holds the one colour you pick, with no animation |
+| **Night Sparks** | Random LEDs twinkle on and fade back into a background colour, in one colour, two colours, or a random colour |
+| **Ember Flicker** | Each key eases toward a new random heat on its own, so warm colours flicker independently, hotter toward the bottom row |
+| **Press Fade** | Pressed keys and mouse LEDs near a click light up, then fade back to the background over a short, medium, or long time |
+| **Ring Burst** | Each press sends a ring outward from that point; it crosses the keyboard and continues onto the mouse, then fades out |
+| **Colour Spin** | Colours spin around a centre you place (it can sit on the mouse), with optional repeated wedges and a spiral twist |
+| **Matrix Rain** | Green code drips down each key column with bright heads and fading trails |
+| **Aurora / Plasma** | Slow, flowing curtains of colour, or a classic sine plasma |
+| **Heatmap** | Every key press heats that key (and a little around it); the heat cools slowly |
+| **Sound Bars** | Columns across the keyboard rise with your audio, and the mouse shows the bass. If nothing is capturing audio, a demo animation plays instead. Uses PipeWire's `pw-record` (or `parec`) |
 
-The effects are independent re-implementations based on how Razer's effects look and on Razer's
-public descriptions. No Razer code or assets are used.
+These are RGBMatrixFX's own effects. No Razer code or assets are used.
 
 | | | |
 |---|---|---|
-| ![Wave](docs/screenshots/06-effect-wave.png) | ![Starlight](docs/screenshots/07-effect-starlight.png) | ![Aurora](docs/screenshots/08-effect-aurora.png) |
+| ![Colour Sweep](docs/screenshots/06-effect-wave.png) | ![Night Sparks](docs/screenshots/07-effect-starlight.png) | ![Aurora](docs/screenshots/08-effect-aurora.png) |
 
 ## Compatibility
 
@@ -195,7 +195,7 @@ built-in hand-tuned maps, then OpenRazer's tables, then the generic grid. The fo
 * Optional: [OpenRGB](https://openrgb.org/) 0.9+ to list motherboard, RAM and fan lighting
   (`install.sh` and the packages set it up where the distribution packages it; otherwise get it
   from openrgb.org).
-* Optional: PipeWire's `pw-record` (installed by default on Ubuntu), or `parec`, for the Audio Meter.
+* Optional: PipeWire's `pw-record` (installed by default on Ubuntu), or `parec`, for Sound Bars.
 * [Polychromatic](https://polychromatic.app/) is **not** required, but works alongside RGBMatrixFX.
 
 ## Download
@@ -306,7 +306,7 @@ Open **RGBMatrixFX** from the app menu, or run `rgbmatrixfx`.
 * **Effect** tab: the main settings for the current effect (speed, brightness, colours and
   gradients, direction, density…). The collapsible **Advanced** section exposes every remaining
   constant. Each tooltip shows the default.
-* **Reactive layer**: ripples and/or key fades on top of any effect. Set the colour (or rainbow), speed, ring
+* **Reactive layer**: rings and/or key fades on top of any effect. Set the colour (or rainbow), speed, ring
   width, life and fade curve, and the triggers (keys, clicks, scrolling).
 * **Highlight keys**: groups of keys held at a fixed colour. Keys show as keycap chips. Remove one
   with Backspace, Delete or its ×, change a group's name, colour, layer or enabled state, remove
@@ -314,7 +314,7 @@ Open **RGBMatrixFX** from the app menu, or run `rgbmatrixfx`.
   Add group, picking keys on the preview) will be part of RGBMatrixFX Pro (coming soon).
   Each group can sit above or below the ripples. This tab also has the Gamer Controls box.
 * **Zones**: keyboard keys, keyboard logo, mouse logo and mouse scroll wheel. Each one follows the
-  effect or gets its own static, breathing or spectrum colour, or is turned off. **Identify** blinks the zone on the device.
+  effect or gets its own solid colour, deep breath or hue loop, or is turned off. **Identify** blinks the zone on the device.
 * **Settings**: FPS, whether to drive the mouse, mouse output method, what happens when the engine stops,
   start at login, mouse position (how far effects travel to reach it), engine I/O options,
   device and input-node status, the OpenRGB devices (motherboard, RAM, fans), and **Appearance**: theme (System, Dark, Light) and accent colour

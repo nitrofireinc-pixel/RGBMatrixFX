@@ -102,8 +102,8 @@ class Scene:
 
 
 ZONE_MODES = ["follow", "static", "breathing", "spectrum", "off"]
-ZONE_MODE_LABELS = {"follow": "Follow effect", "static": "Static colour", "breathing": "Breathing",
-                    "spectrum": "Spectrum cycling", "off": "Off"}
+ZONE_MODE_LABELS = {"follow": "Follow effect", "static": "Solid colour", "breathing": "Deep breath",
+                    "spectrum": "Hue loop", "off": "Off"}
 
 
 class Compositor:

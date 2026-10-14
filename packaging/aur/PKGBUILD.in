@@ -15,7 +15,7 @@ conflicts=('razorfx')
 provides=('razorfx')
 optdepends=('openrazer-driver-dkms: the OpenRazer kernel driver (or another openrazer driver package)'
             'python-evdev: reactive effects (key presses, clicks, scrolling)'
-            'pipewire: audio meter effect (pw-record)'
+            'pipewire: Sound Bars effect (pw-record)'
             'polychromatic: lighting control when RGBMatrixFX is stopped')
 source=("$pkgname-$pkgver.tar.gz::@SOURCE_URL@")
 sha256sums=('@SHA256@')
