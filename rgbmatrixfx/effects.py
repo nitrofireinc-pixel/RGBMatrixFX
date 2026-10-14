@@ -546,7 +546,7 @@ class Ripple(Effect):
 class MatrixRain(Effect):
     id = "matrix"
     name = "Matrix Rain"
-    mimics = "Community 'digital rain' (OpenRGB effects plugin / Chroma Workshop style)"
+    mimics = ""
     description = "Green code drips down each key column, with bright heads and fading trails."
     PARAMS = [SPEED,
               P("color", "Trail colour", "color", "#00ff41"),
@@ -604,7 +604,7 @@ class MatrixRain(Effect):
 class Aurora(Effect):
     id = "aurora"
     name = "Aurora / Plasma"
-    mimics = "Community Aurora / Plasma (OpenRGB effects plugin, Chroma Workshop)"
+    mimics = ""
     description = "Slow flowing curtains of colour (Aurora) or classic sine plasma."
     PARAMS = [SPEED,
               P("style", "Style", "choice", "Aurora", choices=["Aurora", "Plasma"]),

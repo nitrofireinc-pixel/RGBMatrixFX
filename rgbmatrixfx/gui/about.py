@@ -21,7 +21,7 @@ from . import theme
 GPL_URL = "https://www.gnu.org/licenses/gpl-3.0.html"
 OPENRAZER_URL = "https://openrazer.github.io/"
 OPENRAZER_REPO = "https://github.com/openrazer/openrazer"
-TAGLINE = "Chroma-style lighting effects for Razer and other compatible keyboards and mice on Linux, built on OpenRazer."
+TAGLINE = "Lighting effects for Razer and other compatible keyboards and mice on Linux, built on OpenRazer."
 
 
 def _a(url, text=None):

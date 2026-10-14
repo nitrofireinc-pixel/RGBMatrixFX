@@ -1,7 +1,7 @@
 # RGBMatrixFX
 
-**Chroma-style lighting effects for RGB keyboards and mice on Linux.** Today it drives
-Razer and other compatible keyboards and mice through [OpenRazer](https://openrazer.github.io/).
+**Lighting effects for Razer and other compatible keyboards and mice on Linux.** Today it drives
+them through [OpenRazer](https://openrazer.github.io/).
 
 > **RGBMatrixFX is the new name of RazorFX.** The project is expanding towards the keyboards and
 > mice supported by [OpenRGB](https://openrgb.org/). That work has started (your motherboard,
@@ -46,9 +46,8 @@ RGBMatrixFX is an independent project by Nitrofire Computing. It is not affiliat
 
 ## Features
 
-* **14 effects** modelled on Razer Chroma / Synapse effects plus a few community favourites
-  (see the table below). Each has a main settings panel and an *Advanced* section that exposes every
-  tunable, documented in [PARAMETERS.md](PARAMETERS.md).
+* **14 effects**, plus a few community favourites (see the table below). Each has a main settings
+  panel and an *Advanced* section that exposes every tunable, documented in [PARAMETERS.md](PARAMETERS.md).
 * **One scene across devices**: the keyboard and mouse share a physical layout, so sweeps,
   spins and rings travel from the keyboard on to the mouse.
 * **Reactive layer** on top of *any* effect: ripples and/or key fades triggered by keys, clicks
@@ -481,8 +480,6 @@ scripts and daemon are used directly and are not part of this repository. See
 * **[Polychromatic](https://github.com/polychromatic/polychromatic)** (GPL-3.0): its
   keyboard device maps were used as a *reference* to cross-check the keyboard layout. No
   Polychromatic code is included.
-* Effect designs are inspired by Razer Chroma / Synapse effects and the OpenRGB effects plugin.
-
 * **[Qt for Python / PySide6](https://doc.qt.io/qtforpython-6/)** (LGPL-3.0): the GUI toolkit.
 
 ## License
