@@ -171,8 +171,6 @@ Colours spin around a centre you place (it can sit on the mouse), with optional 
 
 Green code drips down each key column, with bright heads and fading trails.
 
-_Community 'digital rain' (OpenRGB effects plugin / Chroma Workshop style)_
-
 | Setting | Section | Default | Range | What it does |
 |---|---|---|---|---|
 | Speed | main | 1.0 | 0.1 – 4.0 |  |
@@ -192,8 +190,6 @@ _Community 'digital rain' (OpenRGB effects plugin / Chroma Workshop style)_
 ## Aurora / Plasma
 
 Slow flowing curtains of colour (Aurora) or classic sine plasma.
-
-_Community Aurora / Plasma (OpenRGB effects plugin, Chroma Workshop)_
 
 | Setting | Section | Default | Range | What it does |
 |---|---|---|---|---|

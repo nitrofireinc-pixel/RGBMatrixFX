@@ -12,7 +12,7 @@
 Name:           rgbmatrixfx
 Version:        %{rfx_version}
 Release:        1%{?dist}
-Summary:        Chroma-style lighting effects for RGB keyboards and mice
+Summary:        Lighting effects for Razer and other compatible keyboards and mice
 License:        GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception
 URL:            https://github.com/nitrofireinc-pixel/RGBMatrixFX
 Source0:        %{url}/archive/refs/tags/v%{rfx_upstream}.tar.gz#/rgbmatrixfx-%{version}.tar.gz
