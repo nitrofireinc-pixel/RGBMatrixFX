@@ -65,6 +65,14 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="1.2.3" date="2026-10-22">
+      <description>
+        <p>
+          Checks for new versions and shows the commands to update, with a short What's new note
+          after each update. RGBMatrixFX Pro is now available from the Help menu.
+        </p>
+      </description>
+    </release>
     <release version="1.2.2" date="2026-10-22">
       <description>
         <p>
