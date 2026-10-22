@@ -6,6 +6,23 @@ All notable changes to RGBMatrixFX (called RazorFX in 1.1 and Razer FX up to 1.0
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-10-22
+
+### Fixed
+- Stutter and pauses in effects that light only a few keys over a dark background (Starfield,
+  Fireworks, Snowfall and similar): the keyboard now gets a **full frame** (every row) on every
+  write, so frame timing is even and a row the keyboard drops is repainted on the next frame.
+  Previously only changed rows were sent, which made timing uneven and could leave a dropped row
+  stale for up to a quarter second.
+- Rows the keyboard reports as busy are resent once after they settle, and a rolling refresh
+  repaints one extra row per write as a second safety net.
+
+### Added
+- Full frames are always on (`full_frames` in devices.py; `RGBMATRIXFX_FULL_FRAMES=1` also forces them on
+  older engines). Every effect must ship with full frames (see CONTRIBUTING.md).
+- Adaptive output rate matched to the keyboard's real write time (`adaptive_fps`).
+- Opt-in timing trace over engine IPC, for diagnosing stutter.
+
 ### Added
 - Engine IPC `set_override`: a temporary, unsaved look (profile, dim, tint, off) with automatic expiry, for add-ons such as per-app profiles and schedules (docs/PLUGIN_API.md).
 - Plugin API 1.2: `ctx.add_gallery_effect()` shows add-on effects in the effect list with a live
