@@ -5,8 +5,8 @@
 # addFilter is an error on rpmlint 2.8 (unused-rpmlintrc-filter) and fails the release build.
 # Fedora already ignores no-signature, no-packager-tag, no-group-tag and no-buildroot-tag,
 # accepts the SPDX license GPL-3.0-or-later, and gzip-compresses man pages.
-# "Chroma" is Razer's product name, not a typo
-addFilter("spelling-error .*Chroma")
+# rpmlint 2.8 does not report a spelling-error for "Chroma". An unused
+# addFilter is an error, so there is no Chroma filter.
 # the SPDX exception is project-specific (LicenseRef-style AdditionRef); generic lists don't know it
 addFilter("invalid-license-exception AdditionRef-RGBMatrixFX-plugin-exception")
 # LICENSE-EXCEPTION is also kept next to the program for Help > About, and the 256 px icon for the window
