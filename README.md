@@ -310,7 +310,7 @@ Open **RGBMatrixFX** from the app menu, or run `rgbmatrixfx`.
 * **Highlight keys**: groups of keys held at a fixed colour. Keys show as keycap chips. Remove one
   with Backspace, Delete or its ×, change a group's name, colour, layer or enabled state, remove
   groups, or **Restore defaults** (one WASD group in white). Adding keys and groups (+ Add key,
-  Add group, picking keys on the preview) will be part of RGBMatrixFX Pro (coming soon).
+  Add group, picking keys on the preview) are part of RGBMatrixFX Pro ($9.99, [nitrofirecomputing.com/rgbmatrixfx](https://nitrofirecomputing.com/rgbmatrixfx)).
   Each group can sit above or below the ripples. This tab also has the Gamer Controls box.
 * **Zones**: keyboard keys, keyboard logo, mouse logo and mouse scroll wheel. Each one follows the
   effect or gets its own solid colour, deep breath or hue loop, or is turned off. **Identify** blinks the zone on the device.
@@ -356,7 +356,7 @@ click its chip (or Tab to it) and press Backspace or Delete, or hover over it an
 **Restore defaults** brings back W A S D in white, and you can change the colour there too
 ([screenshot](docs/screenshots/13-gamer-chips.png)). Adding your own keys (**+ Add key**, then press
 any key) will be a RGBMatrixFX Pro feature. Pro isn't for sale yet, so the free version shows a locked
-"Add key · Pro: coming soon" chip, which you can hide with *Settings ▸ Plugins ▸ Show RGBMatrixFX Pro
+"Add key · Pro" chip, which you can hide with *Settings ▸ Plugins ▸ Show RGBMatrixFX Pro
 previews*. The setting is global (`gamer_controls`, `gamer_keys`,
 `gamer_color` in `config.json`) and separate from each preset's own highlight groups. It is off by default.
 

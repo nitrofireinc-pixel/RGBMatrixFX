@@ -37,6 +37,8 @@ from .widgets import ColorButton, SliderRow, ParamForm, Collapsible, make_contro
 from .plugin_host import GuiPluginHost
 from .keychips import KeyChipRow
 from . import about
+from . import updates_ui
+from .. import updates
 from .appearance import SystemAppearance, ThemeController
 from ..effects import A as ADV
 
@@ -510,6 +512,61 @@ class MainWindow(QMainWindow):
             self.show()
         if packaged_install():
             QTimer.singleShot(1200, self.first_run_engine)
+        QTimer.singleShot(1500, self.show_whats_new)
+        if self.auto_update_enabled():
+            QTimer.singleShot(4000, self.check_updates)
+
+    # ---------------------------------------------------------------- updates
+    def auto_update_enabled(self):
+        return self._settings().value("updates/auto_check", True, type=bool)
+
+    def _set_auto_update(self, on):
+        st = self._settings()
+        st.setValue("updates/auto_check", bool(on))
+        st.sync()
+
+    def check_updates(self, manual=False):
+        """background check (cached a day unless manual); never blocks, offline is silent"""
+        if getattr(self, "_update_checker", None) is None:
+            self._update_checker = updates_ui.UpdateChecker(self)
+            self._update_checker.done.connect(self._update_result)
+        if manual:
+            self.statusBar().showMessage("Checking for updates\u2026", 4000)
+        self._update_checker.start(force=manual, manual=manual)
+
+    def _update_result(self, res, manual):
+        rel = res.get("release")
+        if not res.get("newer") or not rel:
+            if manual:
+                msg = ("Could not check for updates (offline?)." if res.get("error")
+                       else "%s %s is the latest version." % (APP_NAME, __version__))
+                self.statusBar().showMessage(msg, 8000)
+            return None
+        tag = rel.get("tag_name", "")
+        st = self._settings()
+        if not manual and st.value("updates/skip_version", "") == tag:
+            return None
+        dlg = self.update_dialog = updates_ui.UpdateDialog(rel, updates.install_method(), self)
+        r = dlg.exec()
+        if r == updates_ui.SKIP:
+            st.setValue("updates/skip_version", tag)
+            st.sync()
+        return r
+
+    def show_whats_new(self, force=False):
+        """one-time popup on the first start of a new version (not on a fresh install)"""
+        st = self._settings()
+        seen = st.value("updates/seen_version", "")
+        used_before = bool(seen) or st.contains("window/width") or st.contains("engine/first_run_done")
+        st.setValue("updates/seen_version", __version__)
+        st.sync()
+        if not force and (seen == __version__ or not used_before):
+            return None
+        md = updates_ui.whats_new_markdown()
+        if not md:
+            return None
+        dlg = self.whats_new_dialog = updates_ui.WhatsNewDialog(__version__, md, self)
+        return dlg.exec()
 
     def first_run_engine(self):
         """Packages install rgbmatrixfx-engine.service for all users but enable it for nobody
@@ -658,6 +715,8 @@ class MainWindow(QMainWindow):
         gp = self.get_pro_action = hm.addAction(pro_status.store_action_label(), self.open_pro_store)
         gp.setEnabled(pro_status.purchase_enabled())
         hm.addSeparator()
+        self.update_action = hm.addAction("Check for &updates\u2026", lambda: self.check_updates(manual=True))
+        hm.addAction("What's new", lambda: self.show_whats_new(force=True))
         self.about_action = hm.addAction("&About %s" % APP_NAME, self.show_about)
         self.about_action.setShortcut(QKeySequence("F1"))
         hm.addAction("About &Qt", self.show_about_qt)
@@ -1503,6 +1562,14 @@ class MainWindow(QMainWindow):
         self.engine_btn2 = QPushButton()
         self.engine_btn2.clicked.connect(self.toggle_engine)
         f2.addRow("Engine", self.engine_btn2)
+        self.update_cb = QCheckBox()
+        self.update_cb.setChecked(self.auto_update_enabled())
+        self.update_cb.setToolTip("Asks GitHub for the latest release at most once a day. Nothing is installed automatically.")
+        self.update_cb.toggled.connect(self._set_auto_update)
+        upd = QPushButton("Check now")
+        upd.clicked.connect(lambda: self.check_updates(manual=True))
+        ur = QHBoxLayout(); ur.addWidget(self.update_cb); ur.addWidget(upd); ur.addStretch(1)
+        f2.addRow("Check for updates", ur)
         info = QLabel("Closing this window keeps the engine running. While it runs it overrides "
                       "whatever Polychromatic sets; use \u201cHand back to Polychromatic\u201d to stop it.")
         info.setWordWrap(True)

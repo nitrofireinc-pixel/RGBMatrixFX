@@ -6,6 +6,23 @@ All notable changes to RGBMatrixFX (called RazorFX in 1.1 and Razer FX up to 1.0
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-10-22
+
+### Added
+- Update check: on start (at most once a day, cached in ~/.cache/rgbmatrixfx) and from
+  Help ▸ Check for updates…, RGBMatrixFX asks GitHub for the latest release in the background
+  (8 s timeout; offline is silent). A newer version opens a dialog with the release notes and the
+  exact terminal commands for how this copy was installed (install script, .deb, .rpm, AUR or
+  AppImage), including the engine restart: Copy commands, Open release page, Skip this version,
+  Remind me later. Nothing is installed automatically and sudo is never run by the app.
+- Settings ▸ Startup ▸ Check for updates: turn automatic checks off, or check now.
+- One-time “What's new” popup (new, bug fixes, security fixes) on the first start of a new
+  version; Help ▸ What's new shows it again.
+
+### Changed
+- RGBMatrixFX Pro is on sale: Help ▸ Get RGBMatrixFX Pro ($9.99) opens
+  nitrofirecomputing.com/rgbmatrixfx, and Pro labels no longer say “coming soon”.
+
 ## [1.2.2] - 2026-10-22
 
 ### Fixed

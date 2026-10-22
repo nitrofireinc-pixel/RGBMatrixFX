@@ -40,7 +40,7 @@ class TestGui(unittest.TestCase):
 
     def test_help_about(self):
         import rgbmatrixfx
-        self.assertEqual(rgbmatrixfx.__version__, "1.2.2")
+        self.assertEqual(rgbmatrixfx.__version__, "1.2.3")
         with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION")) as f:
             self.assertEqual(f.read().strip(), rgbmatrixfx.__version__)
         mb = self.w.menuBar()
@@ -55,7 +55,7 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.w.windowTitle(), "RGBMatrixFX")
         self.assertEqual(self.w.about_action.text().replace("&", ""), "About RGBMatrixFX")
         t = self.w.about_text()
-        for want in ("<h3>RGBMatrixFX 1.2.2</h3>", "GNU General Public License", "version 3",
+        for want in ("<h3>RGBMatrixFX 1.2.3</h3>", "GNU General Public License", "version 3",
                      "GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception", "plugin exception",
                      "LICENSE-EXCEPTION", "https://github.com/nitrofireinc-pixel/RGBMatrixFX", "\u00a9 2026 Nitrofire Computing",
                      "Trademark notice.",
@@ -88,7 +88,7 @@ class TestGui(unittest.TestCase):
             self.assertIn(want, lic)
         text = box.copy_system_info()
         self.assertEqual(app.clipboard().text(), text)
-        self.assertTrue(text.startswith("RGBMatrixFX 1.2.2 ("))
+        self.assertTrue(text.startswith("RGBMatrixFX 1.2.3 ("))
         self.assertIn("(Free edition)", text)
         self.assertIn("Engine: not running", text)
         box.close()
@@ -366,20 +366,21 @@ def register(ctx):
         from rgbmatrixfx import pro_status
         import rgbmatrixfx.gui.app as appmod
         a = self.w.get_pro_action
-        self.assertEqual(a.text(), "RGBMatrixFX Pro (coming soon)")
-        self.assertFalse(a.isEnabled())                    # not for sale yet
-        self.assertTrue(pro_status.PRO_STORE_URL.startswith("https://"))
+        self.assertEqual(a.text(), "Get RGBMatrixFX Pro ($9.99)\u2026")
+        self.assertTrue(a.isEnabled())                     # on sale
+        self.assertEqual(pro_status.PRO_STORE_URL, "https://nitrofirecomputing.com/rgbmatrixfx")
         opened = []
         orig = appmod.QDesktopServices.openUrl
         appmod.QDesktopServices.openUrl = lambda u: opened.append(u.toString())
         try:
+            pro_status.PRO_FOR_SALE = False
             self.w.open_pro_store()
             self.assertEqual(opened, [])
+            self.assertNotIn("coming soon", pro_status.store_action_label())
             pro_status.PRO_FOR_SALE = True
             self.w.open_pro_store()
-            self.assertEqual(pro_status.store_action_label(), "Get RGBMatrixFX Pro\u2026")
         finally:
-            pro_status.PRO_FOR_SALE = False
+            pro_status.PRO_FOR_SALE = True
             appmod.QDesktopServices.openUrl = orig
         self.assertEqual(opened, [pro_status.PRO_STORE_URL])
 
@@ -546,9 +547,8 @@ def register(ctx):
         w.gamer_chips.add_chip.click()
         self.assertIn("RGBMatrixFX Pro", w.statusBar().currentMessage())
         from rgbmatrixfx import pro_status
-        if not pro_status.PRO_FOR_SALE:                                  # Trevor: "Coming soon" until launch
-            self.assertIn("coming soon", w.gamer_chips.add_chip.text())
-            self.assertIn("coming soon", w.statusBar().currentMessage())
+        self.assertIn("Pro", w.gamer_chips.add_chip.text())
+        self.assertNotIn("coming soon", w.statusBar().currentMessage())
         w.teaser_cb.setChecked(False)
         self.assertIsNone(w.gamer_chips.add_chip)
         w.teaser_cb.setChecked(True)
@@ -899,8 +899,7 @@ def register(ctx):
                                 "F-keys", "Numbers", "Numpad", "Logo", "Clear"}, vis)
         self.assertTrue(w.hl_add_locked.isVisible())
         from rgbmatrixfx import pro_status
-        if not pro_status.PRO_FOR_SALE:
-            self.assertIn("coming soon", w.hl_add_locked.text())
+        self.assertNotIn("coming soon", w.hl_add_locked.text())
         w._hl_add()                                                       # no backdoor
         w._set_pick(True)
         w._preview_key(L.KEY_BY_NAME["G"])
