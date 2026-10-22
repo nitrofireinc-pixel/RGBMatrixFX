@@ -49,7 +49,8 @@ FULL_REFRESH_S = 2.0
 FORCE_FULL = os.environ.get("RGBMATRIXFX_FULL_FRAMES") == "1"   # debug/tests: always send every row
 
 DEFAULT_IO = {"device_io": "auto", "custom_every_frame": False, "custom_refresh_s": 5.0,
-              "row_delta": 1, "kb_max_fps": 30, "mouse_max_fps": 30}
+              "row_delta": 1, "kb_max_fps": 30, "mouse_max_fps": 30,
+              "rolling_refresh": True, "full_frames": True}
 
 
 def log(msg):
@@ -229,15 +230,33 @@ class Out:
             g = np.zeros((self.rows, self.cols, 3), np.uint8)
             g[: f.shape[0], : f.shape[1]] = f
             f = g
-        if self.sent is None or now >= self._next_full or FORCE_FULL:
+        # full_frames (default on): send every row on every write. Partial writes made the time from
+        # "frame ready" to "keys lit" swing with the number of changed rows (2 rows ~12 ms, 6 rows ~35 ms,
+        # plus the 2 s full refresh), which is invisible in smooth time-based effects but shows as
+        # stumbles/pauses in effects that move one key per frame (Starfield, Fireworks). It also repairs
+        # any row the keyboard dropped on the very next frame. "full_frames": false = old partial writes.
+        if self.sent is None or now >= self._next_full or FORCE_FULL or self.opts.get("full_frames", True):
             rows = list(range(self.rows))
+            self._settle = set()                # a full refresh needs no settle resend
             self._next_full = now + FULL_REFRESH_S
         else:
             d = np.abs(f.astype(np.int16) - self.sent.astype(np.int16)).reshape(self.rows, -1).max(axis=1)
             dark = ~f.reshape(self.rows, -1).any(axis=1) & self.sent.reshape(self.rows, -1).any(axis=1)
             rows = [int(r) for r in np.nonzero((d > self.opts["row_delta"]) | dark | ((d > 0) & (self.opts["row_delta"] <= 0)))[0]]
+            # resend last write's rows once more: the keyboard can silently drop a row report, and
+            # an unchanged row would otherwise stay stale (looks frozen) until the 2 s full refresh
+            rows = set(rows) | getattr(self, "_settle", set())
+            # rolling refresh: also resend one more row per write, round robin, so any row the
+            # keyboard ignored (openrazer silently drops a report the device answers "busy") is
+            # repaired within ~rows writes (~0.25 s on a 6-row keyboard) instead of the 2 s full refresh
+            if rows and self.rows and self.opts.get("rolling_refresh", True):
+                self._rr = (getattr(self, "_rr", -1) + 1) % self.rows
+                rows.add(self._rr)
+            rows = sorted(rows)
         if not rows:
             return
+        full = len(rows) == self.rows and not getattr(self, "_settle", None)
+        changed_now = [] if full else [r for r in rows if (f[r] != self.sent[r]).any()]
         t0 = time.monotonic()
         self._write_frame(rows_payload(f, rows))
         tk = time.monotonic()
@@ -250,7 +269,12 @@ class Out:
             self.sent = f.copy()
         else:
             self.sent[rows] = f[rows]
+        self._settle = set(changed_now)
         self.rows_sent += len(rows)
+        wms = (t1 - t0) * 1000
+        self.write_max_ms = max(getattr(self, "write_max_ms", 0.0), wms)
+        if wms > 100:
+            self.write_spikes = getattr(self, "write_spikes", 0) + 1
         if len(rows) * 2 >= self.rows and self.rows:
             self.full_ms.append((t1 - t0) * 1000 * self.rows / len(rows))
         self._last_write = t0

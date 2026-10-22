@@ -452,6 +452,23 @@ class TestGamerControls(unittest.TestCase):
             self.assertEqual((g["gamer_controls"], g["gamer_keys"]), (True, ["Q", "E"]))
 
 
+class TestFullFrames(unittest.TestCase):
+    def test_full_frames_default_sends_every_row(self):
+        from rgbmatrixfx import devices
+        if True:
+            out = devices.Out.__new__(devices.Out)
+            out.rows, out.cols, out.sent, out._next_full = 6, 22, None, 0.0
+            out.opts = dict(devices.DEFAULT_IO); out._need_kick = False; out._next_kick = 1e9
+            out.rows_sent = 0; sent = []; out.full_ms = []; out._count = lambda *a: None
+            out._write_frame = lambda p: sent.append(len(p))
+            out.kind = "keyboard"
+            f = np.zeros((6, 22, 3), np.uint8)
+            out._write_matrix(f, 100.0)
+            f[2, 5] = 200
+            out._write_matrix(f, 100.1)
+            self.assertEqual(sent, [6 * 69, 6 * 69])
+
+
 class TestDeviceIO(unittest.TestCase):
     def _sysfs(self, d, pid=0x022A, serial="XX123"):
         dd = os.path.join(d, "razerkbd", "0003:1532:%04X.0006" % pid)
@@ -479,6 +496,8 @@ class TestDeviceIO(unittest.TestCase):
                     return fh.read()
             f = np.zeros((6, 22, 3), np.uint8)
             f[:, :] = 10
+            out.opts["rolling_refresh"] = False
+            out.opts["full_frames"] = False          # this test covers the partial-row path
             out._write_matrix(f, 100.0)
             self.assertEqual(len(rd("matrix_custom_frame")), 6 * (3 + 66))
             self.assertEqual(dev.light.calls, [("custom",)])        # first kick through the daemon
@@ -487,6 +506,8 @@ class TestDeviceIO(unittest.TestCase):
             b = rd("matrix_custom_frame")
             self.assertEqual((len(b), b[0], b[1], b[2]), (69, 2, 0, 21))
             self.assertEqual(tuple(b[3 + 15:3 + 18]), (200, 0, 0))
+            out._write_matrix(f2.copy(), 100.15)                    # settle: row 2 resent once
+            self.assertEqual(rd("matrix_custom_frame")[0], 2)
             n = out.frames
             out._write_matrix(f2.copy(), 100.2)                     # unchanged -> nothing sent
             f3 = f2.copy(); f3[4, 0] = (11, 10, 10)                 # within row_delta=1 -> skipped
