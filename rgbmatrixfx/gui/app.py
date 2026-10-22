@@ -126,7 +126,9 @@ class EffectTile(QFrame):
         self.selected = False
         self.setFixedHeight(92)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setToolTip("%s\n\nMimics: %s" % (cls.description, cls.mimics))
+        self.subtitle = cls.mimics.split(":")[0] if cls.mimics else cls.description
+        tip = cls.description if not cls.mimics else "%s\n\n%s" % (cls.description, cls.mimics)
+        self.setToolTip(tip)
 
     def set_selected(self, s):
         self.selected = s
@@ -152,7 +154,7 @@ class EffectTile(QFrame):
         p.setPen(QColor(theme.MUTED))
         sub = QRectF(tx.x(), tx.bottom() + 2, tx.width(), r.bottom() - tx.bottom() - 8)
         p.drawText(sub, int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap),
-                   self.cls.mimics.split(":")[0])
+                   self.subtitle)
         p.end()
 
 
@@ -1036,10 +1038,12 @@ class MainWindow(QMainWindow):
         d = QLabel(tile.description if tile is not None else cls.description)
         d.setWordWrap(True)
         v.addWidget(d)
-        m = QLabel(tile.mimics if tile is not None else "Mimics: " + cls.mimics)
-        m.setWordWrap(True)
-        m.setProperty("muted", True)
-        v.addWidget(m)
+        mimics = tile.mimics if tile is not None else cls.mimics
+        if mimics:
+            m = QLabel(mimics)
+            m.setWordWrap(True)
+            m.setProperty("muted", True)
+            v.addWidget(m)
         if cls.reactive_hint:
             n = QLabel("This effect reacts to key presses / mouse clicks by itself.")
             n.setProperty("accent", True)
@@ -1088,7 +1092,7 @@ class MainWindow(QMainWindow):
         w = QWidget()
         v = QVBoxLayout(w)
         v.setContentsMargins(16, 14, 16, 14)
-        intro = QLabel("Adds reactions on top of <b>any</b> effect. Ripples travel across the keyboard "
+        intro = QLabel("Adds reactions on top of <b>any</b> effect. Rings travel across the keyboard "
                        "and continue onto the mouse \u2014 the delay follows the real distance.")
         intro.setWordWrap(True)
         v.addWidget(intro)
@@ -1101,7 +1105,7 @@ class MainWindow(QMainWindow):
         en.toggled.connect(lambda x: self._rx("enabled", x))
         f.addRow("Reactive layer", en)
         mode = QComboBox()
-        for k, lab in (("ripple", "Ripple"), ("fade", "Key fade (Razer Reactive)"), ("both", "Ripple + key fade")):
+        for k, lab in (("ripple", "Ring burst"), ("fade", "Key fade"), ("both", "Ring burst + key fade")):
             mode.addItem(lab, k)
         mode.setCurrentIndex(max(0, mode.findData(rx["mode"])))
         mode.currentIndexChanged.connect(lambda i: self._rx("mode", mode.itemData(i)))
@@ -1120,7 +1124,7 @@ class MainWindow(QMainWindow):
         ft.valueChanged.connect(lambda x: self._rx("fade_time", x))
         f.addRow("Key-fade time", ft)
         grid.addWidget(a, 1)
-        b = QGroupBox("Ripple")
+        b = QGroupBox("Ring")
         f2 = QFormLayout(b)
         f2.setVerticalSpacing(10)
         self.delay_lbl = QLabel()

@@ -76,21 +76,23 @@ OFF = {"enabled": False}
 
 def builtin_presets():
     return {
+        # Display names only. Profiles store the effect id ("breathing", "fire", …),
+        # so a saved preset under an older name still loads.
         "Flame": make_profile("flame", {}, {"color": "#00ff1e"}, WASD_WHITE),
-        "Rainbow Wave": make_profile("wave", {}, OFF),
-        "Spectrum Cycling": make_profile("spectrum", {}, OFF),
-        "Razer Breathing": make_profile("breathing", {"color": "#44d62c"}, OFF),
-        "Static Razer Green": make_profile("static", {"color": "#44d62c"},
-                                           {"color": "#ffffff", "mode": "both"}),
-        "Starlight Night": make_profile("starlight", {"mode": "Random", "background": "#00000c"}, OFF),
-        "Razer Fire": make_profile("fire", {}, {"color": "#ffffff", "mode": "fade"}),
-        "Reactive": make_profile("reactive", {}, OFF),
-        "Ripple": make_profile("ripple", {}, OFF),
-        "Color Wheel": make_profile("wheel", {}, {"rainbow": True}),
+        "Rainbow Sweep": make_profile("wave", {}, OFF),
+        "Hue Loop": make_profile("spectrum", {}, OFF),
+        "Deep Breath": make_profile("breathing", {"color": "#44d62c"}, OFF),
+        "Solid Green": make_profile("static", {"color": "#44d62c"},
+                                    {"color": "#ffffff", "mode": "both"}),
+        "Night Sparks": make_profile("starlight", {"mode": "Random", "background": "#00000c"}, OFF),
+        "Ember Flicker": make_profile("fire", {}, {"color": "#ffffff", "mode": "fade"}),
+        "Press Fade": make_profile("reactive", {}, OFF),
+        "Ring Burst": make_profile("ripple", {}, OFF),
+        "Colour Spin": make_profile("wheel", {}, {"rainbow": True}),
         "Matrix": make_profile("matrix", {}, {"color": "#d8ffd8", "mode": "fade"}),
         "Aurora": make_profile("aurora", {}, {"color": "#ffffff", "width": 1.2}),
         "Typing Heatmap": make_profile("heatmap", {}, OFF),
-        "Audio Meter": make_profile("audio", {}, OFF),
+        "Sound Bars": make_profile("audio", {}, OFF),
     }
 
 

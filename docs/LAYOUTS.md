@@ -76,3 +76,7 @@ passing its parsed content: packs are meant to stay data.
 
 Please contribute packs that work: see [CONTRIBUTING.md](../CONTRIBUTING.md#new-devices). Built-in
 packs help every user, and a pack that's verified on real hardware can become a built-in map.
+
+## Trademark notice
+
+RGBMatrixFX is an independent project by Nitrofire Computing. It is not affiliated with, endorsed by, sponsored by, authorized by, or otherwise associated with Razer Inc. or its subsidiaries. Nitrofire Computing does not work for or on behalf of Razer. Razer, Chroma and related names and logos are trademarks of Razer Inc. and are used here only to describe hardware compatibility. All other trademarks belong to their respective owners.

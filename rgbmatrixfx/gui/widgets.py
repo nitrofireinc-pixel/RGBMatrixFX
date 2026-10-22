@@ -11,7 +11,7 @@ from . import theme
 GRADIENT_PRESETS = {
     "Rainbow": ["#ff0000", "#ffff00", "#00ff00", "#00ffff", "#0000ff", "#ff00ff"],
     "Fire": ["#000000", "#230000", "#6e0400", "#be1600", "#f04600", "#ff7d05", "#ffb91e", "#ffeb8c"],
-    "Razer": ["#44d62c", "#00ff9c", "#00b3ff"],
+    "Lime": ["#44d62c", "#00ff9c", "#00b3ff"],
     "Ocean": ["#001a33", "#0050a0", "#00b3ff", "#9ff6ff"],
     "Aurora": ["#00ff9c", "#00c3ff", "#2a3cff", "#9b00ff", "#ff2bd6"],
     "Sunset": ["#2b0057", "#a1006b", "#ff3d3d", "#ffb347"],

@@ -21,7 +21,7 @@ from . import theme
 GPL_URL = "https://www.gnu.org/licenses/gpl-3.0.html"
 OPENRAZER_URL = "https://openrazer.github.io/"
 OPENRAZER_REPO = "https://github.com/openrazer/openrazer"
-TAGLINE = "Chroma-style lighting effects for Razer keyboards and mice on Linux, built on OpenRazer."
+TAGLINE = "Lighting effects for Razer and other compatible keyboards and mice on Linux, built on OpenRazer."
 
 
 def _a(url, text=None):
@@ -47,7 +47,7 @@ def about_html(edition=None, heading=True):
             "plugin API may carry their own license (SPDX: %(l)s). "
             "It comes <b>without any warranty</b>. See the License tab, the %(gpl)s and %(exc)s.</p>"
             "<p>Report a problem: %(iss)s. Please attach the output of <i>Copy system info</i>.</p>"
-            "<p><b>%(tm)s</b></p>"
+            "<p><b>Trademark notice.</b> %(tm)s</p>"
             % {"n": APP_NAME, "v": __version__, "ed": ed, "tag": TAGLINE, "cr": CREATOR,
                "repo": _a(REPO_URL), "c": COPYRIGHT, "l": LICENSE,
                "gpl": _a(GPL_URL, "GNU GPL v3"), "exc": _a(REPO_URL + "/blob/main/LICENSE-EXCEPTION", "LICENSE-EXCEPTION"),
@@ -66,7 +66,7 @@ def credits_html():
             "<p><b>Qt and Qt for Python (PySide6)</b> &mdash; The Qt Company and contributors, LGPL-3.0.<br>"
             "<b>NumPy</b> (BSD-3-Clause), <b>dbus-python</b> (MIT), <b>python-evdev</b> (BSD-3-Clause).</p>"
             "<p>Keyboard and mouse layout facts were cross-checked against OpenRazer, %(orgb)s and "
-            "%(poly)s. Effect names describe the Razer Chroma / Synapse effects they resemble.</p>"
+            "%(poly)s.</p>"
             "<p style='color:%(m)s'>Thank you to everyone who reports bugs and tests devices.</p>"
             % {"or": _a(OPENRAZER_URL), "orr": _a(OPENRAZER_REPO, "source"),
                "orgb": _a("https://openrgb.org/", "OpenRGB"),
@@ -88,8 +88,7 @@ def license_html():
             "(<i>rgbmatrixfx.plugin_api</i> and docs/PLUGIN_API.md) may be distributed under terms of "
             "their choice. The exact wording is in %(exc)s; RGBMatrixFX itself, and any modified "
             "version of it, stays under the GPL.</p>"
-            "<p><b>Trademarks.</b> %(tm)s Chroma and Synapse are trademarks of Razer Inc. Razer "
-            "product names are used only to describe compatibility.</p>"
+            "<p><b>Trademark notice.</b> %(tm)s</p>"
             % {"c": COPYRIGHT, "l": LICENSE, "gpl": _a(GPL_URL, "GNU General Public License"),
                "exc": _a(REPO_URL + "/blob/main/LICENSE-EXCEPTION", "LICENSE-EXCEPTION"),
                "tm": TRADEMARK_NOTICE}) + _exception_text()

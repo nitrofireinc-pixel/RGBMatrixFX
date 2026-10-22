@@ -37,6 +37,17 @@ All notable changes to RGBMatrixFX (called RazorFX in 1.1 and Razer FX up to 1.0
 - Settings ▸ Devices ▸ PC RGB no longer repeats the Razer devices OpenRGB also lists.
 - Help ▸ Get RGBMatrixFX Pro (store link, disabled until Pro is for sale).
 
+### Changed
+- Effect display names are RGBMatrixFX's own: Deep Breath, Colour Sweep, Hue Loop, Solid Colour,
+  Night Sparks, Ember Flicker, Press Fade, Ring Burst, Colour Spin and Sound Bars. Effect ids (`breathing`, `wave`,
+  `spectrum`, `static`, `starlight`, `fire`, `reactive`, `ripple`, `wheel`, `audio`, and the
+  rest) are unchanged, so saved presets still load. Built-in preset names for new installs
+  match the new labels; a preset already saved under an older name is left as it is.
+- Public descriptions no longer compare the effects to another vendor's lighting products.
+- The trademark notice (README, About, License, AppStream, man page and RPM description) now
+  states that RGBMatrixFX is an independent Nitrofire Computing project and is not affiliated
+  with, endorsed by, sponsored by, authorized by, or otherwise associated with Razer Inc.
+
 ## [1.2.1] - 2026-10-09
 
 RGBMatrixFX 1.2.1, the first release under the new name (free version).
@@ -248,7 +259,8 @@ First public release, licensed under GPL-3.0-or-later.
 - `install.sh` / `uninstall.sh` (per-user), an optional uaccess udev rule, diagnostics
   (`tools/diag_timing.py`), and unit, GUI, integration and install tests.
 
-[Unreleased]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.2.2...HEAD
+[1.2.2]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.1.0...v1.2.1
 [1.2.0]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.0.0...v1.1.0

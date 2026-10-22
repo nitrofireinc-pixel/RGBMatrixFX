@@ -6,26 +6,30 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <name>RGBMatrixFX</name>
-  <summary>Chroma-style lighting effects for RGB keyboards and mice</summary>
+  <summary>Lighting effects for Razer and other compatible keyboards and mice</summary>
   <developer id="io.github.nitrofireinc_pixel">
     <name>Nitrofire Computing</name>
   </developer>
   <description>
     <p>
-      RGBMatrixFX renders animated lighting effects onto Razer keyboards and mice through the
-      OpenRazer driver. A small background engine keeps your lighting running; the window
+      RGBMatrixFX renders animated lighting effects onto Razer and other compatible keyboards
+      and mice through the OpenRazer driver. A small background engine keeps your lighting running; the window
       lets you pick and tune effects live, build presets and manage per-zone lighting.
     </p>
     <ul>
-      <li>14 effects modelled on Razer Chroma effects, each fully tunable</li>
+      <li>14 effects, each fully tunable</li>
       <li>One scene across keyboard and mouse, plus reactive ripples on key presses</li>
       <li>Highlight key groups, Gamer Controls and per-zone colours</li>
       <li>Follows your desktop's light or dark theme and accent colour</li>
       <li>Lists your motherboard, RAM and fan lighting found by OpenRGB</li>
     </ul>
     <p>
-      RGBMatrixFX needs the OpenRazer driver and daemon. Not affiliated with or endorsed by
-      Razer Inc. Razer is a trademark of Razer Inc.
+      RGBMatrixFX needs the OpenRazer driver and daemon. RGBMatrixFX is an independent project
+      by Nitrofire Computing. It is not affiliated with, endorsed by, sponsored by, authorized by,
+      or otherwise associated with Razer Inc. or its subsidiaries. Nitrofire Computing does not
+      work for or on behalf of Razer. Razer, Chroma and related names and logos are trademarks of
+      Razer Inc. and are used here only to describe hardware compatibility. All other trademarks
+      belong to their respective owners.
     </p>
   </description>
   <launchable type="desktop-id">rgbmatrixfx.desktop</launchable>
