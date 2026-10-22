@@ -16,6 +16,8 @@ All notable changes to RGBMatrixFX (called RazorFX in 1.1 and Razer FX up to 1.0
   stale for up to a quarter second.
 - Rows the keyboard reports as busy are resent once after they settle, and a rolling refresh
   repaints one extra row per write as a second safety net.
+- The RPM description is wrapped so every line is at most 79 characters, and the unused
+  rpmlint filter for "Chroma" is removed, so rpmlint accepts the package.
 
 ### Added
 - Full frames are always on (`full_frames` in devices.py; `RGBMATRIXFX_FULL_FRAMES=1` also forces them on

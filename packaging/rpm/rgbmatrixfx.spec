@@ -37,7 +37,8 @@ Suggests:       pipewire-utils
 
 %description
 RGBMatrixFX (formerly RazorFX) renders animated lighting effects onto
-Razer and other compatible keyboards and mice through the OpenRazer driver and daemon, and
+Razer and other compatible keyboards and mice through the OpenRazer
+driver and daemon, and
 reacts to key presses, mouse clicks and scrolling. A small background
 engine (a systemd user service) keeps the lighting running; the window
 lets you pick and tune effects live, build presets and manage per-zone
