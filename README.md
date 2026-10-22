@@ -355,7 +355,7 @@ On the Highlight keys tab the keys appear as keycap chips: **[W] [A] [S] [D]**. 
 click its chip (or Tab to it) and press Backspace or Delete, or hover over it and click its **×**.
 **Restore defaults** brings back W A S D in white, and you can change the colour there too
 ([screenshot](docs/screenshots/13-gamer-chips.png)). Adding your own keys (**+ Add key**, then press
-any key) will be a RGBMatrixFX Pro feature. Pro isn't for sale yet, so the free version shows a locked
+any key) is an RGBMatrixFX Pro feature ($9.99, [nitrofirecomputing.com/rgbmatrixfx](https://nitrofirecomputing.com/rgbmatrixfx)). The free version shows a locked
 "Add key · Pro" chip, which you can hide with *Settings ▸ Plugins ▸ Show RGBMatrixFX Pro
 previews*. The setting is global (`gamer_controls`, `gamer_keys`,
 `gamer_color` in `config.json`) and separate from each preset's own highlight groups. It is off by default.
