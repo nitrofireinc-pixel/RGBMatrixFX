@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (QFileDialog, QToolButton, QMenu,
 from .. import paths as P
 from .. import pro_status
 from .. import openrgb_devices
+from .pcrgb_view import PcRgbPanel
 from .. import (config, ipc, layout as L, plugin_api, __version__, APP_ID, APP_NAME, REPO_URL, SUPPORT_URL, COPYRIGHT,
                LICENSE, TRADEMARK_NOTICE)
 from ..effects import EFFECTS, EFFECT_BY_ID
@@ -157,6 +158,25 @@ class EffectTile(QFrame):
         p.end()
 
 
+class _PreviewAdapter:
+    """wraps an add-on preview object (frame(dt) -> n x 3) like an Effect for the gallery"""
+    reactive_hint = False
+
+    def __init__(self, obj, n):
+        if not callable(getattr(obj, "frame", None)):
+            raise TypeError("preview() must return an object with frame(dt)")
+        self.obj, self.n = obj, n
+
+    def on_press(self, *a):
+        pass
+
+    def step(self, t, dt):
+        a = np.asarray(self.obj.frame(dt), dtype=np.float64)
+        if a.shape != (self.n, 3):
+            raise ValueError("preview frame has shape %s, expected (%d, 3)" % (a.shape, self.n))
+        return a
+
+
 class Gallery(QScrollArea):
     selected = Signal(str)
 
@@ -174,6 +194,8 @@ class Gallery(QScrollArea):
         head.setObjectName("GalleryHead")
         v.addWidget(head)
         self.painter_ = ScenePainter(scene)
+        self.vbox = v
+        self.ext_head = None
         self.tiles = {}
         self.fx = {}
         for i, cls in enumerate(EFFECTS):
@@ -195,6 +217,53 @@ class Gallery(QScrollArea):
         for k, t in self.tiles.items():
             t.set_selected(k == eid)
 
+    # -- add-on effects (plugin API 1.2: ctx.add_gallery_effect)
+    def scene_info(self):
+        sc = self.scene
+        return {"n": int(sc.n), "n_kb": int(sc.n_kb), "kb_rows": int(sc.kb_rows), "kb_cols": int(sc.kb_cols),
+                "x": [float(v) for v in sc.x], "y": [float(v) for v in sc.y], "kind": list(sc.kind), "fps": 30}
+
+    def add_external(self, source, name, description, preview=None, fallback="starlight", plugin_id=None,
+                     settings=None):
+        """tile id "external:<source>"; clicking it selects the external effect with that source"""
+        key = "external:" + source
+        cls = type("AddonEffect", (), {"id": key, "name": name, "description": description or name,
+                                       "mimics": "Add-on effect: " + (plugin_id or "plugin"), "source": source,
+                                       "fallback": fallback, "plugin_id": plugin_id, "settings": settings or []})
+        fx = None
+        if preview is not None:
+            try:
+                fx = _PreviewAdapter(preview(self.scene_info()), self.scene.n)
+            except Exception:
+                safety.log("gallery preview for %s failed:\n%s" % (source, traceback.format_exc()))
+        if fx is None:
+            fb = EFFECT_BY_ID.get(fallback) or EFFECT_BY_ID["starlight"]
+            fx = fb(self.scene, {}, seed=500 + len(self.tiles))
+        if key in self.tiles:
+            self.tiles[key].cls = cls
+            self.tiles[key].update()
+        else:
+            if self.ext_head is None:
+                self.ext_head = QLabel("ADD-ON EFFECTS")
+                self.ext_head.setObjectName("GalleryHead")
+                self.vbox.insertWidget(self.vbox.count() - 1, self.ext_head)
+            t = EffectTile(cls, self.painter_)
+            t.clicked.connect(self.selected.emit)
+            self.vbox.insertWidget(self.vbox.count() - 1, t)
+            self.tiles[key] = t
+        self.fx[key] = fx
+
+    def clear_external(self):
+        for key in [k for k in self.tiles if k.startswith("external:")]:
+            t = self.tiles.pop(key)
+            self.fx.pop(key, None)
+            t.hide()
+            t.deleteLater()
+        if self.ext_head is not None:
+            self.ext_head.hide()
+            self.ext_head.deleteLater()
+            self.ext_head = None
+
     def tick(self):
         t = time.monotonic() - self.t0
         dt = 0.1 if self.last is None else min(0.2, t - self.last)
@@ -210,7 +279,12 @@ class Gallery(QScrollArea):
                 continue            # scrolled out of view
             if press and fx.reactive_hint:
                 fx.on_press(self.scene.x[i], self.scene.y[i], i, t)
-            rgb = (np.clip(fx.step(t, dt), 0, 1) * 255).astype(np.uint8).tolist()
+            try:
+                rgb = (np.clip(fx.step(t, dt), 0, 1) * 255).astype(np.uint8).tolist()
+            except Exception:                   # a broken add-on preview must not stop the gallery
+                safety.log("gallery preview %s failed:\n%s" % (eid, traceback.format_exc()))
+                self.fx[eid] = EFFECT_BY_ID["starlight"](self.scene, {}, seed=7)
+                break
             if rgb != tile.rgb:
                 tile.rgb = rgb
                 tile.update()
@@ -270,6 +344,10 @@ class MainWindow(QMainWindow):
         self.frame_timer.start()
         self.status_timer = QTimer(self, interval=1000, timeout=self._tick_status)
         self.status_timer.start()
+        self._pcrgb_live = False                 # an add-on drives the PC RGB devices (plugin API 1.2)
+        self._pcrgb_key = None
+        self.pcrgb_timer = QTimer(self, interval=200, timeout=self._tick_pcrgb)   # <= 5 updates/s
+        self.pcrgb_timer.start()
         self.thumb_timer = QTimer(self, interval=125, timeout=self._tick_thumbs)
         self.thumb_timer.start()
         self.push_timer = QTimer(self, singleShot=True, interval=60, timeout=self._push_now)
@@ -356,6 +434,11 @@ class MainWindow(QMainWindow):
         except Exception:
             safety.log("plugin unloading failed:\n" + traceback.format_exc())
         had = bool(self.settings_sections)
+        if getattr(self, "_pcrgb_live", False):
+            self.set_pc_rgb_live(False)
+        self._pcrgb_sync_ctl = None
+        if getattr(self, "gallery", None) is not None:
+            self.gallery.clear_external()
         self.import_handlers.clear()
         self.settings_sections.clear()
         if had and getattr(self, "tab_settings", None) is not None:
@@ -456,7 +539,7 @@ class MainWindow(QMainWindow):
     def shutdown(self):
         """stop everything that could call back into the window during teardown"""
         pending_push, pending_save = self.push_timer.isActive(), self.save_timer.isActive()
-        for t in (self.frame_timer, self.status_timer, self.thumb_timer, self.push_timer, self.save_timer):
+        for t in (self.frame_timer, self.status_timer, self.thumb_timer, self.push_timer, self.save_timer, self.pcrgb_timer):
             t.stop()
         if self.openrgb is not None:
             self.openrgb.stop()
@@ -519,7 +602,12 @@ class MainWindow(QMainWindow):
         self.preview.setMinimumHeight(120)
         self.preview.keyClicked.connect(self._preview_key)
         self.preview.mouseClicked.connect(self._preview_mouse)
-        cv.addWidget(self.preview, 1)
+        prow = QHBoxLayout()
+        prow.setSpacing(8)
+        prow.addWidget(self.preview, 1)
+        self.pcrgb_panel = PcRgbPanel()          # motherboard / RAM / fans, only when OpenRGB reports them
+        prow.addWidget(self.pcrgb_panel)
+        cv.addLayout(prow, 1)
         card.setMinimumHeight(150)
         self.split_v.addWidget(card)
         self.tabs = QTabWidget()
@@ -567,6 +655,8 @@ class MainWindow(QMainWindow):
         hm.addAction("Report an issue", self.open_issues)
         sup = self.support_action = hm.addAction("Support", self.open_support)
         sup.setToolTip("Optional: support the development of %s" % APP_NAME)
+        gp = self.get_pro_action = hm.addAction(pro_status.store_action_label(), self.open_pro_store)
+        gp.setEnabled(pro_status.purchase_enabled())
         hm.addSeparator()
         self.about_action = hm.addAction("&About %s" % APP_NAME, self.show_about)
         self.about_action.setShortcut(QKeySequence("F1"))
@@ -581,6 +671,11 @@ class MainWindow(QMainWindow):
     def open_support(self):
         """Help > Support: opens SUPPORT_URL (placeholder until a tip page is chosen). Never nags."""
         QDesktopServices.openUrl(QUrl(SUPPORT_URL))
+
+    def open_pro_store(self):
+        """Help > Get RGBMatrixFX Pro: the store page (pro_status.PRO_STORE_URL), only once Pro is for sale"""
+        if pro_status.purchase_enabled():
+            QDesktopServices.openUrl(QUrl(pro_status.PRO_STORE_URL))
 
     def show_about_qt(self):
         QMessageBox.aboutQt(self, "About Qt")
@@ -643,14 +738,58 @@ class MainWindow(QMainWindow):
         state, devs, _msg, _gen = self.openrgb.snapshot()
         return state, devs
 
+    def _on_pcrgb_sync_toggled(self, on):
+        ctl = getattr(self, "_pcrgb_sync_ctl", None)
+        if ctl is not None:
+            ctl[1](bool(on))
+            self._pcrgb_key = None
+
+    def set_pc_rgb_live(self, on):
+        """plugin API 1.2: an add-on is (not) driving the PC RGB devices right now"""
+        self._pcrgb_live = bool(on)
+        if self.openrgb is not None:
+            self.openrgb.set_live(self._pcrgb_live)
+        self._pcrgb_key = None
+
+    def _tick_pcrgb(self):
+        """Live panel: draw the OpenRGB devices that exist (throttled to the scan's changes)"""
+        try:
+            panel = getattr(self, "pcrgb_panel", None)
+            if panel is None or not shiboken6.isValid(panel):
+                return
+            snap = self.openrgb.snapshot() if self.openrgb is not None else ("off", [], "", -1)
+            key = (snap[3], self._pcrgb_live, self.show_pro_teasers(), self.edition.is_free)
+            if key == self._pcrgb_key:
+                return
+            self._pcrgb_key = key
+            panel.set_devices(openrgb_devices.pc_devices(snap[1]) if snap[0] == "ok" else [])
+            if self._pcrgb_live:
+                panel.set_hint("● Synced with effects", live=True)
+            elif self.show_pro_teasers() and self.edition.is_free and getattr(self, "_pcrgb_sync_ctl", None) is None:
+                panel.set_hint("🔒 Sync with effects · " + pro_status.badge())
+            else:
+                panel.set_hint("")
+        except Exception:
+            safety.log("PC RGB panel update failed:\n" + traceback.format_exc())
+
     def _update_openrgb_ui(self, force=False):
         """refresh the PC RGB lines in Settings > Devices when the scan result changed"""
         lbl = getattr(self, "orgb_info", None)
         if lbl is None or not shiboken6.isValid(lbl):
             return
         hint = getattr(self, "orgb_pro_hint", None)
+        ctl = getattr(self, "_pcrgb_sync_ctl", None)
         if hint is not None and shiboken6.isValid(hint):
-            hint.setVisible(self.show_pro_teasers())
+            hint.setVisible(self.show_pro_teasers() and ctl is None)
+        box = getattr(self, "orgb_sync_box", None)
+        if box is not None and shiboken6.isValid(box):
+            box.setVisible(ctl is not None)
+            if ctl is not None:
+                on = bool(ctl[0]())
+                if on != box.isChecked():
+                    box.blockSignals(True)
+                    box.setChecked(on)
+                    box.blockSignals(False)
         if self.openrgb is None:
             if force or self._orgb_gen != -2:
                 self._orgb_gen = -2
@@ -660,10 +799,14 @@ class MainWindow(QMainWindow):
         if gen == self._orgb_gen and not force:
             return
         self._orgb_gen = gen
+        found = len(devs)
+        devs = openrgb_devices.pc_devices(devs)         # the Razer devices are listed above already
         if state == "scanning":
             text = "Looking for OpenRGB devices\u2026"
         elif state == "ok" and devs:
             text = "\n".join(openrgb_devices.describe(d) for d in devs)
+        elif state == "ok" and found:
+            text = "OpenRGB found no motherboard, RAM or fan lighting (only the devices listed above)."
         elif state == "ok":
             text = ("OpenRGB is running but hasn't found any devices yet (it can take a few seconds "
                     "after login; this list updates by itself).")
@@ -677,6 +820,18 @@ class MainWindow(QMainWindow):
         btn = getattr(self, "orgb_start_btn", None)
         if btn is not None and shiboken6.isValid(btn):
             btn.setVisible(state == "not_running" and bool(shutil.which("openrgb")))
+        rb = getattr(self, "orgb_rescan_btn", None)
+        if rb is not None and shiboken6.isValid(rb):
+            rb.setVisible(state == "ok")
+
+    def rescan_openrgb(self):
+        """Settings > Devices > Rescan devices (OpenRGB re-detects; the list updates by itself)"""
+        if self.openrgb is None:
+            return
+        ok = self.openrgb.request_detection()
+        self.statusBar().showMessage("OpenRGB is detecting devices again; the list updates in a few seconds." if ok else
+                                     "This OpenRGB server can't rescan on request; restart it "
+                                     "(systemctl --user restart openrgb-server) instead.", 8000)
 
     def start_openrgb_server(self):
         """Settings > Devices > Start OpenRGB server: enable the user unit (no sudo)"""
@@ -820,7 +975,7 @@ class MainWindow(QMainWindow):
         self.gamer_btn.blockSignals(True)
         self.gamer_btn.setChecked(self.g["gamer_controls"])
         self.gamer_btn.blockSignals(False)
-        self.gallery.set_current(self.profile["effect"])
+        self.gallery.set_current(self.gallery_key(self.profile))
         self._build_effect_tab()
         self._build_react_tab()
         self._build_hl_tab()
@@ -836,11 +991,27 @@ class MainWindow(QMainWindow):
         self.save_btn.setEnabled(mod)
 
     # ---------------------------------------------------------------- effect tab
+    @staticmethod
+    def gallery_key(profile):
+        """effect-list tile for a profile: the effect id, or "external:<source>" for add-on effects"""
+        if profile.get("effect") == "external":
+            return "external:" + str(profile.get("effects", {}).get("external", {}).get("source", ""))
+        return profile.get("effect")
+
     def select_effect(self, eid):
-        if eid == self.profile["effect"]:
+        if eid == self.gallery_key(self.profile):
             return
-        self.profile["effect"] = eid
-        self.profile.setdefault("effects", {}).setdefault(eid, {})
+        if eid.startswith("external:"):             # add-on effect tile (plugin API 1.2)
+            t = self.gallery.tiles.get(eid)
+            if t is None:
+                return
+            self.profile["effect"] = "external"
+            fx_ = self.profile.setdefault("effects", {})
+            keep = fx_.get("external") if (fx_.get("external") or {}).get("source") == t.cls.source else {}
+            fx_["external"] = dict(keep or {}, source=t.cls.source, fallback=t.cls.fallback)
+        else:
+            self.profile["effect"] = eid
+            self.profile.setdefault("effects", {}).setdefault(eid, {})
         self.gallery.set_current(eid)
         self.changed()
         self._build_effect_tab()
@@ -848,11 +1019,15 @@ class MainWindow(QMainWindow):
     def _build_effect_tab(self):
         eid = self.profile["effect"]
         cls = EFFECT_BY_ID[eid]
+        tile = None
+        if eid == "external":                    # an add-on effect with a tile: show it as that effect
+            t = getattr(self, "gallery", None) and self.gallery.tiles.get(self.gallery_key(self.profile))
+            tile = t.cls if t is not None else None
         w = QWidget()
         v = QVBoxLayout(w)
         v.setContentsMargins(16, 14, 16, 14)
         top = QHBoxLayout()
-        name = QLabel(cls.name)
+        name = QLabel(tile.name if tile is not None else cls.name)
         name.setStyleSheet("font-size:16pt; font-weight:700;")
         top.addWidget(name)
         top.addStretch(1)
@@ -860,11 +1035,12 @@ class MainWindow(QMainWindow):
         reset.clicked.connect(self._reset_effect)
         top.addWidget(reset)
         v.addLayout(top)
-        d = QLabel(cls.description)
+        d = QLabel(tile.description if tile is not None else cls.description)
         d.setWordWrap(True)
         v.addWidget(d)
-        if cls.mimics:
-            m = QLabel(cls.mimics)
+        mimics = tile.mimics if tile is not None else cls.mimics
+        if mimics:
+            m = QLabel(mimics)
             m.setWordWrap(True)
             m.setProperty("muted", True)
             v.addWidget(m)
@@ -873,10 +1049,17 @@ class MainWindow(QMainWindow):
             n.setProperty("accent", True)
             v.addWidget(n)
         params = self.profile.get("effects", {}).get(eid, {})
-        form = ParamForm(cls.schema(), params)
-        form.changed.connect(self._effect_params)
+        schema = cls.schema()
+        if tile is not None:                     # the source is fixed by the tile
+            schema = [dict(e, hidden=True) if e["id"] == "source" else e for e in schema]
         box = QGroupBox("Settings")
         bl = QVBoxLayout(box)
+        if tile is not None and tile.settings:
+            own = ParamForm(tile.settings, params.get("settings") or {}, adv_key="addon")
+            own.changed.connect(self._external_settings)
+            bl.addWidget(own)
+        form = ParamForm(schema, params)
+        form.changed.connect(self._effect_params)
         bl.addWidget(form)
         v.addWidget(box)
         v.addStretch(1)
@@ -884,11 +1067,22 @@ class MainWindow(QMainWindow):
 
     def _effect_params(self, values):
         eid = self.profile["effect"]
+        if eid == "external":                    # keep the add-on's own settings (their own form)
+            old = self.profile.setdefault("effects", {}).get("external", {})
+            values = dict(values, settings=old.get("settings") or {})
         self.profile.setdefault("effects", {})[eid] = values
         self.changed()
 
+    def _external_settings(self, values):
+        ext = self.profile.setdefault("effects", {}).setdefault("external", {})
+        ext["settings"] = dict(values)
+        self.changed()
+
     def _reset_effect(self):
-        self.profile.setdefault("effects", {})[self.profile["effect"]] = {}
+        eid = self.profile["effect"]
+        old = self.profile.setdefault("effects", {}).get(eid) or {}
+        # an add-on effect keeps its source (and the tile's fallback); everything else -> defaults
+        self.profile["effects"][eid] = {k: old[k] for k in ("source", "fallback") if k in old} if eid == "external" else {}
         self.changed()
         self._build_effect_tab()
 
@@ -1351,12 +1545,23 @@ class MainWindow(QMainWindow):
         self.orgb_start_btn.clicked.connect(self.start_openrgb_server)
         self.orgb_start_btn.setVisible(False)
         orow.addWidget(self.orgb_start_btn)
+        self.orgb_rescan_btn = QPushButton("Rescan devices")
+        self.orgb_rescan_btn.setToolTip("Asks OpenRGB to detect its devices again (for example a RAM stick or "
+                                        "fan controller it missed at startup). Takes a few seconds.")
+        self.orgb_rescan_btn.clicked.connect(self.rescan_openrgb)
+        self.orgb_rescan_btn.setVisible(False)
+        orow.addWidget(self.orgb_rescan_btn)
         orow.addStretch(1)
         cl.addLayout(orow)
         self.orgb_pro_hint = QLabel("\U0001F512 Sync with effects \u00b7 " + pro_status.badge())
         self.orgb_pro_hint.setProperty("muted", True)
         self.orgb_pro_hint.setToolTip(pro_status.teaser_message("Driving motherboard, RAM and fan lighting from your effects"))
         cl.addWidget(self.orgb_pro_hint)
+        self.orgb_sync_box = QCheckBox("Sync motherboard, RAM and fans with effects")
+        self.orgb_sync_box.setToolTip("Provided by an add-on: the PC's OpenRGB lighting follows the current effect")
+        self.orgb_sync_box.setVisible(False)
+        self.orgb_sync_box.toggled.connect(self._on_pcrgb_sync_toggled)
+        cl.addWidget(self.orgb_sync_box)
         self._orgb_gen = -1
         self._update_openrgb_ui()
         v.addWidget(c)
@@ -1834,6 +2039,7 @@ class MainWindow(QMainWindow):
             self.engine_btn.setText("Hand back to Polychromatic")
             self.engine_btn.setObjectName("Danger")
             self.preview_title.setText("Live \u2014 mirroring your devices")
+            self.preview.set_presence(bool(kb), bool(ms))     # only the devices that are connected
             names = []
             for k, lab in (("keyboard", "Keyboard"), ("mouse", "Mouse")):
                 d = st.get(k)
@@ -1854,6 +2060,7 @@ class MainWindow(QMainWindow):
             self.engine_btn.setText("Start engine")
             self.engine_btn.setObjectName("Primary")
             self.preview_title.setText("Preview (engine not running \u2014 changes are saved)")
+            self.preview.set_presence(True, True)
             if hasattr(self, "dev_info"):
                 self.dev_info.setText("Engine not running. Start it to drive the keyboard and mouse.")
         self.pill.setProperty("state", state)

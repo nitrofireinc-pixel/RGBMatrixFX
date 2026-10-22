@@ -31,7 +31,7 @@ import traceback
 
 from . import APP_NAME, __version__, paths
 
-API_VERSION = (1, 1)
+API_VERSION = (1, 2)
 API_VERSION_STR = "%d.%d" % API_VERSION
 
 # What a context can offer. Hosts advertise a subset; check with ctx.has(...).
@@ -49,9 +49,14 @@ CAP_LAYOUTS = "layouts"              # ctx.register_layout() (data-only device l
 CAP_IMPORT = "presets.import"        # ctx.register_import_handler() (File > Import presets for other file types)
 CAP_PRESETS = "presets.add"          # ctx.add_presets() (add presets, optionally make one active)
 CAP_SETTINGS_UI = "gui.settings_section"   # ctx.add_settings_section() (a box on the Settings tab)
+CAP_PC_RGB_SYNC = "gui.pc_rgb_sync"  # ctx.set_pc_rgb_sync_control() (API 1.2: real "Sync with effects" switch)
+CAP_PC_RGB_LIVE = "gui.pc_rgb_live"  # ctx.set_pc_rgb_live() (API 1.2: Live panel mirrors driven OpenRGB devices)
+CAP_EFFECT_SETTINGS = "gui.effect_settings"  # add_gallery_effect(settings=[...]) (API 1.2: Effect tab controls)
+CAP_GALLERY = "gui.gallery"          # ctx.add_gallery_effect() (API 1.2: an add-on effect tile in the effect list)
 ALL_CAPABILITIES = frozenset({CAP_LOG, CAP_SETTINGS, CAP_STORAGE, CAP_MENU, CAP_DIALOG_PARENT,
                               CAP_STATUS, CAP_EVENTS, CAP_EDITION, CAP_FEATURES, CAP_LAYOUTS,
-                              CAP_IMPORT, CAP_PRESETS, CAP_SETTINGS_UI})
+                              CAP_IMPORT, CAP_PRESETS, CAP_SETTINGS_UI, CAP_GALLERY, CAP_PC_RGB_LIVE, CAP_PC_RGB_SYNC,
+                              CAP_EFFECT_SETTINGS})
 
 # Built-in features that are locked in the free edition and shown there as Pro previews.
 # The RGBMatrixFX Pro add-on unlocks them with ctx.enable_feature(); see docs/PLUGIN_API.md.
@@ -63,6 +68,39 @@ EVENTS = ("effect_changed", "engine_connected", "engine_disconnected", "shutdown
 MANIFEST = "plugin.json"
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,63}$")
 _MOD_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _setting_schema(settings):
+    """validate add-on effect settings -> schema entries for the Effect tab"""
+    if not isinstance(settings, (list, tuple)) or len(settings) > 12:
+        raise ValueError("settings must be a list of at most 12 entries")
+    out = []
+    for d in settings:
+        if not isinstance(d, dict) or not isinstance(d.get("id"), str) or not d["id"] or len(d["id"]) > 32:
+            raise ValueError("each setting needs an id")
+        t = d.get("type")
+        if t not in ("float", "int", "bool", "choice", "color"):
+            raise ValueError("setting %r: unsupported type %r" % (d["id"], t))
+        e = {"id": d["id"], "label": str(d.get("label") or d["id"])[:40], "type": t, "default": d.get("default")}
+        if t in ("float", "int"):
+            e["min"], e["max"] = float(d.get("min", 0)), float(d.get("max", 1))
+            e["step"] = float(d.get("step", 1 if t == "int" else 0.01))
+            e["default"] = min(e["max"], max(e["min"], float(e["default"] if e["default"] is not None else e["min"])))
+            if t == "int":
+                e["default"] = int(e["default"])
+        elif t == "choice":
+            e["choices"] = [str(c) for c in d.get("choices") or []][:24]
+            if e["default"] not in e["choices"]:
+                raise ValueError("setting %r: default must be one of the choices" % d["id"])
+        elif t == "color":
+            if not (isinstance(e["default"], str) and len(e["default"]) == 7 and e["default"].startswith("#")):
+                raise ValueError("setting %r: colour default like '#ff8800'" % d["id"])
+        else:
+            e["default"] = bool(e["default"])
+        if d.get("help"):
+            e["help"] = str(d["help"])[:200]
+        out.append(e)
+    return out
 
 
 class PluginError(Exception):
@@ -294,6 +332,47 @@ class PluginContext:
         if not callable(factory):
             raise TypeError("factory must be callable")
         self._host.add_settings_section(self._info, str(title)[:60], factory)
+
+    # -- API 1.2: Live panel
+    def set_pc_rgb_live(self, on):
+        """Tell RGBMatrixFX that your add-on is (not) driving the PC's OpenRGB devices right now.
+        While on, the Live panel re-reads their colours from OpenRGB a few times per second, so its
+        motherboard / RAM / fan drawings mirror what you send. RGBMatrixFX itself still only reads."""
+        self._need(CAP_PC_RGB_LIVE)
+        self._host.set_pc_rgb_live(self._info, bool(on))
+
+    def set_pc_rgb_sync_control(self, get, set_):
+        """Offer a working "Sync with effects" switch in Settings ▸ Devices (it replaces the locked
+        teaser). ``get()`` -> bool (current state, polled about once a second), ``set_(bool)`` changes
+        it. Pass None, None to remove it. Removed when the plugin is unloaded."""
+        self._need(CAP_PC_RGB_SYNC)
+        ok = get is not None and set_ is not None
+        self._host.set_pc_rgb_sync_control(self._info, self._guard(get, "sync state") if ok else None,
+                                           self._guard(set_, "sync switch") if ok else None)
+
+    # -- API 1.2: effect list
+    def add_gallery_effect(self, source, name, description="", preview=None, fallback="starlight", settings=None):
+        """Show an add-on effect in the effect list (left pane) with a live thumbnail. Clicking it
+        selects the ``external`` effect with this ``source`` (frames come from your own process,
+        see "External effect source") and ``fallback``. ``preview(scene)`` is optional: it gets a
+        dict like the engine's "scene" reply (n, x, y, kind, kb_rows, kb_cols, ...) and returns an
+        object whose ``frame(dt)`` returns n RGB rows (floats 0..1) for the thumbnail; without it the
+        fallback effect is shown. ``settings`` (optional, needs "gui.effect_settings"): controls for
+        the Effect tab, a list of {"id", "label", "type": float|int|bool|choice|color, "default",
+        "min", "max", "step", "choices", "help"}; the chosen values reach your process in the
+        engine status (``external.settings``). Adding the same source again updates the tile."""
+        self._need(CAP_GALLERY)
+        src = str(source or "").strip()[:64]
+        if not src:
+            raise ValueError("source must not be empty")
+        if preview is not None and not callable(preview):
+            raise TypeError("preview must be callable")
+        schema = None
+        if settings:
+            self._need(CAP_EFFECT_SETTINGS)
+            schema = _setting_schema(settings)
+        self._host.add_gallery_effect(self._info, src, str(name or src)[:40], str(description or "")[:300],
+                                      preview, str(fallback or "starlight"), schema)
 
     # -- internal (host side)
     def _need(self, cap):

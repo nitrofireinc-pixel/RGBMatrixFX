@@ -8,7 +8,7 @@ os.environ.setdefault("RGBMATRIXFX_NO_PORTAL", "1")    # don't follow the box's 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from PySide6.QtWidgets import (QApplication, QGroupBox, QSlider, QAbstractSpinBox, QComboBox, QScrollBar,
                              QAbstractSlider)
-from PySide6.QtCore import QPointF, QPoint, Qt
+from PySide6.QtCore import QPointF, QPoint, QRectF, Qt
 from PySide6.QtGui import QWheelEvent, QColor
 from PySide6.QtWidgets import QToolButton
 import rgbmatrixfx
@@ -40,7 +40,7 @@ class TestGui(unittest.TestCase):
 
     def test_help_about(self):
         import rgbmatrixfx
-        self.assertEqual(rgbmatrixfx.__version__, "1.2.1")
+        self.assertEqual(rgbmatrixfx.__version__, "1.2.2")
         with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION")) as f:
             self.assertEqual(f.read().strip(), rgbmatrixfx.__version__)
         mb = self.w.menuBar()
@@ -55,7 +55,7 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.w.windowTitle(), "RGBMatrixFX")
         self.assertEqual(self.w.about_action.text().replace("&", ""), "About RGBMatrixFX")
         t = self.w.about_text()
-        for want in ("<h3>RGBMatrixFX 1.2.1</h3>", "GNU General Public License", "version 3",
+        for want in ("<h3>RGBMatrixFX 1.2.2</h3>", "GNU General Public License", "version 3",
                      "GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception", "plugin exception",
                      "LICENSE-EXCEPTION", "https://github.com/nitrofireinc-pixel/RGBMatrixFX", "\u00a9 2026 Nitrofire Computing",
                      "Trademark notice.",
@@ -88,7 +88,7 @@ class TestGui(unittest.TestCase):
             self.assertIn(want, lic)
         text = box.copy_system_info()
         self.assertEqual(app.clipboard().text(), text)
-        self.assertTrue(text.startswith("RGBMatrixFX 1.2.1 ("))
+        self.assertTrue(text.startswith("RGBMatrixFX 1.2.2 ("))
         self.assertIn("(Free edition)", text)
         self.assertIn("Engine: not running", text)
         box.close()
@@ -127,6 +127,161 @@ class TestGui(unittest.TestCase):
             srv.close()
         # the default window (nothing on the port) explains instead of failing
         self.assertNotIn("Traceback", self.w.orgb_info.text())
+
+    def test_live_panel_pc_rgb_devices(self):
+        from tests.test_openrgb import FakeOpenRGB
+        srv = FakeOpenRGB()
+        srv.ctrls.insert(0, (5, "Razer BlackWidow V3", [("Keyboard", 132, None)]))     # also listed by OpenRGB
+        srv.ctrls[1] = srv.ctrls[1] + ([(255, 0, 0)] + [(0, 0, 0)] * 6,)              # JRGB1 red, onboard off
+        os.environ["RGBMATRIXFX_OPENRGB_PORT"] = str(srv.port)
+        try:
+            w = MainWindow(sock_path=os.path.join(self.d.name, "none3.sock"), cfg_path=self.cfg)
+            w.openrgb.fast = 0.2
+            w.resize(1300, 850)
+            w.show()
+            panel = w.pcrgb_panel
+
+            def wait(cond, t=5):
+                end = time.time() + t
+                while not cond() and time.time() < end:
+                    spin(50)
+                return cond()
+            self.assertTrue(wait(lambda: bool(panel.tiles)))
+            self.assertFalse(panel.isHidden())
+            self.assertEqual([k for k, _t, _p in panel.tiles], ["motherboard", "ram", "other"])
+            self.assertEqual([n for n, _c in panel.tiles[0][2]], ["JRGB1", "Onboard"])
+            self.assertEqual(panel.tiles[0][2][0][1], [(255, 0, 0)])                    # current colour
+            self.assertEqual(len(panel.tiles[1][2]), 2)                                 # two sticks
+            self.assertNotIn("Razer", w.orgb_info.text())                               # not listed twice
+            self.assertIn("Sync with effects", panel.hint)
+            w._set_pro_teasers(False)
+            spin(300)
+            self.assertEqual(panel.hint, "")                                            # hide previews
+            w._set_pro_teasers(True)
+            panel.grab()                                                                # paints without errors
+            # live mirroring (an add-on drives the devices): faster re-reads, one connection
+            w.set_pc_rgb_live(True)
+            spin(300)
+            self.assertIn("Synced", panel.hint)
+            conns = srv.connections
+            srv.ctrls[1] = srv.ctrls[1][:3] + ([(0, 255, 0)] * 7,)
+            self.assertTrue(wait(lambda: panel.tiles[0][2][0][1] == [(0, 255, 0)], 2))
+            spin(600)
+            self.assertLessEqual(srv.connections - conns, 1)
+            w.set_pc_rgb_live(False)
+            # devices disappear -> tiles go; only Razer left -> panel hidden; late device -> back
+            del srv.ctrls[1:]
+            self.assertTrue(wait(lambda: panel.isHidden()))
+            self.assertTrue(wait(lambda: "no motherboard" in w.orgb_info.text()), w.orgb_info.text())
+            srv.ctrls.append((1, "ENE DRAM", [("DRAM", 8, None)]))
+            self.assertTrue(wait(lambda: not panel.isHidden()))
+            self.assertEqual([k for k, _t, _p in panel.tiles], ["ram"])
+            self.assertTrue(all(p in (1, 0, 50) for _d, p, _b in srv.log))              # read-only
+            # Rescan devices: OpenRGB re-detects (e.g. a RAM stick it missed); the list follows
+            spin(1200)
+            self.assertFalse(w.orgb_rescan_btn.isHidden())
+            srv.on_rescan = lambda: srv.ctrls.append((1, "ENE DRAM", [("DRAM", 5, None)]))
+            w.rescan_openrgb()
+            self.assertEqual(srv.rescans, 1)
+            self.assertTrue(wait(lambda: len(panel.tiles[0][2]) == 2))                   # two sticks now
+            self.assertTrue(wait(lambda: w.orgb_info.text().count("RAM: ENE DRAM") == 2))
+            srv.protocol = 4                                                             # older server
+            self.assertFalse(w.openrgb.request_detection())
+            w.shutdown(); w.close(); w.deleteLater()
+        finally:
+            os.environ.pop("RGBMATRIXFX_OPENRGB_PORT", None)
+            srv.close()
+
+    def test_live_panel_only_connected_devices(self):
+        w = self.w
+        pv = w.preview
+        self.assertEqual(pv.presence(), (True, True))           # engine not running: full preview
+        base = {"fps": 30, "inputs": {}, "mouse_pid": 0x0073}
+        kb = {"name": "BlackWidow", "serial": "X", "matrix": [6, 22], "frames": 1}
+        ms = {"name": "Basilisk", "serial": "Y", "matrix": [1, 3], "frames": 1}
+        w.link.ok = True
+        for k, m, want in ((kb, None, (True, False)), (None, ms, (False, True)), (None, None, (False, False)), (kb, ms, (True, True))):
+            w.status = dict(base, keyboard=k, mouse=m)
+            w._update_engine_ui()
+            self.assertEqual(pv.presence(), want)
+            pv.grab()
+            r = pv.rect().adjusted(6, 6, -6, -6)
+            hit_kb = pv.painter_.hit(QRectF(r), QPointF(*self._key_pos(pv, "ESC")))
+            self.assertEqual(hit_kb is not None and hit_kb[0] == "key", want[0])
+        w.link.ok = False
+
+    @staticmethod
+    def _key_pos(pv, name):
+        s, ox, oy = pv.painter_.geometry(QRectF(pv.rect().adjusted(6, 6, -6, -6)))
+        k = L.KEY_BY_NAME[name]
+        return ox + (k.x + k.w / 2) * s, oy + (k.y + k.h / 2) * s
+
+    def test_plugin_api_1_2_gallery_effect(self):
+        pdir = os.path.join(self.d.name, "plugins12")
+        os.makedirs(os.path.join(pdir, "fx"))
+        with open(os.path.join(pdir, "fx", "plugin.json"), "w") as f:
+            json.dump({"id": "fx", "name": "FX", "version": "1", "api": "1.2"}, f)
+        with open(os.path.join(pdir, "fx", "plugin.py"), "w") as f:
+            f.write("""
+import numpy as np
+class Red:
+    def __init__(self, scene):
+        self.n = scene['n']
+    def frame(self, dt):
+        return np.tile([1.0, 0.0, 0.0], (self.n, 1))
+class Broken:
+    def frame(self, dt):
+        raise RuntimeError('boom')
+def register(ctx):
+    ctx.add_gallery_effect('addon:red', 'Red (add-on)', 'All red', preview=Red, fallback='static')
+    ctx.add_gallery_effect('addon:broken', 'Broken', preview=lambda sc: Broken())
+    ctx.add_gallery_effect('addon:plain', 'Plain')
+    ctx.add_gallery_effect('addon:set', 'With settings', 'Has its own controls', preview=Red,
+                           settings=[{'id': 'speed', 'label': 'Speed', 'type': 'float', 'default': 1.0, 'min': 0.2, 'max': 3},
+                                     {'id': 'flake', 'label': 'Flake colour', 'type': 'color', 'default': '#ffffff'}])
+""")
+        w = MainWindow(sock_path=os.path.join(self.d.name, "none.sock"), cfg_path=self.cfg, plugins=True, plugin_dirs=[pdir])
+        w.show()
+        spin(100)
+        g = w.gallery
+        self.assertEqual([lp.info.id for lp in w.plugins.loaded], ["fx"], w.plugins.failed)
+        for k in ("external:addon:red", "external:addon:broken", "external:addon:plain"):
+            self.assertIn(k, g.tiles)
+        g.ensureWidgetVisible(g.tiles["external:addon:red"])
+        spin(50)
+        for _ in range(3):
+            g.tick()
+        self.assertTrue(all(c == [255, 0, 0] for c in g.tiles["external:addon:red"].rgb))
+        g.tiles["external:addon:red"].mousePressEvent(None)
+        spin(50)
+        self.assertEqual(w.profile["effect"], "external")
+        self.assertEqual(w.profile["effects"]["external"]["source"], "addon:red")
+        self.assertEqual(w.profile["effects"]["external"]["fallback"], "static")
+        self.assertTrue(g.tiles["external:addon:red"].selected)
+        w.select_effect("flame")
+        self.assertFalse(g.tiles["external:addon:red"].selected)
+        # add-on effect settings: own controls in the Effect tab, values reach the engine profile
+        w.select_effect("external:addon:set")
+        spin(50)
+        from PySide6.QtWidgets import QLabel
+        labels = [l.text() for l in w.tab_effect.widget().findChildren(QLabel)]
+        self.assertIn("With settings", labels)
+        self.assertIn("Flake colour", labels)
+        self.assertNotIn("Add-on source", labels)                    # fixed by the tile
+        w._external_settings({"speed": 2.5, "flake": "#88ccff"})
+        w._effect_params({"source": "addon:set", "fallback": "starlight", "brightness": 0.5, "settings": {}})
+        ext = w.profile["effects"]["external"]
+        self.assertEqual((ext["settings"], ext["brightness"], ext["source"]), ({"speed": 2.5, "flake": "#88ccff"}, 0.5, "addon:set"))
+        from rgbmatrixfx import config as _cfg
+        self.assertEqual(_cfg.sanitize_profile(w.profile)["effects"]["external"]["settings"], {"speed": 2.5, "flake": "#88ccff"})
+        w.select_effect("flame"); w.select_effect("external:addon:set")
+        self.assertEqual(w.profile["effects"]["external"]["settings"]["speed"], 2.5)   # kept for the same tile
+        w._reset_effect()
+        self.assertEqual(w.profile["effects"]["external"], {"source": "addon:set", "fallback": "starlight"})
+        w.unload_plugins()
+        self.assertFalse([k for k in g.tiles if k.startswith("external:")])
+        w.shutdown()
+        w.close()
 
     def test_pro_content_rejected_nicely_without_addon(self):
         p1 = os.path.join(self.d.name, "Christmas.rfxpro")
@@ -206,6 +361,27 @@ def register(ctx):
         finally:
             appmod.QDesktopServices.openUrl = orig
         self.assertEqual(opened, [rgbmatrixfx.SUPPORT_URL])
+
+    def test_get_pro_store_action(self):
+        from rgbmatrixfx import pro_status
+        import rgbmatrixfx.gui.app as appmod
+        a = self.w.get_pro_action
+        self.assertEqual(a.text(), "RGBMatrixFX Pro (coming soon)")
+        self.assertFalse(a.isEnabled())                    # not for sale yet
+        self.assertTrue(pro_status.PRO_STORE_URL.startswith("https://"))
+        opened = []
+        orig = appmod.QDesktopServices.openUrl
+        appmod.QDesktopServices.openUrl = lambda u: opened.append(u.toString())
+        try:
+            self.w.open_pro_store()
+            self.assertEqual(opened, [])
+            pro_status.PRO_FOR_SALE = True
+            self.w.open_pro_store()
+            self.assertEqual(pro_status.store_action_label(), "Get RGBMatrixFX Pro\u2026")
+        finally:
+            pro_status.PRO_FOR_SALE = False
+            appmod.QDesktopServices.openUrl = orig
+        self.assertEqual(opened, [pro_status.PRO_STORE_URL])
 
     def test_system_info_has_no_serials(self):
         from rgbmatrixfx.gui import about

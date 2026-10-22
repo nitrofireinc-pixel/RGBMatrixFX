@@ -289,9 +289,9 @@ class ParamForm(QWidget):
         v.setContentsMargins(0, 0, 0, 0)
         main = _form()
         v.addLayout(main)
-        adv = [s for s in schema if s.get("adv")]
+        adv = [s for s in schema if s.get("adv") and not s.get("hidden")]
         for s in schema:
-            if not s.get("adv"):
+            if not s.get("adv") and not s.get("hidden"):
                 self._add(main, s)
         if adv:
             box = QWidget()

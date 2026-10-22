@@ -11,7 +11,8 @@ from . import safety
 class GuiPluginHost:
     capabilities = frozenset({api.CAP_LOG, api.CAP_SETTINGS, api.CAP_STORAGE, api.CAP_MENU,
                               api.CAP_DIALOG_PARENT, api.CAP_STATUS, api.CAP_EVENTS, api.CAP_EDITION, api.CAP_FEATURES,
-                              api.CAP_LAYOUTS, api.CAP_IMPORT, api.CAP_PRESETS, api.CAP_SETTINGS_UI})
+                              api.CAP_LAYOUTS, api.CAP_IMPORT, api.CAP_PRESETS, api.CAP_SETTINGS_UI,
+                              api.CAP_GALLERY, api.CAP_PC_RGB_LIVE, api.CAP_PC_RGB_SYNC, api.CAP_EFFECT_SETTINGS})
 
     def __init__(self, window):
         self._w = window
@@ -80,6 +81,18 @@ class GuiPluginHost:
         self._w.settings_sections.append((info.id, title, factory))
         if getattr(self._w, "tab_settings", None) is not None:
             self._w._build_settings_tab()
+
+    def set_pc_rgb_live(self, info, on):
+        self._w.set_pc_rgb_live(on)
+
+    def set_pc_rgb_sync_control(self, info, get, set_):
+        self._w._pcrgb_sync_ctl = (get, set_) if get and set_ else None
+        self._w._update_openrgb_ui(force=True)
+
+    def add_gallery_effect(self, info, source, name, description, preview, fallback, settings=None):
+        self._w.gallery.add_external(source, name, description, preview, fallback, plugin_id=info.id,
+                                     settings=settings)
+        self._w.gallery.set_current(self._w.gallery_key(self._w.profile))
 
     def engine_status(self):
         w = self._w

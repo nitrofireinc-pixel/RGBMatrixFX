@@ -9,6 +9,10 @@ PRO_FOR_SALE = False                    # flip to True when RGBMatrixFX Pro laun
 
 COMING_SOON = "Pro: coming soon"
 
+# Where "Get RGBMatrixFX Pro" goes (Lemon Squeezy checkout). PLACEHOLDER until the store exists;
+# the action stays disabled while PRO_FOR_SALE is False.
+PRO_STORE_URL = "https://nitrofire.lemonsqueezy.com/buy/rgbmatrixfx-pro"   # placeholder
+
 
 def badge():
     """short label for a locked Pro element: 'Pro' or 'Pro: coming soon'"""
@@ -20,10 +24,15 @@ def purchase_enabled():
     return PRO_FOR_SALE
 
 
+def store_action_label():
+    """Help menu entry that opens PRO_STORE_URL"""
+    return "Get RGBMatrixFX Pro\u2026" if PRO_FOR_SALE else "RGBMatrixFX Pro (coming soon)"
+
+
 def teaser_message(what):
     """status-bar text when a locked Pro element is clicked; `what` e.g. 'Adding your own keys'"""
     if PRO_FOR_SALE:
-        return "%s is a RGBMatrixFX Pro feature." % what
+        return "%s is a RGBMatrixFX Pro feature (Help \u25b8 Get RGBMatrixFX Pro)." % what
     return "%s will be part of RGBMatrixFX Pro, which is coming soon (not for sale yet)." % what
 
 

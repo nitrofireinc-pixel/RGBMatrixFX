@@ -62,3 +62,6 @@ exception keeps covering the whole program. Add these lines at the top of any ne
 # Copyright (C) 2026 <your name>
 ```
 Please sign off your commits (`git commit -s`, the [Developer Certificate of Origin](https://developercertificate.org/)).
+
+## Rule: full frames for every effect (2026-10-21)
+Every effect must be delivered as a full frame: all keyboard rows written every frame (`full_frames` on in devices.py). Changed-rows-only writes cause uneven timing and stale dropped rows on Razer keyboards (the Starfield/Fireworks stutter). Do not ship an effect or engine change that disables this.

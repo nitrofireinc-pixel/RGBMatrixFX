@@ -14,7 +14,7 @@ import time
 
 import numpy as np
 
-from . import config, ipc, layout as L
+from . import config, ipc, layout as L, trace
 from .devices import DeviceHub, log
 from .inputs import InputHub
 from .effects import push_external
@@ -32,6 +32,11 @@ class Engine:
         self.hub = hub or DeviceHub()
         self.inputs = inputs if inputs is not None else InputHub(enable_mouse=self.cfg["global"]["include_mouse"])
         self.mouse_pid = 0x0073
+        self.tick_seq = 0                     # render ticks; "next_tick" waiters are answered on each
+        self.tick_waiters = {}
+        self.override = None                  # temporary look from a plugin (set_override); never saved
+        self._xfade = None                    # (previous frame, start) while switching profiles
+        self._level = np.ones(3)              # current dim/tint/off multiplier (eases towards the target)
         self._build_scene(L.MOUSE_PROFILES[0x0073])
         self.server = ipc.Server(self.handle, sock_path)
         self.running = True
@@ -41,6 +46,8 @@ class Engine:
         self.rgb = np.zeros((self.scene.n, 3))
         self.frames = 0
         self.fps_measured = 0.0
+        self.fps_out = None             # adaptive output rate (None: the configured fps)
+        self._fps_check = 0.0
         self.audio = None
         self.t0 = clock()
 
@@ -59,7 +66,7 @@ class Engine:
         self.scene = Scene(profile, keymap=keymap,
                            mouse_matrix=(mouse.rows, mouse.cols) if mouse is not None and mouse.rows else None,
                            extras=extras)
-        self.comp = Compositor(self.scene, self.cfg["profile"], self.cfg["global"])
+        self.comp = Compositor(self.scene, self._effective_profile(), self.cfg["global"])
 
     def _apply_cfg(self, cfg, save=True):
         old_mouse = self.cfg["global"].get("include_mouse")
@@ -70,13 +77,70 @@ class Engine:
             L.set_mouse_position(g["mouse_gap"], g["mouse_dy"])
             self._build_scene(self.scene.mouse_profile)
             self.rgb = np.zeros((self.scene.n, 3))
-        self.comp.set_profile(self.cfg["profile"])
+        self.comp.set_profile(self._effective_profile())
         self.comp.set_global(self.cfg["global"])
         if self.cfg["global"]["include_mouse"] != old_mouse:
             self.inputs.enable_mouse = self.cfg["global"]["include_mouse"]
             self.inputs.scan()
         if save:
             self.dirty_at = self.clock()
+
+    # ------------------------------------------------------------ temporary override (plugin API)
+    OVERRIDE_FADE_S = 0.25
+    LEVEL_EASE_S = 0.35
+
+    def _effective_profile(self):
+        o = getattr(self, "override", None)
+        return o["profile"] if o and o.get("profile") is not None else self.cfg["profile"]
+
+    def _set_override(self, o, now):
+        """o: {"owner", "profile"?, "dim" 0..1, "tint" "#rrggbb", "off", "ttl" s} or None. Not saved; ends by
+        itself after ttl seconds unless renewed (so a crashed plugin can't leave the lights dimmed or off)."""
+        new = None
+        if isinstance(o, dict):
+            tint = str(o.get("tint") or "").strip().lower()
+            ok_tint = len(tint) == 7 and tint[0] == "#" and all(c in "0123456789abcdef" for c in tint[1:])
+            ttl = config._num(o.get("ttl", 15), 1, 300, 15)
+            new = {"owner": str(o.get("owner", ""))[:40], "label": str(o.get("label", ""))[:80],
+                   "profile": config.sanitize_profile(o["profile"]) if isinstance(o.get("profile"), dict) else None,
+                   "dim": config._num(o.get("dim", 1.0), 0.0, 1.0, 1.0), "tint": tint if ok_tint else None,
+                   "off": bool(o.get("off")), "ttl": ttl, "until": now + ttl}
+        before = self._effective_profile()
+        self.override = new
+        after = self._effective_profile()
+        if after != before:                   # cross-fade from the current picture: no flash, no black frame
+            self._xfade = (self.rgb.copy(), now)
+            self.comp.set_profile(after)
+
+    def _override_info(self, now):
+        o = self.override
+        if not o:
+            return None
+        return {"owner": o["owner"], "label": o["label"], "profile": o["profile"] is not None, "dim": o["dim"],
+                "tint": o["tint"], "off": o["off"], "ttl_left": round(max(0.0, o["until"] - now), 1)}
+
+    def _post(self, rgb, now):
+        """cross-fade after a profile switch, then the override's brightness / tint / off, eased"""
+        if self._xfade is not None:
+            old, t0 = self._xfade
+            a = max(0.0, (now - t0) / self.OVERRIDE_FADE_S)
+            if a >= 1.0 or old.shape != rgb.shape:
+                self._xfade = None
+            else:
+                rgb = old * (1.0 - a) + rgb * a
+        o = self.override
+        target = np.ones(3)
+        if o:
+            if o["off"]:
+                target = np.zeros(3)
+            else:
+                t = np.array([int(o["tint"][i:i + 2], 16) / 255.0 for i in (1, 3, 5)]) if o["tint"] else np.ones(3)
+                target = t * o["dim"]
+        k = min(1.0, (1.0 / max(1, self.fps_out or self.cfg["global"]["fps"])) / self.LEVEL_EASE_S)
+        self._level = self._level + (target - self._level) * k
+        if np.abs(self._level - target).max() < 0.004:
+            self._level = target
+        return rgb if (self._level == 1.0).all() else rgb * self._level[None, :]
 
     def _save_now(self):
         try:
@@ -102,14 +166,19 @@ class Engine:
     def status(self):
         st = self.hub.info()
         st.update({"paused": self.cfg["global"]["paused"], "fps": round(self.fps_measured, 1),
+                   "fps_target": self.fps_out or self.cfg["global"]["fps"],
                    "effect": self.comp.effect_id, "mouse_pid": self.mouse_pid,
                    "layout": self.scene.keymap.source,
                    "inputs": self.inputs.info(), "uptime": round(self.clock() - self.t0, 1),
                    "audio": None if self.audio is None else (self.audio.error or ("ok" if self.audio.alive else "stopped")),
                    "pid": os.getpid()})
+        ov = self._override_info(self.clock())
+        if ov:
+            st["override"] = ov
         if self.comp.effect_id == "external":
             e = self.comp.effect
-            st["external"] = {"source": e.p.get("source", ""), "fallback": e.p.get("fallback"), "live": e.live()}
+            st["external"] = {"source": e.p.get("source", ""), "fallback": e.p.get("fallback"), "live": e.live(),
+                              "settings": dict(e.p.get("settings") or {})}
         return st
 
     # ------------------------------------------------------------ IPC
@@ -137,6 +206,9 @@ class Engine:
             cfg["global"] = g
             self._apply_cfg(cfg)
             return {"ok": True}
+        if cmd == "set_override":             # temporary look, not saved (docs/PLUGIN_API.md "Temporary override")
+            self._set_override(req.get("override"), now)
+            return {"ok": True, "override": self._override_info(now)}
         if cmd == "frame":
             rgb = (np.clip(self.rgb, 0, 1) * 255 + 0.5).astype(np.uint8)
             return {"ok": True, "n": int(self.scene.n), "rgb": rgb.tobytes().hex(),
@@ -146,14 +218,35 @@ class Engine:
             return {"ok": True, "n": int(sc.n), "n_kb": int(sc.n_kb), "kb_rows": int(sc.kb_rows),
                     "kb_cols": int(sc.kb_cols), "x": [round(float(v), 3) for v in sc.x],
                     "y": [round(float(v), 3) for v in sc.y], "kind": list(sc.kind),
-                    "fps": int(self.cfg["global"]["fps"])}
+                    "fps": int(self.fps_out or self.cfg["global"]["fps"])}
         if cmd == "source_frame":             # one frame from an external renderer
             src, n, data = str(req.get("source", ""))[:64], int(req.get("n", -1)), req.get("rgb", "")
             if not src or n != self.scene.n or not isinstance(data, str) or len(data) != n * 6:
                 return {"ok": False, "error": "frame must have n=%d points (rgb hex, 6 chars each)" % self.scene.n}
             rgb = np.frombuffer(bytes.fromhex(data), dtype=np.uint8).reshape(n, 3) / 255.0
-            push_external(src, rgb, time.monotonic())
+            seq = req.get("seq")
+            push_external(src, rgb, time.monotonic(), int(seq) if isinstance(seq, int) else None)
             return {"ok": True}
+        if cmd == "next_tick":                # pull mode: answered right after the next render tick
+            if self.server.current_fd is None:
+                return {"ok": False, "error": "next_tick needs a socket client"}
+            self.tick_waiters[self.server.current_fd] = True
+            return ipc.DEFER
+        if cmd == "trace":                 # diagnostics: {"on": true} starts, {"on": false} returns events
+            if req.get("on"):
+                trace.start()
+                return {"ok": True}
+            return {"ok": True, "events": trace.stop()}
+        if cmd == "external_stats":
+            from .effects import EXTERNAL_STATS
+            if req.get("reset"):
+                EXTERNAL_STATS.clear()
+            out = {}
+            for k, v in EXTERNAL_STATS.items():
+                a = sorted(v["ages"])
+                out[k] = dict({x: v[x] for x in ("shown", "repeats", "jumps", "dropped")},
+                              age_ms_median=a[len(a) // 2] if a else None, age_ms_max=a[-1] if a else None)
+            return {"ok": True, "stats": out}
         if cmd == "inject":
             kind, code = req.get("kind"), req.get("code")
             if kind == "key":
@@ -200,6 +293,38 @@ class Engine:
         self._apply_cfg(config.load(self.cfg_path), save=False)
         log("config reloaded")
 
+    def _adapt_fps(self, g):
+        """match the frame rate to the keyboard's real write speed (hysteresis: drop at once, rise slowly)"""
+        kb = self.hub.kb
+        want = kb.sustainable_fps(g["fps"]) if (g["adaptive_fps"] and kb is not None and
+                                                 hasattr(kb, "sustainable_fps")) else None
+        cur = self.fps_out or g["fps"]
+        new = self.fps_out
+        if not g["adaptive_fps"] or kb is None:
+            new, self._fps_votes = None, 0
+        elif want is not None:
+            # a few fixed steps with strong hysteresis: every rate change is a small visible hitch,
+            # and the measured write time wobbles with CPU load, so the rate must not flap
+            ladder = sorted({f for f in (g["fps"], 24, 20, 15) if f <= g["fps"]}, reverse=True)
+            target = next((f for f in ladder if f <= want), ladder[-1])
+            votes = getattr(self, "_fps_votes", 0)
+            if target < cur:
+                votes = min(0, votes) - 1
+                if votes <= -2:
+                    new, votes = target, 0
+            elif target > cur:
+                votes = max(0, votes) + 1
+                if votes >= 4:
+                    new, votes = min(f for f in ladder if f > cur), 0
+            else:
+                votes = 0
+            self._fps_votes = votes
+        if new is not None and new >= g["fps"]:
+            new = None
+        if new != self.fps_out:
+            log("output rate: %s fps (keyboard writes take %.0f ms)" % (new or g["fps"], kb.write_ms if kb else 0))
+            self.fps_out = new
+
     def run(self, duration=None):
         log("engine started (pid %d), socket %s" % (os.getpid(), self.server.path))
         sd_notify("READY=1\nMAINPID=%d" % os.getpid())
@@ -214,7 +339,11 @@ class Engine:
                 break
             g = self.cfg["global"]
             self.hub.configure(g)
-            if self.hub.maybe_scan(now, want_mouse=g["include_mouse"]):
+            _t = self.clock()
+            scanned = self.hub.maybe_scan(now, want_mouse=g["include_mouse"])
+            if trace.RING is not None and self.clock() - _t > 0.001:
+                trace.ev("hub_scan", _t, (self.clock() - _t) * 1000)
+            if scanned:
                 prof = self.hub.mouse_profile() or self.scene.mouse_profile
                 if self.hub.mouse is not None:
                     self.mouse_pid = self.hub.mouse.pid
@@ -223,7 +352,9 @@ class Engine:
                 log("layout: keyboard %s, mouse %s, %d other device(s)" % (
                     self.scene.keymap.source, prof["model"] if prof else "none", len(self.scene.extra_cells)))
             if now >= next_scan_inputs:
+                _t = self.clock()
                 self.inputs.scan()
+                trace.ev("inputs_scan", _t, (self.clock() - _t) * 1000)
                 next_scan_inputs = now + 3.0
             if now >= next_cfg_check:
                 next_cfg_check = now + 2.0
@@ -231,11 +362,18 @@ class Engine:
                 if m is not None and m != self.cfg_mtime and self.dirty_at is None:
                     self.cfg_mtime = m
                     self.reload()
+                    trace.ev("reload", now)
             if self.dirty_at is not None and now - self.dirty_at > 1.0:
                 self._save_now()
+            if self.override is not None and now > self.override["until"]:
+                log("override from %s expired" % (self.override["owner"] or "a plugin"))
+                self._set_override(None, now)
             self._audio_update()
 
-            period = 1.0 / g["fps"]
+            if now >= self._fps_check:
+                self._fps_check = now + 3.0
+                self._adapt_fps(g)
+            period = 1.0 / (self.fps_out or g["fps"])
             active = not g["paused"]          # render even with no device so the GUI mirror stays smooth
             deadline = next_frame if active else now + 0.25
             fds = self.inputs.fds() + self.server.fds()
@@ -257,7 +395,17 @@ class Engine:
                 next_frame = now
                 continue
             if now >= next_frame:
-                self.rgb = self.comp.render(now)
+                late = (now - next_frame) * 1000
+                self.rgb = self._post(self.comp.render(now), now)
+                self.tick_seq += 1
+                trace.SEQ = self.tick_seq
+                if trace.RING is not None:
+                    trace.ev("tick", now, (self.clock() - now) * 1000, (self.tick_seq, round(late, 1)))
+                if self.tick_waiters:             # tell pull-mode renderers: render tick seq+1 for now+period
+                    w, self.tick_waiters = self.tick_waiters, {}
+                    msg = {"ok": True, "seq": self.tick_seq, "t": now, "period": period}
+                    for fd in w:
+                        self.server.reply(fd, msg)
                 next_frame += period
                 if next_frame < now - 0.25:
                     next_frame = now + period

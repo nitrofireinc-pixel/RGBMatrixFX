@@ -8,7 +8,9 @@ answer, so the GUI never waits on the network. It keeps re-scanning: right after
 OpenRGB server can answer before it has finished detecting the motherboard (i2c/SMBus
 detection takes a few seconds), so a board that shows up late still appears.
 OpenRGB not installed or not running is a normal state ("not running"), never an error.
-Nothing here changes a device: driving PC RGB from the effects is an RGBMatrixFX Pro feature."""
+Nothing here changes a device: driving PC RGB from the effects is an RGBMatrixFX Pro feature.
+The current LED colours come along with each scan (the Live panel shows them); while an add-on
+drives the devices (set_live), the scan runs a few times per second so the Live panel mirrors it."""
 import threading
 import time
 
@@ -18,6 +20,12 @@ DEFAULT_PORT = 6742
 FAST_INTERVAL_S = 5.0      # while nothing was found yet / during the first minute
 SLOW_INTERVAL_S = 30.0     # afterwards (still catches devices plugged in or detected late)
 FAST_PHASE_S = 60.0
+LIVE_INTERVAL_S = 0.25     # while an add-on drives the devices (Live panel mirrors their colours)
+MAX_RGB = 1024
+
+
+def _is_razer(ctrl):
+    return "razer" in ("%s %s" % (ctrl.get("name") or "", ctrl.get("description") or "")).lower()
 
 
 def summarize(ctrl):
@@ -27,21 +35,36 @@ def summarize(ctrl):
             "type": t,
             "type_label": sdk.TYPE_LABELS.get(t, "Device"),
             "zones": [((z.get("name") or "?").strip()[:60], int(z.get("leds") or 0)) for z in ctrl.get("zones") or []][:64],
-            "leds": int(ctrl.get("leds") or 0)}
+            "leds": int(ctrl.get("leds") or 0),
+            "rgb": [list(c) for c in (ctrl.get("rgb") or [])[:MAX_RGB]],
+            "razer": _is_razer(ctrl)}
 
 
-def scan(host="127.0.0.1", port=DEFAULT_PORT, timeout=0.5):
-    """one query -> (state, devices, message); state is 'ok', 'not_running' or 'error'"""
-    c = sdk.Client(host=host, port=port, timeout=timeout)
+def pc_devices(devs):
+    """the PC's own RGB (motherboard, RAM, fans, strips, ...): without the Razer devices OpenRGB also
+    lists (RGBMatrixFX already shows and drives those itself)"""
+    return [d for d in devs if not d.get("razer")]
+
+
+def scan(host="127.0.0.1", port=DEFAULT_PORT, timeout=0.5, client=None):
+    """one query -> (state, devices, message); state is 'ok', 'not_running' or 'error'.
+    ``client``: keep using this (connected) sdk.Client instead of a fresh connection; it is
+    closed on errors (live mirroring reuses one connection instead of reconnecting 4x a second)"""
+    c = client or sdk.Client(host=host, port=port, timeout=timeout)
+    ok = False
     try:
-        c.connect()
-        return "ok", [summarize(d) for d in c.controllers()], ""
+        if not c.connected:
+            c.connect()
+        out = "ok", [summarize(d) for d in c.controllers()], ""
+        ok = True
+        return out
     except (ConnectionRefusedError, FileNotFoundError):
         return "not_running", [], "OpenRGB server is not running"
     except (OSError, sdk.SDKError, ValueError, UnicodeError) as e:
         return "error", [], "OpenRGB: %s" % (e or e.__class__.__name__)
     finally:
-        c.close()
+        if client is None or not ok:
+            c.close()
 
 
 class Scanner:
@@ -57,6 +80,15 @@ class Scanner:
         self._state = ("scanning", [], "", 0)     # state, devices, message, generation
         self._thread = None
         self._t0 = time.monotonic()
+        self.live = False
+        self._client = None
+
+    def set_live(self, on):
+        """an add-on is driving the devices: rescan a few times per second (Live panel mirror)"""
+        on = bool(on)
+        if on != self.live:
+            self.live = on
+            self._wake.set()
 
     def start(self):
         if self._thread is None:
@@ -68,10 +100,28 @@ class Scanner:
     def stop(self):
         self._stop.set()
         self._wake.set()
+        if self._client is not None:
+            self._client.close()
 
     def rescan(self):
         """scan again now (e.g. the user opened the Settings tab)"""
         self._wake.set()
+
+    def request_detection(self):
+        """Settings > Devices > Rescan: have the OpenRGB server re-detect its devices (e.g. a RAM
+        stick it missed), then look quickly for a minute. -> bool (False: server too old/unreachable)"""
+        c = sdk.Client(host=self.host, port=self.port, timeout=2.0, name="RGBMatrixFX rescan")
+        try:
+            c.connect()
+            ok = c.request_rescan()
+        except (OSError, sdk.SDKError):
+            ok = False
+        finally:
+            c.close()
+        if ok:
+            self._t0 = time.monotonic()      # fast re-scans again for FAST_PHASE_S
+            self._wake.set()
+        return ok
 
     def snapshot(self):
         """(state, devices, message, generation); generation grows whenever the result changed"""
@@ -79,7 +129,12 @@ class Scanner:
             return self._state
 
     def scan_once(self):
-        state, devs, msg = self._scan(self.host, self.port)
+        if self._scan is scan:          # one kept-open connection (no connect/disconnect churn in OpenRGB's log)
+            if self._client is None:
+                self._client = sdk.Client(host=self.host, port=self.port, timeout=0.5)
+            state, devs, msg = scan(self.host, self.port, client=self._client)
+        else:
+            state, devs, msg = self._scan(self.host, self.port)
         with self._lock:
             old = self._state
             if (state, devs, msg) != old[:3]:
@@ -87,6 +142,8 @@ class Scanner:
         return state, devs
 
     def _interval(self, state, devs):
+        if self.live and state == "ok":
+            return LIVE_INTERVAL_S
         if state != "ok" or not devs or time.monotonic() - self._t0 < self.fast_phase:
             return self.fast
         return self.slow

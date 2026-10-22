@@ -478,6 +478,23 @@ class TestGamerControls(unittest.TestCase):
             self.assertEqual((g["gamer_controls"], g["gamer_keys"]), (True, ["Q", "E"]))
 
 
+class TestFullFrames(unittest.TestCase):
+    def test_full_frames_default_sends_every_row(self):
+        from rgbmatrixfx import devices
+        if True:
+            out = devices.Out.__new__(devices.Out)
+            out.rows, out.cols, out.sent, out._next_full = 6, 22, None, 0.0
+            out.opts = dict(devices.DEFAULT_IO); out._need_kick = False; out._next_kick = 1e9
+            out.rows_sent = 0; sent = []; out.full_ms = []; out._count = lambda *a: None
+            out._write_frame = lambda p: sent.append(len(p))
+            out.kind = "keyboard"
+            f = np.zeros((6, 22, 3), np.uint8)
+            out._write_matrix(f, 100.0)
+            f[2, 5] = 200
+            out._write_matrix(f, 100.1)
+            self.assertEqual(sent, [6 * 69, 6 * 69])
+
+
 class TestDeviceIO(unittest.TestCase):
     def _sysfs(self, d, pid=0x022A, serial="XX123"):
         dd = os.path.join(d, "razerkbd", "0003:1532:%04X.0006" % pid)
@@ -505,6 +522,8 @@ class TestDeviceIO(unittest.TestCase):
                     return fh.read()
             f = np.zeros((6, 22, 3), np.uint8)
             f[:, :] = 10
+            out.opts["rolling_refresh"] = False
+            out.opts["full_frames"] = False          # this test covers the partial-row path
             out._write_matrix(f, 100.0)
             self.assertEqual(len(rd("matrix_custom_frame")), 6 * (3 + 66))
             self.assertEqual(dev.light.calls, [("custom",)])        # first kick through the daemon
@@ -513,6 +532,8 @@ class TestDeviceIO(unittest.TestCase):
             b = rd("matrix_custom_frame")
             self.assertEqual((len(b), b[0], b[1], b[2]), (69, 2, 0, 21))
             self.assertEqual(tuple(b[3 + 15:3 + 18]), (200, 0, 0))
+            out._write_matrix(f2.copy(), 100.15)                    # settle: row 2 resent once
+            self.assertEqual(rd("matrix_custom_frame")[0], 2)
             n = out.frames
             out._write_matrix(f2.copy(), 100.2)                     # unchanged -> nothing sent
             f3 = f2.copy(); f3[4, 0] = (11, 10, 10)                 # within row_delta=1 -> skipped
@@ -577,6 +598,44 @@ class TestDeviceIO(unittest.TestCase):
         self.assertEqual((seen["req"], typ, size % 8), (0x40104593, 2, 0))
 
 
+class TestAdaptiveFps(unittest.TestCase):
+    def test_slow_keyboard_gets_an_even_lower_rate(self):
+        from rgbmatrixfx import devices
+        from rgbmatrixfx.engine import Engine
+        class KB:
+            full_ms = []
+            write_ms = 36.0
+            sustainable_fps = devices.Out.sustainable_fps
+        kb = KB()
+        self.assertIsNone(kb.sustainable_fps(30))                  # not enough data
+        kb.full_ms = [35.7] * 80 + [38.2] * 10
+        self.assertEqual(kb.sustainable_fps(30), 24)               # 36-38 ms writes -> 24 fps, every frame
+        kb.full_ms = [12.0] * 90
+        self.assertEqual(kb.sustainable_fps(30), 30)               # fast device: unchanged
+        eng = Engine.__new__(Engine)
+        eng.fps_out = None
+        eng.hub = type("H", (), {"kb": kb})()
+        g = {"fps": 30, "adaptive_fps": True}
+        kb.full_ms = [36.0] * 90
+        eng._adapt_fps(g)
+        self.assertIsNone(eng.fps_out)                             # one slow reading isn't enough
+        eng._adapt_fps(g)
+        self.assertEqual(eng.fps_out, 24)
+        for ms in [30.0, 38.0, 33.0, 40.0, 31.0, 37.0] * 3:       # load wobble: no flapping
+            kb.full_ms = [ms] * 90
+            eng._adapt_fps(g)
+            self.assertEqual(eng.fps_out, 24)
+        kb.full_ms = [12.0] * 90                                   # really faster: back up after ~12 s
+        for _ in range(3):
+            eng._adapt_fps(g)
+        self.assertEqual(eng.fps_out, 24)
+        eng._adapt_fps(g)
+        self.assertIsNone(eng.fps_out)
+        kb.full_ms = [38.2] * 90
+        eng._adapt_fps(dict(g, adaptive_fps=False))
+        self.assertIsNone(eng.fps_out)                             # opt-out keeps the configured rate
+
+
 class TestEngine(unittest.TestCase):
     def test_engine_loop_fake_hub(self):
         from rgbmatrixfx.engine import Engine
@@ -609,7 +668,7 @@ class TestEngine(unittest.TestCase):
             self.assertEqual(eng.comp.effect_id, "external")
             self.assertEqual(eng.cfg["profile"]["effects"]["external"]["source"], "addon:test")
             st = eng.handle({"cmd": "status"})["status"]
-            self.assertEqual(st["external"], {"source": "addon:test", "fallback": "static", "live": False})
+            self.assertEqual(st["external"], {"source": "addon:test", "fallback": "static", "live": False, "settings": {}})
             static = eng.comp.render(_t.monotonic())          # no frames yet: the fallback plays
             self.assertGreater(static.max(), 0)
             self.assertFalse(eng.handle({"cmd": "source_frame", "source": "addon:test", "n": n - 1, "rgb": "00" * 3 * (n - 1)})["ok"])
@@ -621,8 +680,63 @@ class TestEngine(unittest.TestCase):
             self.assertFalse(np.allclose(eng.comp.render(_t.monotonic())[:, 1:], 0.0) and
                              np.allclose(eng.comp.render(_t.monotonic())[:, 0], 1.0))   # stale -> fallback
             fx.EXTERNAL_FRAMES.clear()
+            fx.EXTERNAL_QUEUE.clear()
+            # jitter buffer: two frames arriving in one tick, none in the next -> shown one per tick
+            green, blue = "00ff00" * n, "0000ff" * n
+            eng.handle({"cmd": "source_frame", "source": "addon:test", "n": n, "rgb": green})
+            eng.handle({"cmd": "source_frame", "source": "addon:test", "n": n, "rgb": blue})
+            a, b, c = (eng.comp.render(_t.monotonic()) for _ in range(3))
+            self.assertTrue(a[0, 1] > 0.9 and b[0, 2] > 0.9 and c[0, 2] > 0.9)  # green, blue, hold blue
+            for _ in range(10):
+                eng.handle({"cmd": "source_frame", "source": "addon:test", "n": n, "rgb": green})
+            self.assertLessEqual(len(fx.EXTERNAL_QUEUE["addon:test"]), fx.EXTERNAL_QUEUE_MAX)   # latency capped
+            fx.EXTERNAL_FRAMES.clear()
+            fx.EXTERNAL_QUEUE.clear()
             self.assertNotIn("external", [e.id for e in fx.EFFECTS])                     # not in the gallery
 
+
+
+    def test_override_temporary_not_saved(self):
+        from rgbmatrixfx.engine import Engine
+        with tempfile.TemporaryDirectory() as d:
+            cp = os.path.join(d, "c.json")
+            eng = Engine(cfg_path=cp, sock_path=os.path.join(d, "s"), hub=FakeHub(), inputs=FakeInputs())
+            base = eng.cfg["profile"]
+            other = config.make_profile("static", {"color": "#0000ff"})
+            r = eng.handle({"cmd": "set_override", "override": {"owner": "test", "label": "Game", "profile": other, "ttl": 5}})
+            self.assertTrue(r["ok"] and r["override"]["profile"])
+            self.assertEqual(eng.comp.effect_id, "static")
+            self.assertEqual(eng.cfg["profile"], base)                    # the saved profile is untouched
+            self.assertIsNone(eng.dirty_at)                               # and nothing is written to disk
+            self.assertEqual(eng.handle({"cmd": "status"})["status"]["override"]["label"], "Game")
+            # the first frames cross-fade from the previous picture (no black flash)
+            eng.rgb = np.full((eng.scene.n, 3), 0.5)
+            eng._xfade = (eng.rgb.copy(), 0.0)
+            mid = eng._post(np.zeros((eng.scene.n, 3)), 0.125)
+            self.assertTrue(np.allclose(mid, 0.25))
+            # a GUI edit (set_config) keeps the override on screen
+            eng.handle({"cmd": "set_global", "global": {"fps": 30}})
+            self.assertEqual(eng.comp.effect_id, "static")
+            # dim + warm tint eases in; off goes to black
+            eng._xfade = None
+            eng.handle({"cmd": "set_override", "override": {"owner": "test", "dim": 0.3, "tint": "#ffb070"}})
+            self.assertNotEqual(eng.comp.effect_id, "static")             # no profile in the override: saved one again
+            eng._xfade = None
+            ones = np.ones((eng.scene.n, 3))
+            for _ in range(60):
+                out = eng._post(ones, 1.0)
+            self.assertTrue(np.allclose(out[0], [0.3, 0.3 * 0xb0 / 255, 0.3 * 0x70 / 255], atol=0.01), (out[0], eng.override, eng._level))
+            eng.handle({"cmd": "set_override", "override": {"owner": "test", "off": True}})
+            for _ in range(60):
+                out = eng._post(ones, 2.0)
+            self.assertEqual(out.max(), 0.0)
+            # expiry: not renewed -> back to normal by itself
+            eng.override["until"] = 0
+            eng.handle({"cmd": "set_override", "override": None})
+            self.assertIsNone(eng.handle({"cmd": "status"})["status"].get("override"))
+            for _ in range(60):
+                out = eng._post(ones, 3.0)
+            self.assertTrue(np.allclose(out, 1.0))
 
 
 class TestGenericInputDetection(unittest.TestCase):

@@ -6,6 +6,37 @@ All notable changes to RGBMatrixFX (called RazorFX in 1.1 and Razer FX up to 1.0
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-10-22
+
+### Fixed
+- Stutter and pauses in effects that light only a few keys over a dark background (Starfield,
+  Fireworks, Snowfall and similar): the keyboard now gets a **full frame** (every row) on every
+  write, so frame timing is even and a row the keyboard drops is repainted on the next frame.
+  Previously only changed rows were sent, which made timing uneven and could leave a dropped row
+  stale for up to a quarter second.
+- Rows the keyboard reports as busy are resent once after they settle, and a rolling refresh
+  repaints one extra row per write as a second safety net.
+
+### Added
+- Full frames are always on (`full_frames` in devices.py; `RGBMATRIXFX_FULL_FRAMES=1` also forces them on
+  older engines). Every effect must ship with full frames (see CONTRIBUTING.md).
+- Adaptive output rate matched to the keyboard's real write time (`adaptive_fps`).
+- Opt-in timing trace over engine IPC, for diagnosing stutter.
+
+### Added
+- Engine IPC `set_override`: a temporary, unsaved look (profile, dim, tint, off) with automatic expiry, for add-ons such as per-app profiles and schedules (docs/PLUGIN_API.md).
+- Plugin API 1.2: `ctx.add_gallery_effect()` shows add-on effects in the effect list with a live
+  thumbnail (clicking one selects it).
+- Live panel: your PC's OpenRGB devices (motherboard zones, RAM sticks, fans / strips) appear next
+  to the keyboard and mouse, only when OpenRGB reports them, with their current colours; they come
+  and go as devices are detected or disappear. Plugin API 1.2 `ctx.set_pc_rgb_live()` lets an add-on
+  that drives them make the drawings mirror it live.
+- Plugin API 1.2: add-on effects can have their own settings in the Effect tab
+  (`add_gallery_effect(settings=...)`), passed to the add-on through the engine status.
+- Live panel: the keyboard and mouse drawings show only when that device is connected (hotplug).
+- Settings ▸ Devices ▸ PC RGB no longer repeats the Razer devices OpenRGB also lists.
+- Help ▸ Get RGBMatrixFX Pro (store link, disabled until Pro is for sale).
+
 ### Changed
 - Effect display names are RGBMatrixFX's own: Deep Breath, Colour Sweep, Hue Loop, Solid Colour,
   Night Sparks, Ember Flicker, Press Fade, Ring Burst, Colour Spin and Sound Bars. Effect ids (`breathing`, `wave`,
@@ -228,7 +259,8 @@ First public release, licensed under GPL-3.0-or-later.
 - `install.sh` / `uninstall.sh` (per-user), an optional uaccess udev rule, diagnostics
   (`tools/diag_timing.py`), and unit, GUI, integration and install tests.
 
-[Unreleased]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.2.2...HEAD
+[1.2.2]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.1.0...v1.2.1
 [1.2.0]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.0.0...v1.1.0

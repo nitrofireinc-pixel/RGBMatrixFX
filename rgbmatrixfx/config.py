@@ -15,6 +15,7 @@ CONFIG_FILE = paths.config_file()
 DEFAULT_GLOBAL = {
     "master_brightness": 1.0,
     "fps": 30,
+    "adaptive_fps": True,          # lower the frame rate to what the keyboard can really write, evenly
     "paused": False,
     "exit_mode": "restore",        # restore | off | leave
     "mouse_method": "matrix",      # matrix | zones
@@ -134,6 +135,16 @@ def sanitize_effect_params(eid, params):
             v = str(v) if isinstance(v, str) and v.startswith("#") else s["default"]
         elif t == "text":
             v = str(v)[:64] if isinstance(v, (str, int, float)) else s["default"]
+        elif t == "dict":            # flat {name: number | bool | short text}, for add-on effects
+            src = v if isinstance(v, dict) else {}
+            v = {}
+            for dk, dv in list(src.items())[:24]:
+                if not isinstance(dk, str) or len(dk) > 32:
+                    continue
+                if isinstance(dv, bool) or (isinstance(dv, (int, float)) and abs(dv) < 1e9 and dv == dv):
+                    v[dk] = dv
+                elif isinstance(dv, str):
+                    v[dk] = dv[:64]
         elif t == "gradient":
             v = [str(c) for c in v if isinstance(c, str) and c.startswith("#")][:12] if isinstance(v, list) else s["default"]
             if len(v) < 2:
@@ -191,6 +202,7 @@ def sanitize_config(cfg):
     g.update({k: v for k, v in (cfg.get("global") or {}).items() if k in DEFAULT_GLOBAL})
     g["master_brightness"] = _num(g["master_brightness"], 0, 1, 1)
     g["fps"] = int(_num(g["fps"], 5, 60, 30))
+    g["adaptive_fps"] = bool(g.get("adaptive_fps", True))
     g["paused"] = bool(g["paused"])
     g["include_mouse"] = bool(g["include_mouse"])
     g["exit_mode"] = g["exit_mode"] if g["exit_mode"] in ("restore", "off", "leave") else "restore"
