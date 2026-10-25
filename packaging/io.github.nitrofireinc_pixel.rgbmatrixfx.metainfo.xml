@@ -65,6 +65,14 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="1.2.4" date="2026-10-25">
+      <description>
+        <p>
+          Sound Bars shows bars again at the default band count. Audio capture starts again
+          on its own if the audio service restarts.
+        </p>
+      </description>
+    </release>
     <release version="1.2.3" date="2026-10-22">
       <description>
         <p>

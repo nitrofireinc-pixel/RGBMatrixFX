@@ -6,6 +6,11 @@ All notable changes to RGBMatrixFX (called RazorFX in 1.1 and Razer FX up to 1.0
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-10-25
+
+### Fixed
+- Sound Bars showed no bars at the default band count. Audio capture now recovers automatically if the audio service restarts.
+
 ## [1.2.3] - 2026-10-22
 
 ### Added
@@ -278,7 +283,8 @@ First public release, licensed under GPL-3.0-or-later.
 - `install.sh` / `uninstall.sh` (per-user), an optional uaccess udev rule, diagnostics
   (`tools/diag_timing.py`), and unit, GUI, integration and install tests.
 
-[Unreleased]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.2.3...HEAD
+[Unreleased]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.2.4...HEAD
+[1.2.4]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.2.3...v1.2.4
 [1.2.3]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/nitrofireinc-pixel/RGBMatrixFX/compare/v1.1.0...v1.2.1

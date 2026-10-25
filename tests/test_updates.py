@@ -122,7 +122,8 @@ class TestCheck(unittest.TestCase):
 class TestWhatsNew(unittest.TestCase):
     def test_current_version_has_notes(self):
         md = whatsnew.markdown(__version__)
-        self.assertIn("### New", md)
+        self.assertIn("### Bug fixes", md)
+        self.assertIn("Sound Bars", md)
         self.assertIsNone(whatsnew.markdown("0.0.1"))
 
 
