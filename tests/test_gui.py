@@ -182,7 +182,7 @@ class TestGui(unittest.TestCase):
             self.assertFalse(w.orgb_rescan_btn.isHidden())
             srv.on_rescan = lambda: srv.ctrls.append((1, "ENE DRAM", [("DRAM", 5, None)]))
             w.rescan_openrgb()
-            self.assertEqual(srv.rescans, 1)
+            self.assertTrue(wait(lambda: getattr(srv, "rescans", 0) == 1))
             self.assertTrue(wait(lambda: len(panel.tiles[0][2]) == 2))                   # two sticks now
             self.assertTrue(wait(lambda: w.orgb_info.text().count("RAM: ENE DRAM") == 2))
             srv.protocol = 4                                                             # older server
