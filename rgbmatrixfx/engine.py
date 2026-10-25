@@ -158,6 +158,14 @@ class Engine:
             fxlib.AudioMeter.source = self.audio
             if self.audio.error:
                 log("audio meter: %s (showing demo animation)" % self.audio.error)
+        elif want and not self.audio.alive and not self.audio.error:
+            # capture process died (e.g. PipeWire restarted / sink changed): retry
+            now = self.clock()
+            if now >= getattr(self, "_audio_retry", 0.0):
+                self._audio_retry = now + 5.0
+                log("audio meter: capture stopped, restarting")
+                self.audio.stop()
+                self.audio = None
         elif not want and self.audio is not None:
             self.audio.stop()
             self.audio = None

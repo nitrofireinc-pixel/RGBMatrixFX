@@ -741,6 +741,22 @@ class AudioSource:
             return self.buf.copy()
 
 
+def band_levels(spec, nb):
+    """Average |FFT| into nb log-spaced bands. Edges are forced strictly
+    increasing so every band gets at least one bin (np.unique on rounded
+    geomspace used to drop duplicates and leave too few edges -> all zeros)."""
+    n = len(spec)
+    if n < nb:
+        return np.zeros(nb)
+    e = np.geomspace(1, n, nb + 1).astype(int) - 1
+    for i in range(1, nb + 1):
+        e[i] = max(e[i], e[i - 1] + 1)
+    e = np.minimum(e, n)
+    for i in range(nb - 1, -1, -1):          # pull back if clamped at the top
+        e[i] = min(e[i], e[i + 1] - 1)
+    return np.array([spec[e[i]:e[i + 1]].mean() for i in range(nb)])
+
+
 class AudioMeter(Effect):
     id = "audio"
     name = "Sound Bars"
@@ -783,9 +799,7 @@ class AudioMeter(Effect):
         if src is not None and src.alive:
             s = src.samples()
             spec = np.abs(np.fft.rfft(s * np.hanning(len(s))))[1:]
-            edges = np.unique(np.geomspace(1, len(spec), self.nb + 1).astype(int))
-            bands = np.array([spec[edges[i]:max(edges[i] + 1, edges[min(i + 1, len(edges) - 1)])].mean()
-                              for i in range(self.nb)]) if len(edges) > self.nb else np.zeros(self.nb)
+            bands = band_levels(spec, self.nb)
             lv = clamp01(np.log1p(bands * float(self.p["gain"]) * 0.5) / float(self.p["range"]))
         elif self.p["demo"]:
             lv = self.demo_levels()
