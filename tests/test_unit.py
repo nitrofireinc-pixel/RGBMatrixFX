@@ -129,6 +129,30 @@ class TestEffects(unittest.TestCase):
             fx = cls(sc, {"brightness": 0.0}, seed=1)
             self.assertAlmostEqual(float(np.clip(fx.step(1.0, 0.03), 0, 1).max()), 0.0, places=6, msg=cls.id)
 
+    def test_sound_bars_default_bands_are_not_silent(self):
+        """the default 16 bars each get at least one FFT bin (they used to stay at zero)"""
+        from rgbmatrixfx.effects import band_levels, AudioMeter
+        for n, nb in ((1024, 16), (1024, 4), (1024, 22), (32, 16), (16, 16), (8, 4)):
+            bands = band_levels(np.ones(n), nb)
+            self.assertEqual(bands.shape, (nb,), (n, nb))
+            self.assertTrue(np.allclose(bands, 1.0), (n, nb, bands))
+        self.assertTrue(np.all(band_levels(np.ones(3), 16) == 0))
+        sc = Scene(MAMBA)
+        fx = AudioMeter(sc, {"bands": 16, "demo": False}, seed=1)
+        t = np.linspace(0, 1, 2048, endpoint=False)
+        tone = np.sin(2 * np.pi * 80 * t) + 0.4 * np.sin(2 * np.pi * 800 * t)
+
+        class _Src:
+            alive = True
+            def samples(_s):
+                return tone
+
+        fx.source = _Src()
+        out = fx.step(0.05, 1 / 30)
+        self.assertGreater(float(out.max()), 0.05)
+        self.assertEqual(fx.levels.shape, (16,))
+        self.assertGreater(float(fx.levels.max()), 0.0)
+
     def test_wave_moves_onto_mouse(self):
         sc = Scene(MAMBA)
         fx = EFFECT_BY_ID["wave"](sc, {"direction": "Left → Right"})
@@ -494,6 +518,25 @@ class TestFullFrames(unittest.TestCase):
             out._write_matrix(f, 100.1)
             self.assertEqual(sent, [6 * 69, 6 * 69])
 
+    def test_every_effect_writes_all_keyboard_rows(self):
+        """every effect is sent as a full frame: all keyboard rows, every frame"""
+        from rgbmatrixfx import devices
+        sc = Scene(MAMBA)
+        for cls in EFFECTS:
+            comp = Compositor(sc, prof(cls.id), {"master_brightness": 1.0}, seed=1)
+            out = devices.Out.__new__(devices.Out)
+            out.rows, out.cols, out.sent, out._next_full = sc.kb_rows, sc.kb_cols, None, 0.0
+            out.opts = dict(devices.DEFAULT_IO); out._need_kick = False; out._next_kick = 1e9
+            out.rows_sent = 0; sent = []; out.full_ms = []; out._count = lambda *a: None
+            out._write_frame = lambda p: sent.append(len(p))
+            out.kind = "keyboard"
+            row_bytes = 3 + sc.kb_cols * 3
+            for i in range(4):
+                rgb = comp.render(i / 30.0)
+                self.assertEqual(rgb.shape, (sc.n, 3), cls.id)
+                out._write_matrix(comp.kb_frame(rgb, sc.kb_rows, sc.kb_cols), 100.0 + i * 0.03)
+            self.assertEqual(sent, [sc.kb_rows * row_bytes] * 4, cls.id)
+
 
 class TestDeviceIO(unittest.TestCase):
     def _sysfs(self, d, pid=0x022A, serial="XX123"):
@@ -637,6 +680,38 @@ class TestAdaptiveFps(unittest.TestCase):
 
 
 class TestEngine(unittest.TestCase):
+    def test_dead_audio_capture_restarts_after_backoff(self):
+        from rgbmatrixfx.engine import Engine
+
+        class Dead:
+            alive = False
+            error = None
+            def __init__(self):
+                self.stops = 0
+            def stop(self):
+                self.stops += 1
+
+        eng = Engine.__new__(Engine)
+        eng.comp = type("C", (), {"effect_id": "audio"})()
+        eng.cfg = {"global": {"paused": False}}
+        dead = Dead()
+        eng.audio = dead
+        eng.clock = lambda: 10.0
+        eng._audio_update()
+        self.assertIsNone(eng.audio)
+        self.assertEqual(dead.stops, 1)
+        self.assertEqual(eng._audio_retry, 15.0)
+        again = Dead()
+        eng.audio = again
+        eng.clock = lambda: 12.0          # inside the 5 s backoff
+        eng._audio_update()
+        self.assertIs(eng.audio, again)
+        self.assertEqual(again.stops, 0)
+        eng.clock = lambda: 15.0
+        eng._audio_update()
+        self.assertIsNone(eng.audio)
+        self.assertEqual(again.stops, 1)
+
     def test_engine_loop_fake_hub(self):
         from rgbmatrixfx.engine import Engine
         with tempfile.TemporaryDirectory() as d:

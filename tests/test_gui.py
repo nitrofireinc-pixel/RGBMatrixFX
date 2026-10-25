@@ -40,7 +40,7 @@ class TestGui(unittest.TestCase):
 
     def test_help_about(self):
         import rgbmatrixfx
-        self.assertEqual(rgbmatrixfx.__version__, "1.2.3")
+        self.assertEqual(rgbmatrixfx.__version__, "1.2.4")
         with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION")) as f:
             self.assertEqual(f.read().strip(), rgbmatrixfx.__version__)
         mb = self.w.menuBar()
@@ -55,7 +55,7 @@ class TestGui(unittest.TestCase):
         self.assertEqual(self.w.windowTitle(), "RGBMatrixFX")
         self.assertEqual(self.w.about_action.text().replace("&", ""), "About RGBMatrixFX")
         t = self.w.about_text()
-        for want in ("<h3>RGBMatrixFX 1.2.3</h3>", "GNU General Public License", "version 3",
+        for want in ("<h3>RGBMatrixFX 1.2.4</h3>", "GNU General Public License", "version 3",
                      "GPL-3.0-or-later WITH AdditionRef-RGBMatrixFX-plugin-exception", "plugin exception",
                      "LICENSE-EXCEPTION", "https://github.com/nitrofireinc-pixel/RGBMatrixFX", "\u00a9 2026 Nitrofire Computing",
                      "Trademark notice.",
@@ -88,7 +88,7 @@ class TestGui(unittest.TestCase):
             self.assertIn(want, lic)
         text = box.copy_system_info()
         self.assertEqual(app.clipboard().text(), text)
-        self.assertTrue(text.startswith("RGBMatrixFX 1.2.3 ("))
+        self.assertTrue(text.startswith("RGBMatrixFX 1.2.4 ("))
         self.assertIn("(Free edition)", text)
         self.assertIn("Engine: not running", text)
         box.close()

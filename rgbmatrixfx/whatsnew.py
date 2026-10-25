@@ -4,6 +4,14 @@
 Keep each entry short: what a user notices, not internal details."""
 
 NOTES = {
+    "1.2.4": {
+        "features": [],
+        "fixes": [
+            "Sound Bars shows bars again at the default band count. If the audio service "
+            "restarts, capture starts again on its own.",
+        ],
+        "security": [],
+    },
     "1.2.3": {
         "features": [
             "RGBMatrixFX now checks for new versions (at most once a day) and shows the exact "
